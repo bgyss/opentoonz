@@ -97,6 +97,10 @@ area:
   or packaging changes, also use `$opentoonz-gui-verification` and the
   `mise run gui-smoke-*` tasks as an additional smoke layer when a macOS app
   bundle is available.
+- For Codex-authored docs or skill text, run `mise run lint-codex-docs` before
+  handoff. Produced docs should use project-root-relative paths or neutral
+  placeholders instead of personal home directories, usernames, or machine-local
+  setup paths.
 - For packaging or dependency changes, compare with the matching GitHub Actions
   workflow and platform document.
 

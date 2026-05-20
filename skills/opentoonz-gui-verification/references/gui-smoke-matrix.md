@@ -5,7 +5,7 @@ Use this matrix after `mise run gui-smoke-launch`. Start each interaction sequen
 ## Startup
 
 - Pass if the main OpenToonz window appears and has no visible crash, fatal error, missing `TOONZROOT`, or Qt plugin error dialog.
-- Pass the isolated-profile check only if visible project paths, logs, or harness summary point at `OPENTOONZ_GUI_TOONZROOT`, not `~/Library/Application Support/OpenToonz` or `/Applications/OpenToonz`.
+- Pass the isolated-profile check only if visible project paths, logs, or harness summary point at `OPENTOONZ_GUI_TOONZROOT`, not a user profile OpenToonz data directory or system-wide installed application.
 - When `OPENTOONZ_GUI_STARTUP_POPUP=1`, pass if `OpenToonz Startup` appears with `Create Scene`, `Open Scene`, or equivalent startup controls, and can be dismissed without closing the main app.
 - When `OPENTOONZ_GUI_STARTUP_POPUP=0`, pass if the main workspace is immediately reachable.
 - Record startup time from launch to first stable main-window observation.

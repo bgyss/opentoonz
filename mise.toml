@@ -38,6 +38,10 @@ run = "bash skills/opentoonz-gui-verification/scripts/launch-run.sh"
 description = "Summarize the current OpenToonz GUI smoke run logs and process status."
 run = "bash skills/opentoonz-gui-verification/scripts/summarize-run.sh"
 
+[tasks.lint-codex-docs]
+description = "Scan Codex-produced docs and skills for personal machine paths."
+run = "bash scripts/lint-codex-docs.sh"
+
 [tasks.package-macos]
 description = "Bundle the Nix-built macOS app with stuff data and Qt dependencies."
 run = "nix develop path:. --command bash scripts/macos/package-nix-app.sh"
@@ -52,7 +56,7 @@ run = "nix develop path:. --command bash scripts/macos/create-dmg.sh"
 
 [tasks.check]
 description = "Run the flake configure check and whitespace validation."
-run = "nix flake check path:. && git diff --check"
+run = "nix flake check path:. && git diff --check && bash scripts/lint-codex-docs.sh"
 
 [tasks.format]
 description = "Run the repository clang-format helper for changed C/C++ files."

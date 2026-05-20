@@ -58,10 +58,11 @@ mise run gui-smoke-launch
 mise run gui-smoke-summarize
 ```
 
-After launch, Codex should use Computer Use against the exact app bundle path:
+After launch, Codex should use Computer Use against the built app bundle under
+the repository root:
 
 ```text
-/Users/briangyss/src/opentoonz/toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app
+toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app
 ```
 
 Codex should call `get_app_state` before interacting, prefer accessibility
@@ -115,12 +116,9 @@ OPENTOONZ_GUI_RUN_DIR=test-results/gui-smoke/startup-popup \
 
 The GUI smoke pass only counts if Codex observes the harness-launched app using
 the isolated runtime root. Do not count a GUI observation as an isolated smoke
-pass if visible project paths point at:
-
-```text
-~/Library/Application Support/OpenToonz
-/Applications/OpenToonz
-```
+pass if visible project paths point at a user profile OpenToonz data directory
+or a system-wide installed OpenToonz application instead of the harness run
+directory.
 
 The expected isolated root appears in `run.env` and the generated report as
 `OPENTOONZ_GUI_TOONZROOT`.
@@ -153,12 +151,17 @@ Run:
 bash -n skills/opentoonz-gui-verification/scripts/prepare-run.sh
 bash -n skills/opentoonz-gui-verification/scripts/launch-run.sh
 bash -n skills/opentoonz-gui-verification/scripts/summarize-run.sh
-UV_CACHE_DIR=/private/tmp/opentoonz-uv-cache \
-  uv run --with PyYAML \
-  python /Users/briangyss/.codex/skills/.system/skill-creator/scripts/quick_validate.py \
-  skills/opentoonz-gui-verification
+mise run lint-codex-docs
 git diff --check
 git check-ignore -v test-results/gui-smoke/latest/report.md
+```
+
+If the Codex skill validator is available, also run:
+
+```sh
+SKILL_VALIDATOR=/path/to/quick_validate.py
+uv run --with PyYAML python "$SKILL_VALIDATOR" \
+  skills/opentoonz-gui-verification
 ```
 
 When a full GUI launch is possible, also run the actual smoke path:

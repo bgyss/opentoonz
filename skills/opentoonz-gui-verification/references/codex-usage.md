@@ -30,7 +30,8 @@ Use $opentoonz-gui-verification with OPENTOONZ_GUI_STARTUP_POPUP=1 and verify th
 
 ## Expected Codex Flow
 
-1. Confirm the checkout is `/Users/briangyss/src/opentoonz` or another OpenToonz repo root.
+1. Confirm the current directory is an OpenToonz repo root by checking for
+   `AGENTS.md`, `toonz/sources`, and `stuff`.
 2. Run the normal build/package commands if the app bundle is missing:
 
    ```sh
@@ -54,10 +55,10 @@ Use $opentoonz-gui-verification with OPENTOONZ_GUI_STARTUP_POPUP=1 and verify th
 
    Continue to Computer Use only if the summary says the harness PID is `running`.
 
-5. Use Computer Use with the exact built app bundle when possible:
+5. Use Computer Use with the exact built app bundle under the repo root when possible:
 
    ```text
-   app=/Users/briangyss/src/opentoonz/toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app
+   app=toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app
    ```
 
    Start with `get_app_state`, then click by accessibility element index. Use coordinate clicks only when the tree does not expose a usable control.
@@ -89,7 +90,9 @@ The final Codex response should include:
 - relevant stdout/stderr tail from `test-results/gui-smoke/latest/summary.md`
 - any skipped step and the concrete blocker
 
-Do not count a GUI observation as an isolated smoke pass if visible project paths point at `~/Library/Application Support/OpenToonz`, `/Applications/OpenToonz`, or any path outside `OPENTOONZ_GUI_TOONZROOT`.
+Do not count a GUI observation as an isolated smoke pass if visible project paths
+point at a user profile OpenToonz data directory, a system-wide installed
+OpenToonz application, or any path outside `OPENTOONZ_GUI_TOONZROOT`.
 
 ## Common Failure Modes
 
