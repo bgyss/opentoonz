@@ -13,6 +13,10 @@ build*
 /.direnv/
 /result
 /result-*
+
+# local Codex GUI smoke reports and runtime data
+/test-results/gui-smoke/
+
 Thumbs.db
 
 # bundled thirdparty libraries

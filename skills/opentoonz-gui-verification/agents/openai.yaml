@@ -1,0 +1,11 @@
+interface:
+  display_name: "OpenToonz GUI Verification"
+  short_description: "Drive OpenToonz GUI smoke checks"
+  default_prompt: "Use $opentoonz-gui-verification to run a macOS OpenToonz GUI smoke test and report evidence."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "computer-use"
+      description: "Observe and drive the local macOS OpenToonz GUI through screenshots, accessibility trees, clicks, and text input."
+policy:
+  allow_implicit_invocation: true

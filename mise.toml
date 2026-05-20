@@ -26,6 +26,18 @@ run = "nix develop path:. --command bash -lc 'bash scripts/nix/prepare-tiff.sh &
 description = "Run the locally built OpenToonz binary or app bundle."
 run = "nix develop path:. --command bash -lc 'if [ -d toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app ]; then open toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app; elif [ -x toonz/build/nix-relwithdebinfo/bin/opentoonz ]; then toonz/build/nix-relwithdebinfo/bin/opentoonz; else toonz/build/nix-relwithdebinfo/bin/OpenToonz; fi'"
 
+[tasks.gui-smoke-prepare]
+description = "Prepare an isolated OpenToonz runtime root for GUI smoke verification."
+run = "bash skills/opentoonz-gui-verification/scripts/prepare-run.sh"
+
+[tasks.gui-smoke-launch]
+description = "Launch the packaged OpenToonz macOS app for GUI smoke verification."
+run = "bash skills/opentoonz-gui-verification/scripts/launch-run.sh"
+
+[tasks.gui-smoke-summarize]
+description = "Summarize the current OpenToonz GUI smoke run logs and process status."
+run = "bash skills/opentoonz-gui-verification/scripts/summarize-run.sh"
+
 [tasks.package-macos]
 description = "Bundle the Nix-built macOS app with stuff data and Qt dependencies."
 run = "nix develop path:. --command bash scripts/macos/package-nix-app.sh"

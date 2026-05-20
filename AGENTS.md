@@ -25,6 +25,8 @@ Windows, macOS, and Linux.
   shaders, brushes, and other application data copied into installs/packages.
 - `thirdparty/`: vendored libraries and prebuilt assets used by platform builds.
 - `doc/`: platform build instructions and contributor-facing documentation.
+- `skills/opentoonz-gui-verification/`: repo-local Codex skill and harness for
+  macOS GUI smoke verification with an isolated OpenToonz runtime root.
 - `.github/workflows/`: CI build recipes for Linux, macOS, and Windows.
 
 ## Build Commands
@@ -91,6 +93,10 @@ area:
 - Build the affected target, or run `ninja` / `cmake --build .` when feasible.
 - Launch OpenToonz and manually exercise UI, scene, file, FX, or tool behavior
   touched by the change.
+- For GUI-affecting Qt, room layout, startup, tool, xsheet, palette, browser,
+  or packaging changes, also use `$opentoonz-gui-verification` and the
+  `mise run gui-smoke-*` tasks as an additional smoke layer when a macOS app
+  bundle is available.
 - For packaging or dependency changes, compare with the matching GitHub Actions
   workflow and platform document.
 
