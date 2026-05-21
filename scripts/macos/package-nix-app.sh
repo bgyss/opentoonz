@@ -27,9 +27,14 @@ qt_conf="$app_path/Contents/Resources/qt.conf"
 portable_stuff="$app_path/Contents/Resources/portablestuff"
 legacy_portable_stuff="$app_path/portablestuff"
 
-rewrite_bundle_dylib_references() {
-  [[ -d "$frameworks_dir" ]] || return 0
+find_bundle_binary_candidates() {
+  local roots=("$macos_dir")
+  [[ -d "$frameworks_dir" ]] && roots+=("$frameworks_dir")
+  [[ -d "$plugins_dir" ]] && roots+=("$plugins_dir")
+  find "${roots[@]}" -type f -print0
+}
 
+rewrite_bundle_dylib_references() {
   while IFS= read -r -d '' target_file; do
     if ! file "$target_file" | grep -q 'Mach-O'; then
       continue
@@ -47,7 +52,7 @@ rewrite_bundle_dylib_references() {
         awk '/\.dylib/ { print $1 }' |
         grep -v '^@executable_path/../Frameworks/' || true
     )
-  done < <(find "$app_path/Contents" -type f -print0)
+  done < <(find_bundle_binary_candidates)
 }
 
 copy_missing_store_dylibs() {
@@ -72,7 +77,7 @@ copy_missing_store_dylibs() {
           copied=1
         fi
       done < <(otool -L "$target_file" | awk '/\.dylib/ { print $1 }')
-    done < <(find "$app_path/Contents" -type f -print0)
+    done < <(find_bundle_binary_candidates)
 
     rewrite_bundle_dylib_references
   done
@@ -102,6 +107,7 @@ copy_qt_plugins() {
       rm -rf "$plugins_dir/$group_name"
       mkdir -p "$plugins_dir/$group_name"
 
+      plugin_patterns=()
       case "$group_name" in
         audio)
           plugin_patterns=(libqtaudio_coreaudio.dylib)
@@ -113,7 +119,7 @@ copy_qt_plugins() {
           plugin_patterns=(libqcocoa.dylib libqminimal.dylib libqoffscreen.dylib)
           ;;
         *)
-          plugin_patterns=(*.dylib)
+          plugin_patterns=("*.dylib")
           ;;
       esac
 
@@ -127,10 +133,6 @@ copy_qt_plugins() {
   done
   shopt -u nullglob
 }
-
-rm -rf "$portable_stuff" "$legacy_portable_stuff"
-mkdir -p "$(dirname "$portable_stuff")"
-cp -pR "$repo_root/stuff" "$portable_stuff"
 
 if otool -L "$macos_dir/OpenToonz" | grep -Eq '@(loader|executable)_path/\.\./Frameworks'; then
   if [[ ! -d "$frameworks_dir" ]]; then
@@ -221,12 +223,16 @@ if [[ -n "${OPENTOONZ_GNU_LIBICONV_LIBRARY:-}" ]]; then
           awk '/libiconv\.2\.dylib/ { print $1 }' |
           grep -v '^@executable_path/../Frameworks/libgnuiconv\.2\.dylib$' || true
       )
-    done < <(find "$app_path/Contents" -type f -print0)
+    done < <(find_bundle_binary_candidates)
 
     copy_missing_store_dylibs
     rewrite_bundle_dylib_references
   fi
 fi
+
+rm -rf "$portable_stuff" "$legacy_portable_stuff"
+mkdir -p "$(dirname "$portable_stuff")"
+cp -pR "$repo_root/stuff" "$portable_stuff"
 
 if [[ "${OPENTOONZ_ADHOC_SIGN:-1}" == "1" ]]; then
   codesign --force --deep --sign - "$app_path"

@@ -288,6 +288,7 @@ elseif(BUILD_ENV_APPLE)
     add_definitions(
         -DMACOSX
         -D__MACOS__
+        -DGL_SILENCE_DEPRECATION
       )
     if(PLATFORM EQUAL 64)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m64 -stdlib=libc++ -fno-implicit-templates")

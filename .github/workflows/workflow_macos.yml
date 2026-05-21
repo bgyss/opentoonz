@@ -31,6 +31,8 @@ jobs:
       OPENTOONZ_DMG: toonz/build/nix-relwithdebinfo/toonz/OpenToonz.dmg
       OPENTOONZ_REQUIRED_ARCH: arm64
       OPENTOONZ_ALLOW_UNIVERSAL: '0'
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_MAXSIZE: 1G
       MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
       MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
       MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
@@ -65,8 +67,20 @@ jobs:
       - name: Check pinned toolchain
         run: mise run doctor
 
+      - name: Restore ccache
+        uses: actions/cache@v5
+        with:
+          path: .ccache
+          key: macos-arm64-ccache-${{ github.sha }}
+          restore-keys: |
+            macos-arm64-ccache-
+
       - name: Build OpenToonz
         run: mise run build
+
+      - name: Show ccache stats
+        if: always()
+        run: nix develop path:. --command ccache --show-stats
 
       - name: Bundle app
         run: mise run package-macos
