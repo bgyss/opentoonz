@@ -141,6 +141,11 @@ The scan-crop checkpoint moves the scanner crop rectangle overlay from
 on the existing `ToolUtils::drawSquare(...)` path, but the editable crop border
 now has a backend-neutral draw-list representation.
 
+The save-box tool checkpoint moves the eight grey save-box resize handles from
+direct `tglDrawRect(...)` calls to `DrawList2D` color-line rectangles. The main
+dashed save-box outline remains on `ToolUtils::drawRect(...)`, but the repeated
+handle geometry now has a backend-neutral draw-list representation.
+
 ## Files Changed
 
 - `scripts/graphics_shader_inventory.sh`
@@ -153,6 +158,7 @@ now has a backend-neutral draw-list representation.
 - `toonz/sources/common/tgraphics/tgraphics_metal_probe.cpp`
 - `toonz/sources/common/tvrender/tofflinegl_probe.cpp`
 - `toonz/sources/tnzcore/CMakeLists.txt`
+- `toonz/sources/tnztools/setsaveboxtool.cpp`
 - `toonz/sources/toonz/CMakeLists.txt`
 - `toonz/sources/toonz/cleanuppreview.cpp`
 - `toonz/sources/toonz/imageviewer.cpp`
@@ -574,7 +580,8 @@ strips. Scanner crop-box borders now emit one-pixel `tgraphics` color-rect
 commands instead of direct `tglDrawRect(...)` calls and OpenGL line stipple
 state. Flipbook safe-area rectangles now use explicit dashed `tgraphics`
 color-line segments instead of OpenGL line stipple state and direct
-`tglDrawRect(...)` calls.
+`tglDrawRect(...)` calls. Save-box resize handles now emit `tgraphics`
+color-line rectangles instead of repeated direct `tglDrawRect(...)` calls.
 Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
 effects and by moving the remaining preview/export and style-editor surfaces
 through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene

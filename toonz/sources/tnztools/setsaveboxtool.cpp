@@ -2,6 +2,7 @@
 
 #include "setsaveboxtool.h"
 #include "tgl.h"
+#include "tgraphics.h"
 #include "tundo.h"
 #include "trop.h"
 #include "toonz/toonzimageutils.h"
@@ -17,6 +18,16 @@ using namespace ToolUtils;
 
 //-----------------------------------------------------------------------------
 namespace {
+//-----------------------------------------------------------------------------
+
+void appendRectOutline(TGraphics::DrawList2D &drawList, const TRectD &rect,
+                       const TPixel32 &color) {
+  drawList.addColorLine(rect.getP00(), rect.getP10(), color, false);
+  drawList.addColorLine(rect.getP10(), rect.getP11(), color, false);
+  drawList.addColorLine(rect.getP11(), rect.getP01(), color, false);
+  drawList.addColorLine(rect.getP01(), rect.getP00(), color, false);
+}
+
 //-----------------------------------------------------------------------------
 
 class SetSaveboxUndo final : public TRasterUndo {
@@ -222,7 +233,6 @@ void SetSaveboxTool::draw() {
     bbox = m_modifiedRect;
 
   drawRect(bbox * image->getSubsampling(), TPixel32::Black, 0x5555, true);
-  tglColor(TPixel32(90, 90, 90));
 
   double pixelSize = m_tool->getPixelSize();
   TPointD p00      = bbox.getP00();
@@ -234,12 +244,19 @@ void SetSaveboxTool::draw() {
   TPointD p00_01   = (bbox.getP00() + bbox.getP01()) * 0.5;
   TPointD p00_10   = (bbox.getP00() + bbox.getP10()) * 0.5;
   TPointD size(pixelSize * 4, pixelSize * 4);
-  tglDrawRect(TRectD(p00 - size, p00 + size));
-  tglDrawRect(TRectD(p11 - size, p11 + size));
-  tglDrawRect(TRectD(p01 - size, p01 + size));
-  tglDrawRect(TRectD(p10 - size, p10 + size));
-  tglDrawRect(TRectD(p11_01 - size, p11_01 + size));
-  tglDrawRect(TRectD(p11_10 - size, p11_10 + size));
-  tglDrawRect(TRectD(p00_01 - size, p00_01 + size));
-  tglDrawRect(TRectD(p00_10 - size, p00_10 + size));
+  const TPixel32 handleColor(90, 90, 90, 255);
+  TGraphics::DrawList2D drawList;
+  appendRectOutline(drawList, TRectD(p00 - size, p00 + size), handleColor);
+  appendRectOutline(drawList, TRectD(p11 - size, p11 + size), handleColor);
+  appendRectOutline(drawList, TRectD(p01 - size, p01 + size), handleColor);
+  appendRectOutline(drawList, TRectD(p10 - size, p10 + size), handleColor);
+  appendRectOutline(drawList, TRectD(p11_01 - size, p11_01 + size),
+                    handleColor);
+  appendRectOutline(drawList, TRectD(p11_10 - size, p11_10 + size),
+                    handleColor);
+  appendRectOutline(drawList, TRectD(p00_01 - size, p00_01 + size),
+                    handleColor);
+  appendRectOutline(drawList, TRectD(p00_10 - size, p00_10 + size),
+                    handleColor);
+  TGraphics::drawWithOpenGLBackend(drawList);
 }
