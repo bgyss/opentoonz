@@ -110,6 +110,7 @@ DVAPI TRaster32P readOpenGLRenderTarget(RenderTarget* target);
 DVAPI bool isMetalBuildEnabled();
 DVAPI bool isMetalDeviceAvailable();
 DVAPI const char* metalDeviceName();
+DVAPI void* createMetalLayerForNativeView(void* nativeView);
 DVAPI std::unique_ptr<RenderTarget> createMetalLayerRenderTarget(
     void* metalLayer, int width, int height, double devicePixelRatio);
 DVAPI std::unique_ptr<RenderTarget> createMetalImageRenderTarget(int width,

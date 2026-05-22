@@ -2,7 +2,7 @@
 
 Status: initial Milestone 3 build/probe, render-target, textured-draw,
 offscreen-readback, replace/blend pipeline, OpenGL baseline comparison, and
-automated probe slices completed locally on 2026-05-22.
+first native-view Metal presentation slice completed locally on 2026-05-22.
 
 ## Objective
 
@@ -14,11 +14,16 @@ target, compile a minimal Metal shader pipeline, upload raster textures, encode
 textured quad draws with replace and OpenGL-compatible alpha blending modes,
 read back offscreen Metal targets, run the same draw lists through an offscreen
 OpenGL baseline, and run an automated Metal/OpenGL validation probe while
-preserving OpenGL as the active renderer.
+preserving OpenGL as the default renderer. It also adds the first opt-in
+`SceneViewer` path that can present a captured viewer framebuffer through a
+native `CAMetalLayer` child widget when `OPENTOONZ_GRAPHICS_BACKEND=metal` is
+requested.
 
-This is not yet a visible Metal scene viewer. The active backend intentionally
-continues to fall back to OpenGL until a Metal render target is wired into the
-Qt viewer hierarchy.
+This is not yet a full native Metal scene renderer. Scene composition still
+comes from the existing OpenGL viewer path, then the captured viewer framebuffer
+is uploaded to Metal and presented through `DrawList2D`. This is a deliberate
+transitional slice to validate Qt/native-view ownership, drawable lifecycle, and
+Metal presentation before porting scene internals.
 
 ## Files Changed
 
@@ -29,6 +34,8 @@ Qt viewer hierarchy.
 - `toonz/sources/common/tgraphics/tgraphics_metal_shaders.metal`
 - `toonz/sources/tnzcore/CMakeLists.txt`
 - `nix/opentoonz-env.nix`
+- `toonz/sources/toonz/sceneviewer.cpp`
+- `toonz/sources/toonz/sceneviewer.h`
 
 ## Changes
 
@@ -39,6 +46,8 @@ Qt viewer hierarchy.
 - Added `TGraphics::createMetalLayerRenderTarget(...)` and
   `TGraphics::isMetalLayerRenderTarget(...)` so future viewer integration can
   wrap a CAMetalLayer without exposing Objective-C types in the C++ header.
+- Added `TGraphics::createMetalLayerForNativeView(...)` to attach a
+  `CAMetalLayer` to the native macOS view backing a Qt widget.
 - Added `TGraphics::createMetalImageRenderTarget(...)` and
   `TGraphics::readMetalRenderTarget(...)` so future validation can render a
   `DrawList2D` into an offscreen Metal texture and compare it with OpenGL output.
@@ -56,6 +65,8 @@ Qt viewer hierarchy.
   - `MTLPixelFormatBGRA8Unorm`
   - `framebufferOnly`
   - high-DPI aware `drawableSize`
+- Linked `AppKit.framework` only when `WITH_GRAPHICS_METAL=ON`, because the
+  native-view helper uses `NSView`/`NSScreen`.
 - Added `MetalCommandEncoder` support for:
   - acquiring a CAMetalLayer drawable
   - clear/store render pass setup
@@ -82,14 +93,23 @@ Qt viewer hierarchy.
 - Exported `QT_PLUGIN_PATH` from the Nix dev shell using the existing
   `OPENTOONZ_QT_PLUGIN_DIRS` value so Qt-based command-line probes can find the
   Cocoa platform plugin.
+- Added a `SceneViewer` native child widget for the opt-in Metal path. It is
+  transparent to mouse events, owns the native view used for the `CAMetalLayer`,
+  tracks viewer geometry, and recreates the Metal layer target when the captured
+  viewer framebuffer size changes.
+- When `OPENTOONZ_GRAPHICS_BACKEND=metal` is requested and Metal is available,
+  `SceneViewer::paintGL()` captures the current OpenGL viewer framebuffer and
+  presents it through the Metal command encoder. The existing frozen-frame path
+  can also present `m_viewGrabImage` through Metal.
 - Linked `tnzcore` against `Metal.framework` only when
   `WITH_GRAPHICS_METAL=ON`.
 - Linked `tnzcore` against `QuartzCore.framework` only when
   `WITH_GRAPHICS_METAL=ON`.
-- Kept `TGraphics::isMetalBackendAvailable()` false because the Metal drawable
-  path is not integrated with a Qt viewer/native view yet.
-- Kept `TGraphics::activeDevice()` returning the OpenGL device so the converted
-  scene-viewer path remains functional.
+- `TGraphics::isMetalBackendAvailable()` now reports true when the build has
+  Metal support and a Metal device/command queue is available.
+- `TGraphics::activeDevice()` can return the Metal device when explicitly
+  requested and available; call sites that need Metal presentation must still
+  provide a Metal render target.
 
 ## Inventory After
 
@@ -122,17 +142,19 @@ git diff --check
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=ON'
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tgraphics_metal_probe --parallel 3
 nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target OpenToonz tgraphics_metal_probe --parallel 3
+nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app/Contents/MacOS/OpenToonz >/tmp/opentoonz-metal-smoke.log 2>&1 & pid=$!; sleep 8; ...'
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --parallel 3
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=OFF'
-nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --parallel 3
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target OpenToonz --parallel 3
 ```
 
 Result: passed.
 
 The default OpenGL build does not compile `tgraphics_metal.mm`. The
 Metal-enabled build compiles `tgraphics_metal.mm`, includes the shader source in
-the CMake target metadata, links `tnzcore` against Metal and QuartzCore, builds
-`tgraphics_metal_probe`, and links `OpenToonz.app`.
+the CMake target metadata, links `tnzcore` against AppKit, Metal, and
+QuartzCore, builds `tgraphics_metal_probe`, and links `OpenToonz.app`.
 
 Probe output after validating transparent clear pixels, opaque replace drawing,
 OpenGL-compatible alpha blending over both solid and gradient destinations, and
@@ -144,12 +166,19 @@ tgraphics_metal_probe: ok on Apple M1 Max
 
 ## Manual Smoke
 
-Manual GUI smoke was not run in this checkpoint. User-visible rendering is still
-OpenGL even if `OPENTOONZ_GRAPHICS_BACKEND=metal` is requested.
+A bounded GUI launch smoke with `OPENTOONZ_GRAPHICS_BACKEND=metal` reached
+normal application startup and was then externally terminated. The resulting
+crash reporter log shows SIGTERM while startup was in image I/O / ffmpeg
+initialization, not a Metal-layer backtrace. A manual visual smoke is still
+needed to confirm the CAMetalLayer child presents the viewer snapshot correctly
+inside the full UI.
 
 ## Known Limitations
 
-- No Qt native-view integration yet.
+- Qt native-view integration exists only for presenting a captured viewer
+  framebuffer through Metal.
+- Scene drawing, picking, overlays, and interaction still originate from the
+  existing OpenGL viewer path.
 - Metal shader source is present in the build tree, but the experimental
   backend still compiles the same small shader source at runtime; app-bundle
   shader packaging is a later Milestone 5/6 concern.
@@ -160,7 +189,8 @@ OpenGL even if `OPENTOONZ_GRAPHICS_BACKEND=metal` is requested.
 ## Next Milestone 3 Work
 
 - Integrate the CAMetalLayer render target with a narrow Qt viewer/native-view
-  path.
+  path that draws scene components directly instead of presenting an OpenGL
+  framebuffer snapshot.
 - Expand the offscreen probe from synthetic quads into baseline scene fixtures.
 - Route only a narrow scene-viewer path to the Metal command encoder once
   drawable lifecycle and fallback behavior are stable.

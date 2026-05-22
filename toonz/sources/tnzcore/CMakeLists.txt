@@ -361,10 +361,12 @@ elseif(BUILD_ENV_APPLE)
         ${CARBON_LIB}
     )
     if(WITH_GRAPHICS_METAL)
+        find_library(APPKIT_LIB AppKit REQUIRED)
         find_library(METAL_LIB Metal REQUIRED)
         find_library(QUARTZCORE_LIB QuartzCore REQUIRED)
         set(EXTRA_LIBS
             ${EXTRA_LIBS}
+            ${APPKIT_LIB}
             ${METAL_LIB}
             ${QUARTZCORE_LIB}
         )

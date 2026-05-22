@@ -23,6 +23,7 @@ namespace TGraphics {
 Device& nativeMetalDevice();
 bool probeMetalDevice();
 const char* probeMetalDeviceName();
+void* createNativeMetalLayerForView(void* nativeView);
 std::unique_ptr<RenderTarget> createNativeMetalLayerRenderTarget(
     void* metalLayer, int width, int height, double devicePixelRatio);
 std::unique_ptr<RenderTarget> createNativeMetalImageRenderTarget(int width,
@@ -296,6 +297,15 @@ std::unique_ptr<RenderTarget> createMetalLayerRenderTarget(
 #endif
 }
 
+void* createMetalLayerForNativeView(void* nativeView) {
+#ifdef OPENTOONZ_WITH_GRAPHICS_METAL
+  return createNativeMetalLayerForView(nativeView);
+#else
+  (void)nativeView;
+  return nullptr;
+#endif
+}
+
 std::unique_ptr<RenderTarget> createMetalImageRenderTarget(int width,
                                                            int height) {
 #ifdef OPENTOONZ_WITH_GRAPHICS_METAL
@@ -326,10 +336,7 @@ TRaster32P readMetalRenderTarget(RenderTarget* target) {
 }
 
 bool isMetalBackendAvailable() {
-  // A native Metal device and command queue can exist before the renderer can
-  // present into Qt widgets. Keep OpenGL active until a Metal render target is
-  // wired into the viewer.
-  return false;
+  return isMetalBuildEnabled() && isMetalDeviceAvailable();
 }
 
 BackendType requestedBackendType() {
@@ -352,6 +359,7 @@ Device& activeDevice() {
     warnMetalUnavailableOnce();
   }
 
+  if (activeBackendType() == BackendType::Metal) return metalDevice();
   return openGLDevice();
 }
 

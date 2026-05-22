@@ -1,5 +1,6 @@
 #include "tgraphics.h"
 
+#import <AppKit/AppKit.h>
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 #import <QuartzCore/CAMetalLayer.h>
@@ -369,6 +370,25 @@ bool probeMetalDevice() {
 const char *probeMetalDeviceName() {
   MetalState &state = metalState();
   return probeMetalDevice() ? state.m_deviceName.c_str() : "";
+}
+
+void *createNativeMetalLayerForView(void *nativeView) {
+  if (!probeMetalDevice() || !nativeView) return nullptr;
+
+  NSView *view = static_cast<NSView *>(nativeView);
+  if (![view isKindOfClass:[NSView class]]) return nullptr;
+
+  CAMetalLayer *layer   = [CAMetalLayer layer];
+  layer.device          = metalState().m_device;
+  layer.pixelFormat     = MTLPixelFormatBGRA8Unorm;
+  layer.framebufferOnly = YES;
+  layer.contentsScale =
+      view.window ? view.window.backingScaleFactor : NSScreen.mainScreen.backingScaleFactor;
+  layer.autoresizingMask = kCALayerWidthSizable | kCALayerHeightSizable;
+
+  view.wantsLayer = YES;
+  view.layer      = layer;
+  return layer;
 }
 
 std::unique_ptr<RenderTarget> createNativeMetalLayerRenderTarget(void *metalLayer, int width,
