@@ -293,6 +293,10 @@ connector lines in the main transform handle from direct `tglDrawSegment(...)`
 drawing to `DrawList2D` color-line commands. Handle circles, filled pick
 regions, text, and arrow glyphs remain on their existing paths until
 `tgraphics` has matching circle, fill, text, and 3D arrow primitives.
+The geometric multiline speed-handle checkpoint moves Bezier speed-handle
+connector segments from direct `tglDrawSegment(...)` drawing to `DrawList2D`
+color-line commands. The speed-handle disks and join marker circle remain on
+legacy OpenGL until disk/circle primitives are represented in `tgraphics`.
 
 ## Files Changed
 
@@ -770,6 +774,8 @@ Shared plain tool rectangles, filled rectangles, and square outlines now also
 emit `tgraphics` color commands, and shared current-color tool point, cross,
 and line primitives now also emit `tgraphics` color commands. Geometric
 rectangle, line, arc construction, and polygon outline previews now also emit
+`tgraphics` color-line commands.
+Geometric multiline Bezier speed-handle connector segments now also emit
 `tgraphics` color-line commands.
 Edit-tool shear-handle visible outlines now also emit `tgraphics` color-line commands.
 Edit-tool rotation, scale, and shear connector lines now also emit `tgraphics`

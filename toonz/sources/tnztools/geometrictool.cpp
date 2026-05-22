@@ -2412,7 +2412,7 @@ void MultiLinePrimitive::draw() {
       TPointD p0 = m_vertex[index];
       TPointD p1 = m_vertex[index - 1];
       if (tdistance(p0, p1) > 0.1) {
-        tglDrawSegment(p0, p1);
+        drawLineWithTGraphics(p0, p1, TPixel(79, 128, 255));
         tglDrawDisk(p0, 2 * pixelSize);
         tglDrawDisk(p1, 4 * pixelSize);
       }
@@ -2421,7 +2421,7 @@ void MultiLinePrimitive::draw() {
         TPointD p0 = m_vertex[count - 1];
         TPointD p1 = m_vertex[count - 2];
         TPointD p2 = m_vertex[count - 3];
-        tglDrawSegment(p0, p2);
+        drawLineWithTGraphics(p0, p2, TPixel(79, 128, 255));
         tglDrawDisk(p0, 2 * pixelSize);
         tglDrawDisk(p1, 4 * pixelSize);
         tglDrawDisk(p2, 2 * pixelSize);
