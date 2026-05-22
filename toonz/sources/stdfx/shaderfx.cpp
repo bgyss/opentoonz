@@ -607,6 +607,15 @@ bool ShaderFx::doGetBBox(double frame, TRectD &bbox,
 
   bbox = TConsts::infiniteRectD;
 
+  if (TGraphics::activeBackendType() == TGraphics::BackendType::Metal &&
+      m_shaderInterface->mainShader().m_name ==
+          QStringLiteral("SHADER_radialblurGPU") &&
+      m_inputPorts.size() == 1) {
+    TRasterFxPort &port = m_inputPorts[0];
+    if (!port.isConnected()) return true;
+    return port->doGetBBox(frame, bbox, info);
+  }
+
   const ShaderInterface::ShaderData &sd = m_shaderInterface->bboxShader();
   if (!sd.isValid()) return true;
 

@@ -89,6 +89,10 @@ fi
   OPENTOONZ_GRAPHICS_BACKEND=metal "$probe" \
     --shader SHADER_radialblurGPU \
     --write-pam "$artifact_dir/radialblurGPU-metal.pam"
+  OPENTOONZ_GRAPHICS_BACKEND=metal "$probe" \
+    --shader SHADER_radialblurGPU \
+    --renderer \
+    --write-pam "$artifact_dir/radialblurGPU-metal-renderer.pam"
 )
 
 echo "graphics_shaderfx_compare: ok"
