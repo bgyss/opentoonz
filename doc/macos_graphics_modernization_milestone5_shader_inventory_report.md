@@ -244,6 +244,12 @@ border in `SceneViewer::draw()` from direct immediate-mode `GL_LINE_STRIP`
 drawing to a `DrawList2D` color-line rectangle under the existing camera
 transform.
 
+The plastic angle-limit checkpoint moves the translucent blue angle-limit guide
+line in `PlasticTool::drawAngleLimits(...)` from immediate-mode `GL_LINES` to a
+`DrawList2D` color-line command. Thicker plastic skeleton and mesh edit edge
+overlays remain on legacy OpenGL until `tgraphics` has matching line-width and
+stipple semantics.
+
 ## Files Changed
 
 - `scripts/graphics_shader_inventory.sh`
@@ -259,6 +265,7 @@ transform.
 - `toonz/sources/tnztools/controlpointeditortool.cpp`
 - `toonz/sources/tnztools/edittool.cpp`
 - `toonz/sources/tnztools/hooktool.cpp`
+- `toonz/sources/tnztools/plastictool.cpp`
 - `toonz/sources/tnztools/selectiontool.cpp`
 - `toonz/sources/tnztools/setsaveboxtool.cpp`
 - `toonz/sources/tnztools/skeletontool.cpp`
@@ -720,7 +727,10 @@ icons now also emit `tgraphics` color-line commands. Scene-viewer FPS graph
 panels now emit `tgraphics` color commands instead of direct immediate-mode
 drawing. Scene-viewer spline/motion-path overlay lines now emit explicit dashed
 `tgraphics` color-line commands. Canon live-view zoom-box borders now also emit
-`tgraphics` color-line commands.
+`tgraphics` color-line commands. Plastic angle-limit guide lines now emit
+`tgraphics` color-line commands, while thicker plastic skeleton and mesh edit
+edge overlays remain on legacy OpenGL until width/stipple semantics are
+represented in `tgraphics`.
 Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
 effects and by moving the remaining preview/export and style-editor surfaces
 through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene

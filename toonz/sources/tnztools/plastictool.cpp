@@ -30,6 +30,7 @@
 
 // TnzCore includes
 #include "tgl.h"
+#include "tgraphics.h"
 #include "tundo.h"
 #include "tfunctorinvoker.h"
 
@@ -54,6 +55,13 @@
 namespace {
 
 static const double l_dmax = (std::numeric_limits<double>::max)();
+
+void drawColorLineWithTGraphics(const TPointD &p0, const TPointD &p1,
+                                const TPixel32 &color) {
+  TGraphics::DrawList2D drawList;
+  drawList.addColorLine(p0, p1, color, true);
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
 
 }  // namespace
 
@@ -2057,20 +2065,15 @@ void PlasticTool::drawAngleLimits(const SkDP &sd, int skelId, int v,
       double limitDirection_rad =
           currentBranchAngle_rad + (angleLimit + defaultAngleValue) * M_PI_180;
 
-      glColor4ub(0, 0, 255, 128);
-
       // Draw limit lines
       if (angleShift - 180.0 <= angleLimit &&
           angleLimit <= angleShift + 180.0) {
         TPointD limitDirection(cos(limitDirection_rad),
                                sin(limitDirection_rad));
 
-        glBegin(GL_LINES);
-        {
-          tglVertex(defVxParent.P());
-          tglVertex(defVxParent.P() + 1e4 * limitDirection);
-        }
-        glEnd();
+        drawColorLineWithTGraphics(defVxParent.P(),
+                                   defVxParent.P() + 1e4 * limitDirection,
+                                   TPixel32(0, 0, 255, 128));
       }
 
       // Draw limit annulus arc
