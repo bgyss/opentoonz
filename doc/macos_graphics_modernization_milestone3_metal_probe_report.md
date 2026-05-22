@@ -1,7 +1,7 @@
 # macOS Graphics Modernization Milestone 3 Metal Probe Report
 
-Status: initial Milestone 3 build/probe, render-target, and textured-draw
-slices completed locally on 2026-05-22.
+Status: initial Milestone 3 build/probe, render-target, textured-draw, and
+offscreen-readback slices completed locally on 2026-05-22.
 
 ## Objective
 
@@ -9,8 +9,9 @@ This checkpoint adds the first native macOS Metal implementation behind
 `WITH_GRAPHICS_METAL`. It proves that `tnzcore` can compile Objective-C++ Metal
 code, link against `Metal.framework` and `QuartzCore.framework`, create a
 default `MTLDevice`, create a command queue, configure a CAMetalLayer render
-target, compile a minimal Metal shader pipeline, upload raster textures, and
-encode textured quad draws while preserving OpenGL as the active renderer.
+target, compile a minimal Metal shader pipeline, upload raster textures, encode
+textured quad draws, and read back offscreen Metal targets while preserving
+OpenGL as the active renderer.
 
 This is not yet a visible Metal scene viewer. The active backend intentionally
 continues to fall back to OpenGL until a Metal render target is wired into the
@@ -33,6 +34,9 @@ Qt viewer hierarchy.
 - Added `TGraphics::createMetalLayerRenderTarget(...)` and
   `TGraphics::isMetalLayerRenderTarget(...)` so future viewer integration can
   wrap a CAMetalLayer without exposing Objective-C types in the C++ header.
+- Added `TGraphics::createMetalImageRenderTarget(...)` and
+  `TGraphics::readMetalRenderTarget(...)` so future validation can render a
+  `DrawList2D` into an offscreen Metal texture and compare it with OpenGL output.
 - Added `tgraphics_metal.mm`, compiled only on macOS when
   `WITH_GRAPHICS_METAL=ON`.
 - Created a native Metal state object with:
@@ -52,6 +56,7 @@ Qt viewer hierarchy.
   - TRaster32P texture upload to `MTLPixelFormatBGRA8Unorm`
   - alpha-blended triangle draws for `DrawList2D` texture quads
   - drawable presentation
+- Added `MetalTextureRenderTarget` for offscreen render/readback validation.
 - Added `tgraphics_metal_shaders.metal` to keep the minimal vertex/fragment
   shader source visible in the build tree.
 - Linked `tnzcore` against `Metal.framework` only when
@@ -110,7 +115,6 @@ OpenGL even if `OPENTOONZ_GRAPHICS_BACKEND=metal` is requested.
 ## Known Limitations
 
 - No Qt native-view integration yet.
-- No Metal readback path yet.
 - Metal shader source is present in the build tree, but the experimental
   backend still compiles the same small shader source at runtime; app-bundle
   shader packaging is a later Milestone 5/6 concern.
@@ -120,6 +124,7 @@ OpenGL even if `OPENTOONZ_GRAPHICS_BACKEND=metal` is requested.
 
 - Integrate the CAMetalLayer render target with a narrow Qt viewer/native-view
   path.
-- Add readback support for `DrawList2D` validation.
+- Add a focused image-diff harness that renders a deterministic `DrawList2D`
+  through the offscreen Metal target and compares it with the OpenGL baseline.
 - Route only a narrow scene-viewer path to the Metal command encoder once
   drawable lifecycle and fallback behavior are stable.

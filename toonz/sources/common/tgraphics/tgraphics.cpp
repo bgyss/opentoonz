@@ -17,7 +17,10 @@ bool probeMetalDevice();
 const char *probeMetalDeviceName();
 std::unique_ptr<RenderTarget> createNativeMetalLayerRenderTarget(
     void *metalLayer, int width, int height, double devicePixelRatio);
+std::unique_ptr<RenderTarget> createNativeMetalImageRenderTarget(int width,
+                                                                 int height);
 bool isNativeMetalLayerRenderTarget(const RenderTarget *target);
+TRaster32P readNativeMetalRenderTarget(RenderTarget *target);
 #endif
 
 namespace {
@@ -161,12 +164,32 @@ std::unique_ptr<RenderTarget> createMetalLayerRenderTarget(
 #endif
 }
 
+std::unique_ptr<RenderTarget> createMetalImageRenderTarget(int width,
+                                                           int height) {
+#ifdef OPENTOONZ_WITH_GRAPHICS_METAL
+  return createNativeMetalImageRenderTarget(width, height);
+#else
+  (void)width;
+  (void)height;
+  return std::unique_ptr<RenderTarget>();
+#endif
+}
+
 bool isMetalLayerRenderTarget(const RenderTarget *target) {
 #ifdef OPENTOONZ_WITH_GRAPHICS_METAL
   return isNativeMetalLayerRenderTarget(target);
 #else
   (void)target;
   return false;
+#endif
+}
+
+TRaster32P readMetalRenderTarget(RenderTarget *target) {
+#ifdef OPENTOONZ_WITH_GRAPHICS_METAL
+  return readNativeMetalRenderTarget(target);
+#else
+  (void)target;
+  return TRaster32P();
 #endif
 }
 

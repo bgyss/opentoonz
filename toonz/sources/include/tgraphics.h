@@ -109,7 +109,10 @@ DVAPI bool isMetalDeviceAvailable();
 DVAPI const char *metalDeviceName();
 DVAPI std::unique_ptr<RenderTarget> createMetalLayerRenderTarget(
     void *metalLayer, int width, int height, double devicePixelRatio);
+DVAPI std::unique_ptr<RenderTarget> createMetalImageRenderTarget(int width,
+                                                                 int height);
 DVAPI bool isMetalLayerRenderTarget(const RenderTarget *target);
+DVAPI TRaster32P readMetalRenderTarget(RenderTarget *target);
 DVAPI bool isMetalBackendAvailable();
 DVAPI BackendType requestedBackendType();
 DVAPI BackendType activeBackendType();

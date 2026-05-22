@@ -94,6 +94,35 @@ public:
   int height() const { return m_height; }
 };
 
+class MetalTextureRenderTarget final : public RenderTarget {
+  id<MTLTexture> m_texture = nil;
+  int m_width              = 0;
+  int m_height             = 0;
+
+public:
+  MetalTextureRenderTarget(int width, int height)
+      : m_width(std::max(1, width)), m_height(std::max(1, height)) {
+    MetalState &state = metalState();
+    MTLTextureDescriptor *descriptor =
+        [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+                                                           width:m_width
+                                                          height:m_height
+                                                       mipmapped:NO];
+    descriptor.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
+    m_texture        = [state.m_device newTextureWithDescriptor:descriptor];
+  }
+
+  ~MetalTextureRenderTarget() override {
+#if !__has_feature(objc_arc)
+    [m_texture release];
+#endif
+  }
+
+  id<MTLTexture> texture() const { return m_texture; }
+  int width() const { return m_width; }
+  int height() const { return m_height; }
+};
+
 struct MetalVertex {
   float m_x = 0.0f;
   float m_y = 0.0f;
@@ -102,11 +131,10 @@ struct MetalVertex {
 };
 
 class MetalCommandEncoder final : public CommandEncoder {
-  MetalLayerRenderTarget *m_target = nullptr;
+  RenderTarget *m_target = nullptr;
 
 public:
-  explicit MetalCommandEncoder(MetalLayerRenderTarget *target)
-      : m_target(target) {}
+  explicit MetalCommandEncoder(RenderTarget *target) : m_target(target) {}
 
   BackendType backendType() const override { return BackendType::Metal; }
 
@@ -116,11 +144,24 @@ public:
     MetalState &state = metalState();
     if (!state.m_device || !state.m_commandQueue) return;
 
-    id<CAMetalDrawable> drawable = [m_target->layer() nextDrawable];
-    if (!drawable) return;
+    MetalLayerRenderTarget *layerTarget =
+        dynamic_cast<MetalLayerRenderTarget *>(m_target);
+    MetalTextureRenderTarget *textureTarget =
+        dynamic_cast<MetalTextureRenderTarget *>(m_target);
+
+    id<CAMetalDrawable> drawable = nil;
+    id<MTLTexture> renderTexture = nil;
+
+    if (layerTarget) {
+      drawable      = [layerTarget->layer() nextDrawable];
+      renderTexture = drawable.texture;
+    } else if (textureTarget) {
+      renderTexture = textureTarget->texture();
+    }
+    if (!renderTexture) return;
 
     MTLRenderPassDescriptor *pass = [MTLRenderPassDescriptor renderPassDescriptor];
-    pass.colorAttachments[0].texture     = drawable.texture;
+    pass.colorAttachments[0].texture     = renderTexture;
     pass.colorAttachments[0].loadAction  = MTLLoadActionClear;
     pass.colorAttachments[0].storeAction = MTLStoreActionStore;
     pass.colorAttachments[0].clearColor  = MTLClearColorMake(0.0, 0.0, 0.0, 0.0);
@@ -136,7 +177,7 @@ public:
     id<MTLSamplerState> sampler         = samplerState();
     if (!pipeline || !sampler) {
       [encoder endEncoding];
-      [commandBuffer presentDrawable:drawable];
+      if (drawable) [commandBuffer presentDrawable:drawable];
       [commandBuffer commit];
       return;
     }
@@ -161,8 +202,9 @@ public:
     }
 
     [encoder endEncoding];
-    [commandBuffer presentDrawable:drawable];
+    if (drawable) [commandBuffer presentDrawable:drawable];
     [commandBuffer commit];
+    if (textureTarget) [commandBuffer waitUntilCompleted];
   }
 
 private:
@@ -274,11 +316,35 @@ private:
   }
 
   float pixelToClipX(double x) const {
-    return static_cast<float>((2.0 * x / m_target->width()) - 1.0);
+    return static_cast<float>((2.0 * x / targetWidth()) - 1.0);
   }
 
   float pixelToClipY(double y) const {
-    return static_cast<float>(1.0 - (2.0 * y / m_target->height()));
+    return static_cast<float>(1.0 - (2.0 * y / targetHeight()));
+  }
+
+  int targetWidth() const {
+    if (MetalLayerRenderTarget *layerTarget =
+            dynamic_cast<MetalLayerRenderTarget *>(m_target)) {
+      return layerTarget->width();
+    }
+    if (MetalTextureRenderTarget *textureTarget =
+            dynamic_cast<MetalTextureRenderTarget *>(m_target)) {
+      return textureTarget->width();
+    }
+    return 1;
+  }
+
+  int targetHeight() const {
+    if (MetalLayerRenderTarget *layerTarget =
+            dynamic_cast<MetalLayerRenderTarget *>(m_target)) {
+      return layerTarget->height();
+    }
+    if (MetalTextureRenderTarget *textureTarget =
+            dynamic_cast<MetalTextureRenderTarget *>(m_target)) {
+      return textureTarget->height();
+    }
+    return 1;
   }
 };
 
@@ -288,8 +354,7 @@ public:
 
   std::unique_ptr<CommandEncoder> createCommandEncoder(
       RenderTarget *target = 0) override {
-    return std::unique_ptr<CommandEncoder>(
-        new MetalCommandEncoder(dynamic_cast<MetalLayerRenderTarget *>(target)));
+    return std::unique_ptr<CommandEncoder>(new MetalCommandEncoder(target));
   }
 };
 
@@ -323,8 +388,37 @@ std::unique_ptr<RenderTarget> createNativeMetalLayerRenderTarget(
       new MetalLayerRenderTarget(layer, width, height, devicePixelRatio));
 }
 
+std::unique_ptr<RenderTarget> createNativeMetalImageRenderTarget(int width,
+                                                                 int height) {
+  if (!probeMetalDevice()) return std::unique_ptr<RenderTarget>();
+
+  std::unique_ptr<RenderTarget> target(
+      new MetalTextureRenderTarget(width, height));
+  MetalTextureRenderTarget *textureTarget =
+      dynamic_cast<MetalTextureRenderTarget *>(target.get());
+  if (!textureTarget->texture()) return std::unique_ptr<RenderTarget>();
+  return target;
+}
+
 bool isNativeMetalLayerRenderTarget(const RenderTarget *target) {
   return dynamic_cast<const MetalLayerRenderTarget *>(target) != nullptr;
+}
+
+TRaster32P readNativeMetalRenderTarget(RenderTarget *target) {
+  MetalTextureRenderTarget *textureTarget =
+      dynamic_cast<MetalTextureRenderTarget *>(target);
+  if (!textureTarget || !textureTarget->texture()) return TRaster32P();
+
+  TRaster32P raster(textureTarget->width(), textureTarget->height());
+  raster->lock();
+  const MTLRegion region =
+      MTLRegionMake2D(0, 0, textureTarget->width(), textureTarget->height());
+  [textureTarget->texture() getBytes:raster->pixels(0)
+                         bytesPerRow:raster->getWrap() * sizeof(TPixel32)
+                           fromRegion:region
+                          mipmapLevel:0];
+  raster->unlock();
+  return raster;
 }
 
 }  // namespace TGraphics
