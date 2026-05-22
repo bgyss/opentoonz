@@ -164,9 +164,10 @@ public:
     }
     if (!renderTexture) return;
 
-    MTLRenderPassDescriptor *pass        = [MTLRenderPassDescriptor renderPassDescriptor];
-    pass.colorAttachments[0].texture     = renderTexture;
-    pass.colorAttachments[0].loadAction  = MTLLoadActionClear;
+    MTLRenderPassDescriptor *pass    = [MTLRenderPassDescriptor renderPassDescriptor];
+    pass.colorAttachments[0].texture = renderTexture;
+    pass.colorAttachments[0].loadAction =
+        (layerTarget && !drawList.hasClearColor()) ? MTLLoadActionLoad : MTLLoadActionClear;
     pass.colorAttachments[0].storeAction = MTLStoreActionStore;
     const TPixel32 clearColor =
         drawList.hasClearColor() ? drawList.clearColor() : TPixel32(0, 0, 0, 0);
@@ -232,7 +233,7 @@ public:
       id<MTLRenderPipelineState> pipeline = pipelineState(quad.m_blending);
       if (!pipeline) continue;
 
-      std::array<MetalVertex, 6> vertices = makeVertices(quad.m_rect);
+      std::array<MetalVertex, 6> vertices = makeVertices(quad);
       [encoder setRenderPipelineState:pipeline];
       [encoder setVertexBytes:vertices.data()
                        length:vertices.size() * sizeof(MetalVertex)
@@ -403,6 +404,20 @@ private:
              {right, top, 1.0f, 0.0f},
              {right, bottom, 1.0f, 1.0f},
              {left, bottom, 0.0f, 1.0f}}};
+  }
+
+  std::array<MetalVertex, 6> makeVertices(const TextureQuad &quad) const {
+    const TPointD &p00 = quad.m_points[0];
+    const TPointD &p10 = quad.m_points[1];
+    const TPointD &p11 = quad.m_points[2];
+    const TPointD &p01 = quad.m_points[3];
+
+    return {{{pixelToClipX(p00.x), pixelToClipY(p00.y), 0.0f, 0.0f},
+             {pixelToClipX(p10.x), pixelToClipY(p10.y), 1.0f, 0.0f},
+             {pixelToClipX(p01.x), pixelToClipY(p01.y), 0.0f, 1.0f},
+             {pixelToClipX(p10.x), pixelToClipY(p10.y), 1.0f, 0.0f},
+             {pixelToClipX(p11.x), pixelToClipY(p11.y), 1.0f, 1.0f},
+             {pixelToClipX(p01.x), pixelToClipY(p01.y), 0.0f, 1.0f}}};
   }
 
   std::array<MetalVertex, 2> makeLineVertices(const ColorLine &line) const {

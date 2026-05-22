@@ -1170,6 +1170,32 @@ bool SceneViewer::presentBackgroundWithMetal() {
 
 //-------------------------------------------------------------------------------
 
+bool SceneViewer::presentRasterQuadWithMetal(
+    const TRaster32P& raster, const TPointD& p00, const TPointD& p10,
+    const TPointD& p11, const TPointD& p01, bool blending) {
+  if (!raster) return false;
+
+  const int width  = std::max(1, this->width() * getDevPixRatio());
+  const int height = std::max(1, this->height() * getDevPixRatio());
+  if (!ensureMetalLayerTarget(width, height)) return false;
+
+  auto toMetalPixel = [width, height](const TPointD& point) {
+    return TPointD(width * 0.5 + point.x, height - (height * 0.5 + point.y));
+  };
+
+  TGraphics::DrawList2D drawList;
+  drawList.addTextureQuad(toMetalPixel(p00), toMetalPixel(p10),
+                          toMetalPixel(p11), toMetalPixel(p01), raster,
+                          blending);
+
+  std::unique_ptr<TGraphics::CommandEncoder> encoder =
+      TGraphics::metalDevice().createCommandEncoder(m_metalLayerTarget.get());
+  encoder->draw(drawList);
+  return true;
+}
+
+//-------------------------------------------------------------------------------
+
 bool SceneViewer::presentRasterWithMetal(const TRaster32P& raster) {
   if (!raster) {
     hideMetalLayer();
@@ -1967,7 +1993,17 @@ void SceneViewer::drawPreview() {
         previewStageRectD.y0 + 0.5 * previewStageRectD.getLy());
 
     TDimension dim(width(), height());
-    TAffine finalAff              = m_drawCameraAff * rasterToStageRef;
+    TAffine finalAff = m_drawCameraAff * rasterToStageRef;
+    if (shouldPresentWithMetal()) {
+      TRaster32P ras32 = ras;
+      if (ras32) {
+        presentRasterQuadWithMetal(
+            ras32, finalAff * TPointD(0.0, 0.0),
+            finalAff * TPointD(ras->getLx(), 0.0),
+            finalAff * TPointD(ras->getLx(), ras->getLy()),
+            finalAff * TPointD(0.0, ras->getLy()), true);
+      }
+    }
     m_visualSettings.m_useTexture = !Preferences::instance()->useDrawPixel();
     ImagePainter::paintImage(TRasterImageP(ras), ras->getSize(), dim, finalAff,
                              m_visualSettings, m_compareSettings, TRect());

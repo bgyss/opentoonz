@@ -6,7 +6,8 @@ native-view Metal presentation slice, first direct Metal viewer-background
 command, and first direct Metal camera color-card command completed locally on
 2026-05-22. Direct axis-aligned camera outline line commands and direct
 checkerboard background commands are now also validated through the
-Metal/OpenGL probe.
+Metal/OpenGL probe. Direct transformed texture-quad commands and the first
+direct Metal preview-raster presentation path are now also in place.
 
 ## Objective
 
@@ -25,15 +26,19 @@ requested, plus a first direct Metal viewer command that clears the Metal layer
 to the active viewer background color before the compatibility snapshot is
 presented. It now also emits a direct solid-color camera color-card rectangle
 and a direct camera outline for the narrow non-3D viewer path, plus a direct
-checkerboard background when the viewer Transparency Check is enabled.
+checkerboard background when the viewer Transparency Check is enabled. It now
+also supports explicit four-corner texture quads so viewer rasters can be
+submitted with camera/view transforms instead of only as axis-aligned
+screen-space rectangles.
 
 This is not yet a full native Metal scene renderer. Scene composition still
 comes from the existing OpenGL viewer path, then the captured viewer framebuffer
 is uploaded to Metal and presented through `DrawList2D`. The direct Metal
-background/checkerboard/color-card/outline work is intentionally narrow and is
-immediately followed by that compatibility snapshot. This is a deliberate
-transitional slice to validate Qt/native-view ownership, drawable lifecycle,
-direct command encoding, and Metal presentation before porting scene internals.
+background/checkerboard/color-card/outline/preview-raster work is
+intentionally narrow and is immediately followed by that compatibility snapshot.
+This is a deliberate transitional slice to validate Qt/native-view ownership,
+drawable lifecycle, direct command encoding, and Metal presentation before
+porting scene internals.
 
 ## Files Changed
 
@@ -84,6 +89,7 @@ direct command encoding, and Metal presentation before porting scene internals.
   - linear clamp sampler state
   - TRaster32P texture upload to `MTLPixelFormatBGRA8Unorm`
   - triangle draws for `DrawList2D` texture quads
+  - explicit four-corner texture quad draws for transformed viewer rasters
   - per-quad `TextureQuad::m_blending` handling
   - solid-color rectangle draws
   - drawable presentation
@@ -97,6 +103,9 @@ direct command encoding, and Metal presentation before porting scene internals.
   strokes. Axis-aligned lines are rendered as deterministic one-pixel
   rectangles in both backends to avoid backend-specific line endpoint
   rasterization differences.
+- Added `DrawList2D::addTextureQuad(...)` for explicit four-corner raster
+  texture draws. The axis-aligned `addTexture(...)` path remains available and
+  still uses the existing OpenGL helper in the compatibility backend.
 - Added `DrawList2D::setClearColor(...)`, `hasClearColor()`, and
   `clearColor()` so small draw lists can represent a direct render-target clear
   without requiring a synthetic full-frame texture.
@@ -109,6 +118,12 @@ direct command encoding, and Metal presentation before porting scene internals.
   existing OpenGL behavior.
 - Updated the OpenGL and Metal command encoders to draw `ColorLine`, with
   Metal/OpenGL parity covered by the probe for axis-aligned lines.
+- Updated the OpenGL and Metal command encoders to draw explicit texture quads,
+  with Metal/OpenGL parity covered by the probe for a camera-transform-like
+  scaled and translated raster quad.
+- Updated Metal layer render passes without an explicit clear color to load the
+  existing drawable contents. This lets direct scene-content draw lists layer on
+  top of the direct background command before the final compatibility snapshot.
 - Matched Metal alpha blending to the existing `tglDraw` OpenGL baseline:
   `GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA` for both color and alpha channels.
 - Added `MetalTextureRenderTarget` for offscreen render/readback validation.
@@ -148,6 +163,11 @@ direct command encoding, and Metal presentation before porting scene internals.
 - The direct Metal viewer background path now adds a checkerboard using
   `Preferences::getChessboardColors(...)` when `ToonzCheck::eTransparency` is
   active.
+- `SceneViewer::drawPreview()` now emits the preview raster through the direct
+  Metal transformed texture-quad path when the preview raster is `TRaster32P`
+  and `OPENTOONZ_GRAPHICS_BACKEND=metal` is active. The legacy OpenGL preview
+  draw still runs afterward for fallback behavior and for the compatibility
+  framebuffer snapshot.
 - Linked `tnzcore` against `Metal.framework` only when
   `WITH_GRAPHICS_METAL=ON`.
 - Linked `tnzcore` against `QuartzCore.framework` only when
@@ -162,18 +182,19 @@ direct command encoding, and Metal presentation before porting scene internals.
 
 The OpenGL baseline target intentionally adds a small number of Qt/OpenGL
 references to `tgraphics.cpp` so the Metal probe can compare against the current
-OpenGL `DrawList2D` behavior:
+OpenGL `DrawList2D` behavior. The transformed texture-quad checkpoint adds a
+few more fixed-function OpenGL references to that compatibility/probe encoder:
 
 ```text
 OpenToonz graphics API inventory
 source_root=toonz/sources
 
-all graphics markers               files=  121 matches=  2892
+all graphics markers               files=  121 matches=  2903
 Qt legacy QGL                      files=    0 matches=     0
 Qt QOpenGL                         files=   32 matches=   216
 GLU                                files=    5 matches=    53
 GLEW or GLUT                       files=   10 matches=    30
-fixed-function drawing             files=   86 matches=  2028
+fixed-function drawing             files=   86 matches=  2039
 fixed-function matrix              files=   57 matches=   460
 glDrawPixels                       files=    4 matches=    10
 OpenGL selection                   files=    5 matches=    95
@@ -205,9 +226,9 @@ QuartzCore, builds `tgraphics_metal_probe`, and links `OpenToonz.app`.
 Probe output after validating direct solid clear/background pixels, transparent
 clear pixels, solid-color rectangle drawing, solid-color rectangle alpha
 blending, checkerboard background drawing, deterministic axis-aligned color
-line drawing, opaque textured replace drawing, OpenGL-compatible texture alpha
-blending over both solid and gradient destinations, and Metal/OpenGL readback
-parity:
+line drawing, opaque textured replace drawing, transformed texture-quad
+drawing, OpenGL-compatible texture alpha blending over both solid and gradient
+destinations, and Metal/OpenGL readback parity:
 
 ```text
 tgraphics_metal_probe: ok on Apple M1 Max
@@ -227,8 +248,11 @@ inside the full UI.
 - Qt native-view integration exists only for presenting a captured viewer
   framebuffer through Metal.
 - The direct Metal viewer background clear, checkerboard, camera color-card
-  rectangle, and camera outline lines are currently superseded by the
-  compatibility OpenGL framebuffer snapshot in the same paint pass.
+  rectangle, camera outline lines, and preview raster are currently superseded
+  by the compatibility OpenGL framebuffer snapshot in the same paint pass.
+- The direct preview-raster path only handles `TRaster32P` preview rasters for
+  now. Other raster formats still rely on the existing OpenGL path and final
+  compatibility snapshot.
 - The checkerboard helper expands into many solid rectangles. This is adequate
   for the current 50-device-pixel viewer checker cells and probe coverage, but
   a backend-native tiled/pattern path would be better before broad use.
@@ -247,8 +271,8 @@ inside the full UI.
 ## Next Milestone 3 Work
 
 - Replace the compatibility OpenGL framebuffer snapshot with direct Metal
-  drawing for more scene components: raster image textures, vector image
-  textures, and additional overlays.
+  drawing for more scene components: normal scene raster image textures, vector
+  image textures, and additional overlays.
 - Expand the offscreen probe from synthetic quads into baseline scene fixtures.
 - Route only a narrow scene-viewer path to the Metal command encoder once
   drawable lifecycle and fallback behavior are stable.

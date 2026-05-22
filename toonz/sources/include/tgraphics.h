@@ -71,8 +71,10 @@ public:
 
 struct DVAPI TextureQuad final {
   TRectD m_rect;
+  TPointD m_points[4];
   std::shared_ptr<Texture> m_texture;
-  bool m_blending = false;
+  bool m_blending          = false;
+  bool m_hasExplicitPoints = false;
 };
 
 struct DVAPI ColorRect final {
@@ -104,6 +106,9 @@ public:
   void addColorLine(const TPointD& p0, const TPointD& p1, const TPixel32& color,
                     bool blending);
   void addTexture(const TRectD& rect, const TRaster32P& raster, bool blending);
+  void addTextureQuad(const TPointD& p00, const TPointD& p10,
+                      const TPointD& p11, const TPointD& p01,
+                      const TRaster32P& raster, bool blending);
 
   bool hasClearColor() const;
   const TPixel32& clearColor() const;

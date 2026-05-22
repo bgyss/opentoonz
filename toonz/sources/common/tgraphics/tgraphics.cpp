@@ -137,9 +137,33 @@ void DrawList2D::addColorLine(const TPointD& p0, const TPointD& p1,
 void DrawList2D::addTexture(const TRectD& rect, const TRaster32P& raster,
                             bool blending) {
   TextureQuad quad;
-  quad.m_rect     = rect;
-  quad.m_texture  = std::make_shared<RasterTexture>(raster);
-  quad.m_blending = blending;
+  quad.m_rect              = rect;
+  quad.m_points[0]         = TPointD(rect.x0, rect.y0);
+  quad.m_points[1]         = TPointD(rect.x1, rect.y0);
+  quad.m_points[2]         = TPointD(rect.x1, rect.y1);
+  quad.m_points[3]         = TPointD(rect.x0, rect.y1);
+  quad.m_texture           = std::make_shared<RasterTexture>(raster);
+  quad.m_blending          = blending;
+  quad.m_hasExplicitPoints = false;
+  m_textureQuads.push_back(quad);
+}
+
+void DrawList2D::addTextureQuad(const TPointD& p00, const TPointD& p10,
+                                const TPointD& p11, const TPointD& p01,
+                                const TRaster32P& raster, bool blending) {
+  TextureQuad quad;
+  quad.m_points[0] = p00;
+  quad.m_points[1] = p10;
+  quad.m_points[2] = p11;
+  quad.m_points[3] = p01;
+  quad.m_rect =
+      TRectD(std::min(std::min(p00.x, p10.x), std::min(p11.x, p01.x)),
+             std::min(std::min(p00.y, p10.y), std::min(p11.y, p01.y)),
+             std::max(std::max(p00.x, p10.x), std::max(p11.x, p01.x)),
+             std::max(std::max(p00.y, p10.y), std::max(p11.y, p01.y)));
+  quad.m_texture           = std::make_shared<RasterTexture>(raster);
+  quad.m_blending          = blending;
+  quad.m_hasExplicitPoints = true;
   m_textureQuads.push_back(quad);
 }
 
@@ -238,7 +262,7 @@ public:
       assert(texture);
       if (!texture) continue;
 
-      tglDraw(quad.m_rect, texture->raster(), quad.m_blending);
+      drawTextureQuad(quad, texture->raster());
     }
 
     if (imageTarget) endImageTargetDraw(*imageTarget);
@@ -286,6 +310,97 @@ private:
       tglDrawSegment(line.m_p0, line.m_p1);
     }
     glDisable(GL_BLEND);
+  }
+
+  void drawTextureQuad(const TextureQuad& quad, const TRaster32P& tex) {
+    if (!tex) return;
+    if (!quad.m_hasExplicitPoints) {
+      tglDraw(quad.m_rect, tex, quad.m_blending);
+      return;
+    }
+
+    glPushAttrib(GL_ALL_ATTRIB_BITS);
+    if (quad.m_blending) {
+      glEnable(GL_BLEND);
+      glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    } else {
+      glDisable(GL_BLEND);
+    }
+
+    unsigned int texWidth  = 1;
+    unsigned int texHeight = 1;
+    while (texWidth < static_cast<unsigned int>(tex->getLx()))
+      texWidth = texWidth << 1;
+    while (texHeight < static_cast<unsigned int>(tex->getLy()))
+      texHeight = texHeight << 1;
+
+    double lwTex             = 1.0;
+    double lhTex             = 1.0;
+    const unsigned int texLx = static_cast<unsigned int>(tex->getLx());
+    const unsigned int texLy = static_cast<unsigned int>(tex->getLy());
+
+    TRaster32P texture;
+    if (texWidth != texLx || texHeight != texLy) {
+      texture = TRaster32P(texWidth, texHeight);
+      texture->fill(TPixel32(0, 0, 0, 0));
+      texture->copy(tex);
+      lwTex = std::min(1.0, texLx / static_cast<double>(texWidth));
+      lhTex = std::min(1.0, texLy / static_cast<double>(texHeight));
+    } else {
+      texture = tex;
+    }
+
+    GLenum fmt =
+#if defined(TNZ_MACHINE_CHANNEL_ORDER_BGRM)
+        GL_BGRA_EXT;
+#elif defined(TNZ_MACHINE_CHANNEL_ORDER_MBGR)
+        GL_ABGR_EXT;
+#elif defined(TNZ_MACHINE_CHANNEL_ORDER_RGBM)
+        GL_RGBA;
+#elif defined(TNZ_MACHINE_CHANNEL_ORDER_MRGB)
+        GL_BGRA;
+#else
+#error "unknown channel order!"
+#endif
+
+    GLuint texId;
+    glGenTextures(1, &texId);
+    glBindTexture(GL_TEXTURE_2D, texId);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, texture->getWrap());
+
+    texture->lock();
+    glTexImage2D(GL_TEXTURE_2D, 0, 4, texWidth, texHeight, 0, fmt,
+#ifdef TNZ_MACHINE_CHANNEL_ORDER_MRGB
+                 GL_UNSIGNED_INT_8_8_8_8_REV,
+#else
+                 GL_UNSIGNED_BYTE,
+#endif
+                 texture->getRawData());
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+    glEnable(GL_TEXTURE_2D);
+    glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
+    tglColor(TPixel32(0, 0, 0, 0));
+
+    glBegin(GL_POLYGON);
+    glTexCoord2d(0.0, 0.0);
+    tglVertex(quad.m_points[0]);
+    glTexCoord2d(lwTex, 0.0);
+    tglVertex(quad.m_points[1]);
+    glTexCoord2d(lwTex, lhTex);
+    tglVertex(quad.m_points[2]);
+    glTexCoord2d(0.0, lhTex);
+    tglVertex(quad.m_points[3]);
+    glEnd();
+
+    glDisable(GL_TEXTURE_2D);
+    glDeleteTextures(1, &texId);
+    texture->unlock();
+    glPopAttrib();
   }
 
   void beginImageTargetDraw(OpenGLImageRenderTarget& target) {

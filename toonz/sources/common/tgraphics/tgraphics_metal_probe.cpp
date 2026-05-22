@@ -430,6 +430,39 @@ int main(int argc, char* argv[]) {
   }
 
   {
+    const int quadX0 = 1;
+    const int quadY0 = 2;
+    const int quadX1 = 7;
+    const int quadY1 = 6;
+
+    TGraphics::DrawList2D drawList;
+    drawList.setClearColor(clearColor);
+    drawList.addTextureQuad(
+        TPointD(quadX0, quadY0), TPointD(quadX1, quadY0),
+        TPointD(quadX1, quadY1), TPointD(quadX0, quadY1),
+        makeGradientRaster(quadX1 - quadX0, quadY1 - quadY0), false);
+
+    TRaster32P readback = renderMetal(drawList, width, height);
+    if (!readback)
+      return fail("could not read back transformed texture Metal target");
+    if (!requireDimensions(readback, width, height)) {
+      return fail(
+          "transformed texture readback dimensions do not match render target");
+    }
+    if (!validateGradientClear(readback, width, height, clearColor, quadX0,
+                               quadY0, quadX1, quadY1)) {
+      return EXIT_FAILURE;
+    }
+
+    TRaster32P openGLReadback = renderOpenGL(drawList, width, height);
+    if (!openGLReadback)
+      return fail("could not read back transformed texture OpenGL baseline");
+    if (!compareRasters(readback, openGLReadback, "transformed texture")) {
+      return EXIT_FAILURE;
+    }
+  }
+
+  {
     const TPixel32 baseColor(17, 59, 101, 255);
     const TPixel32 overlayColor(209, 37, 129, 128);
     const int overlayX0 = 3;
