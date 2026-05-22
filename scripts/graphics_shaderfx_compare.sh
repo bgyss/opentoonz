@@ -30,6 +30,11 @@ fi
     opengl_scene_pam="$artifact_dir/$stem-opengl-scene.pam"
     metal_scene_pam="$artifact_dir/$stem-metal-scene.pam"
     scene_diff_pam="$artifact_dir/$stem-scene-diff.pam"
+    opengl_saved_scene_pam="$artifact_dir/$stem-opengl-saved-scene.pam"
+    metal_saved_scene_pam="$artifact_dir/$stem-metal-saved-scene.pam"
+    saved_scene_diff_pam="$artifact_dir/$stem-saved-scene-diff.pam"
+    opengl_saved_scene="$artifact_dir/$stem-opengl.tnz"
+    metal_saved_scene="$artifact_dir/$stem-metal.tnz"
 
     OPENTOONZ_GRAPHICS_BACKEND=opengl "$probe" \
       --shader "$shader" \
@@ -54,6 +59,19 @@ fi
       --compare-pam "$opengl_scene_pam" \
       --write-pam "$metal_scene_pam" \
       --write-diff-pam "$scene_diff_pam" \
+      --tolerance "$shader_tolerance"
+    OPENTOONZ_GRAPHICS_BACKEND=opengl "$probe" \
+      --shader "$shader" \
+      --scene-render \
+      --save-load-scene "$opengl_saved_scene" \
+      --write-pam "$opengl_saved_scene_pam"
+    OPENTOONZ_GRAPHICS_BACKEND=metal "$probe" \
+      --shader "$shader" \
+      --scene-render \
+      --save-load-scene "$metal_saved_scene" \
+      --compare-pam "$opengl_saved_scene_pam" \
+      --write-pam "$metal_saved_scene_pam" \
+      --write-diff-pam "$saved_scene_diff_pam" \
       --tolerance "$shader_tolerance"
   done
 

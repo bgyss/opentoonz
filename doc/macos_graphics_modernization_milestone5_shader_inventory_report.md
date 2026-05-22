@@ -160,8 +160,9 @@ Production integration status:
   PAM artifacts for the migrated no-input procedural shaders, writes a Metal HSL
   artifact for `SHADER_HSLBlendGPU`, writes renderer-driven Metal artifacts for
   the migrated shaders, writes `ToonzScene`/`buildSceneFx(...)` scene-render
-  OpenGL/Metal/diff artifacts for the migrated no-input procedural shaders, and
-  passes on Apple M1 Max.
+  OpenGL/Metal/diff artifacts for the migrated no-input procedural shaders,
+  writes saved-and-reloaded `.tnz` scene fixtures plus OpenGL/Metal/diff
+  artifacts for the same procedural subset, and passes on Apple M1 Max.
 - OpenGL remains the default backend.
 - Non-32-bit tiles and every other `ShaderFx` still use the existing OpenGL
   path.
@@ -254,6 +255,11 @@ Artifacts:
 - `/private/tmp/opentoonz-shaderfx-compare/sunflare-opengl-scene.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/sunflare-metal-scene.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/sunflare-scene-diff.pam`
+- `/private/tmp/opentoonz-shaderfx-compare/sunflare-opengl.tnz`
+- `/private/tmp/opentoonz-shaderfx-compare/sunflare-metal.tnz`
+- `/private/tmp/opentoonz-shaderfx-compare/sunflare-opengl-saved-scene.pam`
+- `/private/tmp/opentoonz-shaderfx-compare/sunflare-metal-saved-scene.pam`
+- `/private/tmp/opentoonz-shaderfx-compare/sunflare-saved-scene-diff.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/caustics-opengl.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/caustics-metal.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/caustics-diff.pam`
@@ -261,6 +267,11 @@ Artifacts:
 - `/private/tmp/opentoonz-shaderfx-compare/caustics-opengl-scene.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/caustics-metal-scene.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/caustics-scene-diff.pam`
+- `/private/tmp/opentoonz-shaderfx-compare/caustics-opengl.tnz`
+- `/private/tmp/opentoonz-shaderfx-compare/caustics-metal.tnz`
+- `/private/tmp/opentoonz-shaderfx-compare/caustics-opengl-saved-scene.pam`
+- `/private/tmp/opentoonz-shaderfx-compare/caustics-metal-saved-scene.pam`
+- `/private/tmp/opentoonz-shaderfx-compare/caustics-saved-scene-diff.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/starsky-opengl.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/starsky-metal.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/starsky-diff.pam`
@@ -268,6 +279,11 @@ Artifacts:
 - `/private/tmp/opentoonz-shaderfx-compare/starsky-opengl-scene.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/starsky-metal-scene.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/starsky-scene-diff.pam`
+- `/private/tmp/opentoonz-shaderfx-compare/starsky-opengl.tnz`
+- `/private/tmp/opentoonz-shaderfx-compare/starsky-metal.tnz`
+- `/private/tmp/opentoonz-shaderfx-compare/starsky-opengl-saved-scene.pam`
+- `/private/tmp/opentoonz-shaderfx-compare/starsky-metal-saved-scene.pam`
+- `/private/tmp/opentoonz-shaderfx-compare/starsky-saved-scene-diff.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/wavy-opengl.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/wavy-metal.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/wavy-diff.pam`
@@ -275,12 +291,22 @@ Artifacts:
 - `/private/tmp/opentoonz-shaderfx-compare/wavy-opengl-scene.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/wavy-metal-scene.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/wavy-scene-diff.pam`
+- `/private/tmp/opentoonz-shaderfx-compare/wavy-opengl.tnz`
+- `/private/tmp/opentoonz-shaderfx-compare/wavy-metal.tnz`
+- `/private/tmp/opentoonz-shaderfx-compare/wavy-opengl-saved-scene.pam`
+- `/private/tmp/opentoonz-shaderfx-compare/wavy-metal-saved-scene.pam`
+- `/private/tmp/opentoonz-shaderfx-compare/wavy-saved-scene-diff.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/fireball-opengl.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/fireball-metal.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/fireball-diff.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/fireball-opengl-scene.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/fireball-metal-scene.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/fireball-scene-diff.pam`
+- `/private/tmp/opentoonz-shaderfx-compare/fireball-opengl.tnz`
+- `/private/tmp/opentoonz-shaderfx-compare/fireball-metal.tnz`
+- `/private/tmp/opentoonz-shaderfx-compare/fireball-opengl-saved-scene.pam`
+- `/private/tmp/opentoonz-shaderfx-compare/fireball-metal-saved-scene.pam`
+- `/private/tmp/opentoonz-shaderfx-compare/fireball-saved-scene-diff.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/fireball-metal-renderer.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/HSLBlendGPU-metal.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/HSLBlendGPU-metal-renderer.pam`
@@ -295,14 +321,13 @@ alpha, or coordinate mismatches.
 ## Next Effects Recommendation
 
 The direct no-input procedural shader subset now has direct, renderer-driven,
-and `ToonzScene`/`buildSceneFx(...)` scene-render coverage. The first direct
-input-texture route (`HSLBlendGPU`) has direct and renderer-driven coverage, but
-not scene-render coverage yet. Continue by turning these probe-built scene
-renders into file-backed `.tnz` preview/export fixtures, then continue with
-backend-neutral input texture binding for the remaining shared shader-generation
-candidates (`glitter`, `radialblurGPU`, and `spinblurGPU`) before widening
-preview/export coverage. Keep OpenGL `ShaderFx` as the default until full scene
-parity is broader.
+`ToonzScene`/`buildSceneFx(...)`, and saved-and-reloaded `.tnz` scene fixture
+coverage. The first direct input-texture route (`HSLBlendGPU`) has direct and
+renderer-driven coverage, but not scene-render coverage yet. Continue by adding
+HSL scene-render support and then backend-neutral input texture binding for the
+remaining shared shader-generation candidates (`glitter`, `radialblurGPU`, and
+`spinblurGPU`) before widening preview/export coverage. Keep OpenGL `ShaderFx`
+as the default until full scene parity is broader.
 
 ## Validation Run
 
@@ -317,7 +342,7 @@ nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_me
 nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_fireball'
 nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_HSLBlendGPU'
 nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_HSLBlendGPU --renderer'
-nix develop path:. --command bash scripts/graphics_shaderfx_compare.sh /private/tmp/opentoonz-shaderfx-compare-scene
+nix develop path:. --command bash scripts/graphics_shaderfx_compare.sh /private/tmp/opentoonz-shaderfx-compare-saved-scene
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=OFF'
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target OpenToonz --parallel 3
 nix develop path:. --command bash scripts/macos/assert-arm64-bundle.sh
@@ -366,7 +391,7 @@ WITH_GRAPHICS_METAL:BOOL=OFF
 The final ShaderFx artifact directory for this checkpoint was:
 
 ```text
-/private/tmp/opentoonz-shaderfx-compare-scene
+/private/tmp/opentoonz-shaderfx-compare-saved-scene
 ```
 
 Known validation gap: this checkpoint verifies that the production effect graph
@@ -375,9 +400,9 @@ can compile and route to the Metal `sunflare`, `caustics`, `starsky`, `wavy`,
 renderer-driven `ShaderFx` execution both match the lower-level Metal helpers
 for the migrated Metal paths, that the sunflare Metal helper matches a CPU
 formula reference, and that the production OpenGL and Metal `ShaderFx` outputs
-match within tolerance for all five no-input migrated shaders both directly and
-when wrapped through `ToonzScene`/`buildSceneFx(...)`. It does not yet cover
-file-backed `.tnz` preview/export fixtures, HSL scene-render output, the
-remaining input-texture shader effects, transform-feedback bbox/ports shaders
-beyond the identity HSL bypass, an actual generated `.metallib` artifact, or
-full GUI preview/export scene renders.
+match within tolerance for all five no-input migrated shaders directly, when
+wrapped through `ToonzScene`/`buildSceneFx(...)`, and after saving and reloading
+minimal `.tnz` scene fixtures. It does not yet cover HSL scene-render output,
+the remaining input-texture shader effects, transform-feedback bbox/ports
+shaders beyond the identity HSL bypass, an actual generated `.metallib`
+artifact, or full GUI preview/export scene renders.

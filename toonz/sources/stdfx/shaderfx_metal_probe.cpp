@@ -2,12 +2,19 @@
 
 #include "tfxcachemanager.h"
 #include "tgraphics.h"
+#include "tstream.h"
 #include "trenderer.h"
 #include "trasterfx.h"
 #include "tthread.h"
 #include "ttile.h"
+#include "toonz/fxdag.h"
+#include "toonz/levelset.h"
 #include "toonz/scenefx.h"
+#include "toonz/sceneproperties.h"
+#include "toonz/tcolumnfx.h"
+#include "toonz/tcolumnfxset.h"
 #include "toonz/toonzscene.h"
+#include "toonz/txsheet.h"
 
 #include <QCoreApplication>
 #include <QEventLoop>
@@ -34,6 +41,7 @@ struct Options {
   std::string writePamPath;
   std::string comparePamPath;
   std::string writeDiffPamPath;
+  std::string saveLoadScenePath;
   int tolerance = 0;
   bool renderWithRenderer = false;
   bool renderWithScene    = false;
@@ -46,7 +54,8 @@ void printUsage() {
                "                            [--compare-pam FILE] "
                "[--write-diff-pam FILE]\n"
                "                            [--tolerance N] [--renderer]\n"
-               "                            [--scene-render]\n";
+               "                            [--scene-render]\n"
+               "                            [--save-load-scene FILE]\n";
 }
 
 bool parseOptions(int argc, char* argv[], Options& options) {
@@ -62,6 +71,8 @@ bool parseOptions(int argc, char* argv[], Options& options) {
       options.comparePamPath = argv[++i];
     } else if (arg == "--write-diff-pam" && i + 1 < argc) {
       options.writeDiffPamPath = argv[++i];
+    } else if (arg == "--save-load-scene" && i + 1 < argc) {
+      options.saveLoadScenePath = argv[++i];
     } else if (arg == "--tolerance" && i + 1 < argc) {
       options.tolerance = std::atoi(argv[++i]);
     } else if (arg == "--renderer") {
@@ -462,6 +473,66 @@ TRaster32P renderSceneForProbe(const Options& options, const TTile& tile,
   return renderRasterFxWithRenderer(builtFx, tile, frame, settings);
 }
 
+bool attachRootFxToScene(ToonzScene& scene, const TFxP& root) {
+  if (!root) return false;
+
+  TXsheet* xsheet = scene.getXsheet();
+  if (!xsheet) return false;
+
+  FxDag* fxDag = xsheet->getFxDag();
+  if (!fxDag || fxDag->getOutputFxCount() < 1 || !fxDag->getOutputFx(0))
+    return false;
+
+  fxDag->getInternalFxs()->addFx(root.getPointer());
+  fxDag->assignUniqueId(root.getPointer());
+  fxDag->getOutputFx(0)->getInputPort(0)->setFx(root.getPointer());
+  return true;
+}
+
+void writeProbeSceneFile(ToonzScene& scene, const TFilePath& scenePath) {
+  TOStream os(scenePath, false);
+  if (!os.checkStatus()) throw TException("Could not open probe scene file");
+
+  std::map<std::string, std::string> attr;
+  attr["version"]    = "71.1";
+  attr["framecount"] = QString::number(scene.getFrameCount()).toStdString();
+  os.openChild("tnz", attr);
+  os.child("generator") << std::string("shaderfx_metal_probe");
+  os.openChild("properties");
+  scene.getProperties()->saveData(os);
+  os.closeChild();
+  os.openChild("levelSet");
+  scene.getLevelSet()->saveData(os);
+  os.closeChild();
+  os.openChild("xsheet");
+  os << *scene.getXsheet();
+  os.closeChild();
+  os.closeChild();
+
+  if (!os.checkStatus()) throw TException("Could not write probe scene file");
+}
+
+TRaster32P renderSavedLoadedSceneForProbe(const Options& options,
+                                          const TTile& tile, double frame,
+                                          const TRenderSettings& settings,
+                                          TFxP foregroundFx,
+                                          TFxP backgroundFx) {
+  TFxP root = makeProbeShaderFx(options, foregroundFx, backgroundFx);
+  if (!root) return TRaster32P();
+
+  ToonzScene sourceScene;
+  if (!attachRootFxToScene(sourceScene, root)) return TRaster32P();
+
+  const TFilePath scenePath(options.saveLoadScenePath);
+  writeProbeSceneFile(sourceScene, scenePath);
+
+  ToonzScene loadedScene;
+  loadedScene.loadTnzFile(scenePath);
+  TFxP builtFx = buildSceneFx(&loadedScene, loadedScene.getXsheet(), frame, 1,
+                              true);
+  return renderRasterFxWithRenderer(builtFx, tile, frame, settings);
+}
+
 TRaster32P renderExpectedMetalHelper(const Options& options, int width,
                                      int height, const TTile& tile,
                                      const TRenderSettings& settings) {
@@ -545,8 +616,13 @@ int main(int argc, char* argv[]) {
       return fail("SHADER_HSLBlendGPU scene-render probe is not supported yet")
                  ? 0
                  : 1;
-    TRaster32P renderedRaster = renderSceneForProbe(
-        options, tile, 1.0, settings, foregroundFx, backgroundFx);
+    TRaster32P renderedRaster;
+    if (!options.saveLoadScenePath.empty())
+      renderedRaster = renderSavedLoadedSceneForProbe(
+          options, tile, 1.0, settings, foregroundFx, backgroundFx);
+    else
+      renderedRaster = renderSceneForProbe(options, tile, 1.0, settings,
+                                           foregroundFx, backgroundFx);
     if (renderedRaster) {
       tile.getRaster()->copy(renderedRaster);
       rendered = true;
