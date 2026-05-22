@@ -145,6 +145,17 @@ void appendDashedLine(TGraphics::DrawList2D& drawList, const TPointD& p0,
 
 //-------------------------------------------------------------------------------
 
+void appendQuadLines(TGraphics::DrawList2D& drawList, const TPointD& p00,
+                     const TPointD& p10, const TPointD& p11,
+                     const TPointD& p01, const TPixel32& color) {
+  drawList.addColorLine(p00, p10, color, false);
+  drawList.addColorLine(p10, p11, color, false);
+  drawList.addColorLine(p11, p01, color, false);
+  drawList.addColorLine(p01, p00, color, false);
+}
+
+//-------------------------------------------------------------------------------
+
 double getActualFrameRate() {
   // compute frame per second
   static double fps = 0;
@@ -1457,18 +1468,6 @@ bool SceneViewer::presentPreviewFrameOverlayWithMetal(const TRectD& frameRect,
     return toMetalPixel(m_drawCameraAff * point);
   };
 
-  auto addFrameLines = [&](TGraphics::DrawList2D& drawList,
-                           const TRectD& rect, const TPixel32& color) {
-    const TPointD p00 = cameraPoint(rect.getP00());
-    const TPointD p10 = cameraPoint(rect.getP10());
-    const TPointD p11 = cameraPoint(rect.getP11());
-    const TPointD p01 = cameraPoint(rect.getP01());
-    drawList.addColorLine(p00, p10, color, false);
-    drawList.addColorLine(p10, p11, color, false);
-    drawList.addColorLine(p11, p01, color, false);
-    drawList.addColorLine(p01, p00, color, false);
-  };
-
   TGraphics::DrawList2D drawList;
 
   if (m_visualSettings.m_blankColor != TPixel::Transparent) {
@@ -1482,8 +1481,15 @@ bool SceneViewer::presentPreviewFrameOverlayWithMetal(const TRectD& frameRect,
 
   if (frameNotReady) {
     const TPixel32 red(255, 0, 0, 255);
-    addFrameLines(drawList, frameRect, red);
-    addFrameLines(drawList, frameRect.enlarge(5), red);
+    appendQuadLines(drawList, cameraPoint(frameRect.getP00()),
+                    cameraPoint(frameRect.getP10()),
+                    cameraPoint(frameRect.getP11()),
+                    cameraPoint(frameRect.getP01()), red);
+    const TRectD outerFrameRect = frameRect.enlarge(5);
+    appendQuadLines(drawList, cameraPoint(outerFrameRect.getP00()),
+                    cameraPoint(outerFrameRect.getP10()),
+                    cameraPoint(outerFrameRect.getP11()),
+                    cameraPoint(outerFrameRect.getP01()), red);
   }
 
   return presentDrawListWithMetal(drawList);
@@ -2359,8 +2365,12 @@ void SceneViewer::drawPreview() {
     presentPreviewFrameOverlayWithMetal(frameRect, frameNotReady);
 
   if (m_visualSettings.m_blankColor != TPixel::Transparent) {
-    tglColor(m_visualSettings.m_blankColor);
-    tglFillRect(frameRect);
+    const TPixel& color = m_visualSettings.m_blankColor;
+    TGraphics::DrawList2D drawList;
+    drawList.addColorRect(frameRect,
+                          TPixel32(color.r, color.g, color.b, color.m),
+                          color.m < 255);
+    TGraphics::drawWithOpenGLBackend(drawList);
   }
 
   if (frameNotReady) {
