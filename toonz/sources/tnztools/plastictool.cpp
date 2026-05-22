@@ -1854,13 +1854,6 @@ void PlasticTool::drawSelections(const SkDP &sd,
 
 void PlasticTool::drawSkeleton(const PlasticSkeleton &skel, double pixelSize,
                                UCHAR alpha) {
-  struct locals {
-    inline static void drawLine(const TPointD &p0, const TPointD &p1) {
-      glVertex2d(p0.x, p0.y);
-      glVertex2d(p1.x, p1.y);
-    }
-  };  // locals
-
   const tcg::list<PlasticSkeleton::vertex_type> &vertices = skel.vertices();
   if (vertices.size() > 0) {
     // Draw edges
@@ -1870,27 +1863,15 @@ void PlasticTool::drawSkeleton(const PlasticSkeleton &skel, double pixelSize,
       tcg::list<PlasticSkeleton::edge_type>::const_iterator et,
           eEnd(edges.end());
 
-      glColor4ub(0, 0, 0, alpha);
-      glLineWidth(4.0f);  // Black border
-
-      glBegin(GL_LINES);
-      {
-        for (et = edges.begin(); et != eEnd; ++et)
-          locals::drawLine(skel.vertex(et->vertex(0)).P(),
-                           skel.vertex(et->vertex(1)).P());
+      TGraphics::DrawList2D drawList;
+      for (et = edges.begin(); et != eEnd; ++et) {
+        const TPointD &p0 = skel.vertex(et->vertex(0)).P();
+        const TPointD &p1 = skel.vertex(et->vertex(1)).P();
+        drawList.addColorLine(p0, p1, TPixel32(0, 0, 0, alpha), true, 4.0);
+        drawList.addColorLine(p0, p1, TPixel32(250, 184, 70, alpha), true,
+                              2.0);
       }
-      glEnd();
-
-      glColor4ub(250, 184, 70, alpha);
-      glLineWidth(2.0f);  // Yellow/Orange-ish line center
-
-      glBegin(GL_LINES);
-      {
-        for (et = edges.begin(); et != eEnd; ++et)
-          locals::drawLine(skel.vertex(et->vertex(0)).P(),
-                           skel.vertex(et->vertex(1)).P());
-      }
-      glEnd();
+      TGraphics::drawWithOpenGLBackend(drawList);
     }
 
     // Draw vertices

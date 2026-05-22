@@ -264,6 +264,10 @@ The follow-up line-width checkpoint adds explicit width to `DrawList2D`
 `ColorLine` commands, validates wide line rendering against OpenGL and Metal in
 `tgraphics_metal_probe`, and moves width-2 selected plastic mesh edges through
 that shared command path.
+The plastic skeleton edge checkpoint moves the black width-4 border and
+yellow/orange width-2 center strokes in `PlasticTool::drawSkeleton(...)` from
+OpenGL `glLineWidth(...)` and immediate-mode `GL_LINES` to `DrawList2D`
+line-width commands.
 
 ## Files Changed
 
@@ -752,7 +756,8 @@ Plastic mesh-edit selected vertex fills, highlighted vertex outlines, and
 one-pixel dashed edge highlights now also emit `tgraphics` color commands;
 `DrawList2D` color lines now carry explicit width semantics validated by
 OpenGL/Metal probe coverage, and width-2 selected mesh edges now use that shared
-path too.
+path too. Plastic skeleton edge borders and center strokes now also use
+`DrawList2D` line-width commands instead of OpenGL line-width state.
 Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
 effects and by moving the remaining preview/export and style-editor surfaces
 through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene
