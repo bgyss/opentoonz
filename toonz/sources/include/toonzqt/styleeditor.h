@@ -22,7 +22,6 @@
 #include "toonzqt/doublefield.h"
 #include "toonzqt/colorfield.h"
 #include "toonzqt/tabbar.h"
-#include "toonzqt/glwidget_for_highdpi.h"
 #include "toonzqt/hexcolornames.h"
 
 // Qt includes
@@ -66,14 +65,14 @@ class QButtonGroup;
 class QPushButton;
 class QTabWidget;
 class QToolBar;
-class QOpenGLFramebufferObject;
 class QPainter;
+class QPaintEvent;
+class QResizeEvent;
 
 class ColorSquaredWheel;
 class TabBarContainter;
 class StyleChooser;
 class StyleEditor;
-class LutCalibrator;
 
 //=============================================
 
@@ -136,7 +135,7 @@ public:
 
 enum CurrentWheel { none, leftWheel, rightTriangle };
 
-class DVAPI HexagonalColorWheel final : public GLWidgetForHighDpi {
+class DVAPI HexagonalColorWheel final : public QWidget {
   Q_OBJECT
 
   // backgoround color (R160, G160, B160)
@@ -145,20 +144,16 @@ class DVAPI HexagonalColorWheel final : public GLWidgetForHighDpi {
 
   ColorModel m_color;
   QPointF m_wheelPosition;
-  float m_triEdgeLen;
-  float m_triHeight;
+  float m_triEdgeLen = 0.0f;
+  float m_triHeight  = 0.0f;
   QPointF m_wp[7], m_leftp[3];
 
   CurrentWheel m_currentWheel;
 
-  // used for color calibration with 3DLUT
-  QOpenGLFramebufferObject *m_fbo = NULL;
-  LutCalibrator *m_lutCalibrator  = NULL;
-
-  bool m_firstInitialized      = true;
   bool m_cuedCalibrationUpdate = false;
 
 private:
+  int getDevPixRatio() const;
   void drawColorWheel(QPainter &p);
   void drawCurrentColorMark(QPainter &p);
   void clickLeftWheel(const QPoint &pos);
@@ -177,9 +172,8 @@ public:
   void cueCalibrationUpdate() { m_cuedCalibrationUpdate = true; }
 
 protected:
-  void initializeGL() override;
-  void resizeGL(int width, int height) override;
-  void paintGL() override;
+  void resizeEvent(QResizeEvent *event) override;
+  void paintEvent(QPaintEvent *event) override;
   QSize SizeHint() const { return QSize(300, 200); };
 
   void mousePressEvent(QMouseEvent *event) override;
@@ -189,9 +183,6 @@ protected:
   void showEvent(QShowEvent *) override;
 signals:
   void colorChanged(const ColorModel &color, bool isDragging);
-
-public slots:
-  void onContextAboutToBeDestroyed();
 };
 
 //=============================================================================

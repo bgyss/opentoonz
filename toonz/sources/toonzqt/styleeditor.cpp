@@ -55,15 +55,29 @@
 #include <QToolTip>
 #include <QSplitter>
 #include <QMenu>
-#include <QOpenGLFramebufferObject>
-#include <QOpenGLPaintDevice>
 #include <QPainterPath>
+#include <QResizeEvent>
 
 namespace {
 enum ColorSliderAppearance {
   RelativeColoredTriangleHandle,
   AbsoluteColoredLineHandle
 };
+
+void applyLutCalibration(QImage &image) {
+  if (!Preferences::instance()->isColorCalibrationEnabled()) return;
+  LutManager *manager = LutManager::instance();
+  if (!manager->isValid()) return;
+
+  for (int y = 0; y != image.height(); ++y) {
+    QRgb *scanLine = reinterpret_cast<QRgb *>(image.scanLine(y));
+    for (int x = 0; x != image.width(); ++x) {
+      QColor color = QColor::fromRgba(scanLine[x]);
+      manager->convert(color);
+      scanLine[x] = color.rgba();
+    }
+  }
+}
 }
 TEnv::IntVar StyleEditorColorSliderAppearance(
     "StyleEditorColorSliderAppearance", RelativeColoredTriangleHandle);
@@ -570,7 +584,7 @@ QPixmap makeSquareShading(const ColorModel &color, ColorChannel channel,
 //*****************************************************************************
 
 HexagonalColorWheel::HexagonalColorWheel(QWidget *parent)
-    : GLWidgetForHighDpi(parent)
+    : QWidget(parent)
     , m_bgColor(128, 128, 128)  // default value in case this value does not set
                                 // in the style sheet
 {
@@ -578,39 +592,16 @@ HexagonalColorWheel::HexagonalColorWheel(QWidget *parent)
   setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
   setFocusPolicy(Qt::NoFocus);
   m_currentWheel = none;
-  if (Preferences::instance()->isColorCalibrationEnabled())
-    m_lutCalibrator = new LutCalibrator();
 }
 
 //-----------------------------------------------------------------------------
 
-HexagonalColorWheel::~HexagonalColorWheel() {
-  if (m_fbo) delete m_fbo;
-}
+HexagonalColorWheel::~HexagonalColorWheel() {}
 
 //-----------------------------------------------------------------------------
 
 void HexagonalColorWheel::updateColorCalibration() {
-  if (Preferences::instance()->isColorCalibrationEnabled()) {
-    // prevent to initialize LutCalibrator before this instance is initialized
-    // or OT may crash due to missing OpenGL context
-    if (m_firstInitialized) {
-      cueCalibrationUpdate();
-      return;
-    }
-
-    makeCurrent();
-    if (!m_lutCalibrator)
-      m_lutCalibrator = new LutCalibrator();
-    else
-      m_lutCalibrator->cleanup();
-    m_lutCalibrator->initialize();
-    connect(context(), SIGNAL(aboutToBeDestroyed()), this,
-            SLOT(onContextAboutToBeDestroyed()));
-    if (m_lutCalibrator->isValid() && !m_fbo)
-      m_fbo = new QOpenGLFramebufferObject(width(), height());
-    doneCurrent();
-  }
+  m_cuedCalibrationUpdate = false;
   update();
 }
 
@@ -619,36 +610,20 @@ void HexagonalColorWheel::updateColorCalibration() {
 void HexagonalColorWheel::showEvent(QShowEvent *) {
   if (m_cuedCalibrationUpdate) {
     updateColorCalibration();
-    m_cuedCalibrationUpdate = false;
   }
 }
 
 //-----------------------------------------------------------------------------
 
-void HexagonalColorWheel::initializeGL() {
-  initializeOpenGLFunctions();
-
-  if (m_lutCalibrator && !m_lutCalibrator->isInitialized()) {
-    m_lutCalibrator->initialize();
-    connect(context(), SIGNAL(aboutToBeDestroyed()), this,
-            SLOT(onContextAboutToBeDestroyed()));
-  }
-
-  // Without the following lines, the wheel in a floating style editor
-  // disappears on switching the room due to context switching.
-  if (m_firstInitialized)
-    m_firstInitialized = false;
-  else {
-    resizeGL(width(), height());
-    update();
-  }
+int HexagonalColorWheel::getDevPixRatio() const {
+  return getDevicePixelRatio(this);
 }
 
 //-----------------------------------------------------------------------------
 
-void HexagonalColorWheel::resizeGL(int w, int h) {
-  w *= getDevPixRatio();
-  h *= getDevPixRatio();
+void HexagonalColorWheel::resizeEvent(QResizeEvent *) {
+  const int w = width() * getDevPixRatio();
+  const int h = height() * getDevPixRatio();
   float d                 = (w - 5.0f) / 2.5f;
   bool isHorizontallyLong = ((d * 1.732f) < h) ? false : true;
 
@@ -686,28 +661,11 @@ void HexagonalColorWheel::resizeGL(int w, int h) {
   m_leftp[1].setY(m_triHeight * 2.0f);
   m_leftp[2].setX(m_leftp[1].x());
   m_leftp[2].setY(0.0f);
-
-  // remake fbo with new size
-  if (m_lutCalibrator && m_lutCalibrator->isValid()) {
-    if (m_fbo) delete m_fbo;
-    m_fbo = new QOpenGLFramebufferObject(w, h);
-  }
 }
 
 //-----------------------------------------------------------------------------
 
-void HexagonalColorWheel::paintGL() {
-  if (m_lutCalibrator && m_lutCalibrator->isValid()) {
-    if (!m_fbo) return;
-    m_fbo->bind();
-    QOpenGLPaintDevice device(m_fbo->size());
-    QPainter p(&device);
-    drawColorWheel(p);
-    p.end();
-    m_lutCalibrator->onEndDraw(m_fbo);
-    return;
-  }
-
+void HexagonalColorWheel::paintEvent(QPaintEvent *) {
   QPainter p(this);
   p.scale(1.0 / getDevPixRatio(), 1.0 / getDevPixRatio());
   drawColorWheel(p);
@@ -789,8 +747,12 @@ void HexagonalColorWheel::drawColorWheel(QPainter &p) {
     }
   }
 
+  QPainter imagePainter(&image);
+  drawCurrentColorMark(imagePainter);
+  imagePainter.end();
+
+  applyLutCalibration(image);
   p.drawImage(QPointF(0, 0), image);
-  drawCurrentColorMark(p);
 }
 
 //-----------------------------------------------------------------------------
@@ -936,15 +898,6 @@ void HexagonalColorWheel::clickRightTriangle(const QPoint &pos) {
 }
 
 //-----------------------------------------------------------------------------
-
-void HexagonalColorWheel::onContextAboutToBeDestroyed() {
-  if (!m_lutCalibrator) return;
-  makeCurrent();
-  m_lutCalibrator->cleanup();
-  doneCurrent();
-  disconnect(context(), SIGNAL(aboutToBeDestroyed()), this,
-             SLOT(onContextAboutToBeDestroyed()));
-}
 
 //*****************************************************************************
 //    SquaredColorWheel  implementation

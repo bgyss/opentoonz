@@ -83,9 +83,11 @@ Notable hotspots:
   - This must be replaced or isolated before the renderer can be backend
     neutral.
 - `toonz/sources/toonzqt/styleeditor.cpp`
-  - Uses `QOpenGLFramebufferObject` and immediate-mode OpenGL for color/style
-    UI rendering.
-  - This is a contained second-wave target after the scene viewer pilot.
+  - The hexagonal color wheel has been moved off `QOpenGLWidget` and
+    `QOpenGLFramebufferObject` onto QWidget/QImage rendering with software LUT
+    calibration.
+  - Remaining style editor and related palette/style preview surfaces should
+    continue moving to `DrawList2D` or CPU-generated textures.
 - `toonz/sources/toonz/main.cpp`, `toonz/sources/toonz/mainwindow.cpp`,
   `toonz/sources/common/tgl/tgl.cpp`, and selected `tnztools` files
   - Still reference `QGLFormat`, `QGLPixelBuffer`, `QGLContext`, or

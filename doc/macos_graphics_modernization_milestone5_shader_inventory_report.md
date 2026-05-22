@@ -43,6 +43,14 @@ subtile-sized target. It also routes the supported direct
 active backend is Metal, both input ports are connected, and the output tile is
 32-bit RGBA.
 
+The style-editor checkpoint removes the `HexagonalColorWheel` dependency on
+`QOpenGLWidget`, `QOpenGLFramebufferObject`, and `QOpenGLPaintDevice`. The
+widget now paints the same CPU-generated `QImage` through a normal `QWidget`
+paint event and applies color-calibration LUTs through the existing
+`LutManager` software conversion path. This is not the full style-editor
+surface migration, but it removes one direct OpenGL/FBO style-editor preview
+path while preserving the OpenGL fallback elsewhere.
+
 ## Files Changed
 
 - `scripts/graphics_shader_inventory.sh`
@@ -58,6 +66,8 @@ active backend is Metal, both input ports are connected, and the output tile is
 - `toonz/sources/stdfx/CMakeLists.txt`
 - `toonz/sources/stdfx/shaderfx.cpp`
 - `toonz/sources/stdfx/shaderfx_metal_probe.cpp`
+- `toonz/sources/include/toonzqt/styleeditor.h`
+- `toonz/sources/toonzqt/styleeditor.cpp`
 
 ## Inventory Command
 
@@ -440,10 +450,12 @@ scene-render, and saved-and-reloaded `.tnz` scene-render coverage, and its
 Metal route now uses CPU-side bbox/input geometry expansion. `glitter` now has
 the same direct connected, detached renderer, `ToonzScene`/`buildSceneFx(...)`
 scene-render, saved-and-reloaded `.tnz` scene-render coverage, and CPU-side
-bbox/input geometry expansion. Continue by broadening input-texture ShaderFx
-coverage beyond these hand-routed effects and by moving preview/export and
-style-editor surfaces through `tgraphics`. Keep OpenGL `ShaderFx` as the
-default until full scene parity is broader.
+bbox/input geometry expansion. The style editor color wheel no longer requires
+a direct OpenGL widget/FBO path; it now uses QWidget/QImage rendering with
+software LUT application. Continue by broadening input-texture ShaderFx
+coverage beyond these hand-routed effects and by moving the remaining
+preview/export and style-editor surfaces through `tgraphics`. Keep OpenGL
+`ShaderFx` as the default until full scene parity is broader.
 
 ## Validation Run
 
@@ -473,6 +485,7 @@ nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/bu
 nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_glitter --scene-render'
 nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_glitter --scene-render --save-load-scene /private/tmp/opentoonz-glitter-saved-scene.tnz --write-pam /private/tmp/opentoonz-glitter-saved-scene.pam'
 nix develop path:. --command bash scripts/graphics_shaderfx_compare.sh /private/tmp/opentoonz-shaderfx-compare-glitter
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target toonzqt --parallel 3
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=OFF'
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target OpenToonz --parallel 3
 nix develop path:. --command bash scripts/macos/assert-arm64-bundle.sh
@@ -529,6 +542,7 @@ shaderfx_metal_probe: ok shader=SHADER_fireball backend=opengl
 shaderfx_metal_probe: ok shader=SHADER_fireball backend=metal device=Apple M1 Max
 shaderfx_metal_probe: ok shader=SHADER_HSLBlendGPU backend=metal device=Apple M1 Max
 graphics_shaderfx_compare: ok
+toonzqt/libtoonzqt.dylib linked after style editor color wheel migration
 Checked 281 Mach-O files for arm64.
 WITH_GRAPHICS_METAL:BOOL=OFF
 ```
@@ -556,4 +570,7 @@ within tolerance for all five no-input migrated shaders directly, when wrapped
 through `ToonzScene`/`buildSceneFx(...)`, and after saving and reloading minimal
 `.tnz` scene fixtures. It does not yet cover additional non-migrated
 input-texture shaders beyond the current hand-routed subset, an actual generated
-`.metallib` artifact, or full GUI preview/export scene renders.
+`.metallib` artifact, or full GUI preview/export scene renders. The style
+editor validation for this checkpoint is compile-time and inventory-based; a
+manual GUI smoke should still open the style editor, drag inside the hexagonal
+color wheel, and repeat with color calibration enabled on a macOS desktop.
