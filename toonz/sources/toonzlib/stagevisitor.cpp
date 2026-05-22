@@ -736,18 +736,12 @@ void RasterPainter::flushRasterImages() {
   }
 #endif
 
-  glPushMatrix();
-  glLoadIdentity();
-
-  glRasterPos2d(rect.x0, rect.y0);
-  glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-  glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-
-  glDrawPixels(ras2->getLx(), ras2->getLy(), TGL_FMT, TGL_TYPE,
-               ras2->getRawData());
+  GLRasterPainter::drawRaster(
+      TTranslation(rect.x0 + ras2->getLx() * 0.5,
+                   rect.y0 + ras2->getLy() * 0.5),
+      ras2->getRawData(), ras2->getWrap(), 4, ras2->getSize(), true);
 
   ras->unlock();
-  glPopMatrix();
 
   glPopAttrib();  // Restore blending status
 

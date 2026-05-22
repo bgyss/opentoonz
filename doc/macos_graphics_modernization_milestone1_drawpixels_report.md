@@ -33,6 +33,11 @@ model needed for a future Metal backend.
   `glDrawPixels` with the existing `tglDraw(TRectD, TRaster32P, false)`
   texture helper. This covers the 32-bit vector-image checkerboard case while
   leaving high-bit-depth raster presentation paths unchanged.
+- Follow-up: replaced the `Stage::RasterPainter::flushRasterImages()` final
+  premultiplied buffer upload with `GLRasterPainter::drawRaster(...)`. This
+  keeps the existing CPU composition path and preserves
+  `GL_ONE, GL_ONE_MINUS_SRC_ALPHA` blending while moving the presentation step
+  from direct pixel upload to texture-backed drawing.
 
 ## Inventory Before and After
 
@@ -76,10 +81,26 @@ glDrawPixels                       files=    4 matches=     9
 OpenGL selection                   files=    5 matches=    95
 ```
 
+Current source-like inventory after the stage raster flush follow-up:
+
+```text
+OpenToonz graphics API inventory
+source_root=toonz/sources
+
+all graphics markers               files=  121 matches=  2860
+Qt legacy QGL                      files=    0 matches=     0
+Qt QOpenGL                         files=   32 matches=   218
+GLU                                files=    5 matches=    53
+GLEW or GLUT                       files=   10 matches=    30
+fixed-function drawing             files=   85 matches=  2009
+fixed-function matrix              files=   56 matches=   447
+glDrawPixels                       files=    3 matches=     8
+OpenGL selection                   files=    5 matches=    95
+```
+
 Remaining `glDrawPixels` sites:
 
 - `toonz/sources/toonz/sceneviewer.cpp`
-- `toonz/sources/toonzlib/stagevisitor.cpp`
 - `toonz/sources/toonzlib/imagepainter.cpp`
 - `toonz/sources/common/tvectorrenderer.cpp`
 
@@ -120,6 +141,24 @@ Result: passed. The Metal-enabled build linked `OpenToonz.app` and
 linked `OpenToonz.app`. The broader fallback rebuild emitted existing unrelated
 warnings in image/trop/tool/viewer code, but the changed `imagepainter.cpp`
 compiled cleanly.
+
+Stage raster flush follow-up validation:
+
+```sh
+bash scripts/graphics_inventory.sh
+git diff --check
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target toonzlib OpenToonz --parallel 3
+nix develop path:. --command cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=ON
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tgraphics_metal_probe toonzlib OpenToonz --parallel 3
+nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
+nix develop path:. --command cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=OFF
+```
+
+Result: passed. The fallback build recompiled `stagevisitor.cpp` and linked
+`OpenToonz.app`. The Metal-enabled build linked `OpenToonz.app`, and
+`tgraphics_metal_probe` reported `ok on Apple M1 Max`. The broader
+Metal-enabled rebuild emitted existing unrelated warnings in image/trop code,
+but the changed `stagevisitor.cpp` compiled cleanly.
 
 ## Manual Smoke
 
