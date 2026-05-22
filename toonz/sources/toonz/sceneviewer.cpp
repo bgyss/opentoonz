@@ -1264,6 +1264,88 @@ bool SceneViewer::presentGuidesWithMetal() {
 
 //-------------------------------------------------------------------------------
 
+bool SceneViewer::presentCameraOverlayWithMetal(unsigned long flags,
+                                                double pixelSize) {
+  if (m_drawCameraTest || m_draw3DMode || m_drawEditingLevel) return false;
+  if (!viewCameraToggle.getStatus()) return false;
+
+  const int targetWidth  = std::max(1, width() * getDevPixRatio());
+  const int targetHeight = std::max(1, height() * getDevPixRatio());
+  if (!ensureMetalLayerTarget(targetWidth, targetHeight)) return false;
+
+  auto toMetalPixel = [targetWidth, targetHeight](const TPointD& point) {
+    return TPointD(targetWidth * 0.5 + point.x,
+                   targetHeight - (targetHeight * 0.5 + point.y));
+  };
+
+  const bool cameraRef = 0 != (flags & ViewerDraw::CAMERA_REFERENCE);
+  const bool solidLine = 0 != (flags & ViewerDraw::SOLID_LINE);
+  const bool subcamera = 0 != (flags & ViewerDraw::SUBCAMERA);
+  const TPixel32 cameraLineColor =
+      cameraRef ? TPixel32(255, 0, 255, 255) : TPixel32(255, 0, 0, 255);
+  const TPixel32 subcameraLineColor(255, 0, 255, 255);
+
+  auto appendCameraLine = [solidLine](TGraphics::DrawList2D& drawList,
+                                      const TPointD& p0, const TPointD& p1,
+                                      const TPixel32& color) {
+    if (solidLine)
+      drawList.addColorLine(p0, p1, color, false);
+    else
+      appendDashedLine(drawList, p0, p1, color);
+  };
+
+  TGraphics::DrawList2D drawList;
+
+  const TRectD rect = ViewerDraw::getCameraRect();
+  const TPointD cameraFrame[5] = {
+      TPointD(rect.x0, rect.y0), TPointD(rect.x0, rect.y1 - pixelSize),
+      TPointD(rect.x1 - pixelSize, rect.y1 - pixelSize),
+      TPointD(rect.x1 - pixelSize, rect.y0), TPointD(rect.x0, rect.y0)};
+  for (int i = 0; i < 4; ++i) {
+    appendCameraLine(drawList, toMetalPixel(m_drawCameraAff * cameraFrame[i]),
+                     toMetalPixel(m_drawCameraAff * cameraFrame[i + 1]),
+                     cameraLineColor);
+  }
+
+  const double dx = 0.05 * rect.getP00().x;
+  const double dy = 0.05 * rect.getP00().y;
+  appendCameraLine(drawList,
+                   toMetalPixel(m_drawCameraAff * TPointD(-dx, -dy)),
+                   toMetalPixel(m_drawCameraAff * TPointD(dx, dy)),
+                   cameraLineColor);
+  appendCameraLine(drawList, toMetalPixel(m_drawCameraAff * TPointD(-dx, dy)),
+                   toMetalPixel(m_drawCameraAff * TPointD(dx, -dy)),
+                   cameraLineColor);
+
+  if (!CleanupPreviewCheck::instance()->isEnabled() && subcamera) {
+    PreviewSubCameraManager* manager = PreviewSubCameraManager::instance();
+    const TRect previewSubRect(manager->getEditingCameraInterestRect());
+    if (previewSubRect.getLx() > 0 && previewSubRect.getLy() > 0) {
+      const TRectD stagePreviewSubRect(
+          manager->getEditingCameraInterestStageRect());
+      const TPointD subFrame[5] = {
+          TPointD(stagePreviewSubRect.x0, stagePreviewSubRect.y0),
+          TPointD(stagePreviewSubRect.x0,
+                  stagePreviewSubRect.y1 - pixelSize),
+          TPointD(stagePreviewSubRect.x1 - pixelSize,
+                  stagePreviewSubRect.y1 - pixelSize),
+          TPointD(stagePreviewSubRect.x1 - pixelSize,
+                  stagePreviewSubRect.y0),
+          TPointD(stagePreviewSubRect.x0, stagePreviewSubRect.y0)};
+      for (int i = 0; i < 4; ++i) {
+        appendDashedLine(drawList,
+                         toMetalPixel(m_drawCameraAff * subFrame[i]),
+                         toMetalPixel(m_drawCameraAff * subFrame[i + 1]),
+                         subcameraLineColor);
+      }
+    }
+  }
+
+  return presentDrawListWithMetal(drawList);
+}
+
+//-------------------------------------------------------------------------------
+
 bool SceneViewer::presentDrawListWithMetal(
     const TGraphics::DrawList2D& drawList) {
   if (drawList.empty()) return false;
@@ -2192,6 +2274,8 @@ void SceneViewer::drawOverlay() {
         glPushMatrix();
         tglMultMatrix(m_drawCameraAff);
         m_pixelSize = sqrt(tglGetPixelSize2()) * getDevPixRatio();
+        if (shouldPresentWithMetal())
+          presentCameraOverlayWithMetal(f, m_pixelSize);
         ViewerDraw::drawCamera(f, m_pixelSize);
         glPopMatrix();
       }

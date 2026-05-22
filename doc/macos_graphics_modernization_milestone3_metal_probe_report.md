@@ -194,6 +194,10 @@ before porting scene internals.
   dashed `ColorLine` commands when guides are visible and Metal is requested.
   The existing OpenGL guide drawing remains in place for compatibility
   snapshots and non-Metal runs.
+- The same overlay path now mirrors the 2D camera frame, center cross, and
+  preview sub-camera rectangle into direct Metal `ColorLine` commands when the
+  camera overlay is visible. Camera-name text remains on the OpenGL overlay path
+  until text rendering is added to `DrawList2D`.
 - The direct Metal viewer background path now adds a checkerboard using
   `Preferences::getChessboardColors(...)` when `ToonzCheck::eTransparency` is
   active.
