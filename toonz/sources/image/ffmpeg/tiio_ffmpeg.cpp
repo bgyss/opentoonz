@@ -14,6 +14,7 @@
 #include <QElapsedTimer>
 #include <QProcess>
 #include <QRegularExpression>
+#include <QSet>
 #include <QUuid>
 #include <QDir>
 #include <QFile>
@@ -24,6 +25,10 @@
 
 namespace {
 
+constexpr int kFFmpegFormatProbeStartTimeoutMs = 1000;
+constexpr int kFFmpegFormatProbeTimeoutMs      = 2000;
+constexpr int kFFmpegFormatProbeQuitTimeoutMs  = 250;
+
 QString readFFmpegFormats() {
   QStringList args;
   args << "-hide_banner"
@@ -33,7 +38,8 @@ QString readFFmpegFormats() {
   ffmpeg.setProcessChannelMode(QProcess::MergedChannels);
   ThirdParty::runFFmpeg(ffmpeg, args);
 
-  if (!ffmpeg.waitForStarted(1000)) return QString();
+  if (!ffmpeg.waitForStarted(kFFmpegFormatProbeStartTimeoutMs))
+    return QString();
 
   QByteArray output;
   QElapsedTimer timer;
@@ -42,9 +48,10 @@ QString readFFmpegFormats() {
   while (!ffmpeg.waitForFinished(100)) {
     output += ffmpeg.readAll();
 
-    if (timer.elapsed() > 8000) {
+    if (timer.elapsed() > kFFmpegFormatProbeTimeoutMs) {
       ffmpeg.terminate();
-      if (!ffmpeg.waitForFinished(500)) ffmpeg.kill();
+      if (!ffmpeg.waitForFinished(kFFmpegFormatProbeQuitTimeoutMs))
+        ffmpeg.kill();
       output += ffmpeg.readAll();
       return QString();
     }
@@ -55,6 +62,26 @@ QString readFFmpegFormats() {
     return QString();
 
   return QString::fromUtf8(output);
+}
+
+QSet<QString> parseFFmpegFormats(const QString &output) {
+  QSet<QString> formats;
+  QRegularExpression formatLinePattern("^\\s*([D ])([E ])(?:[d ])\\s+(\\S+)");
+
+  for (const QString &line : output.split('\n')) {
+    QRegularExpressionMatch match = formatLinePattern.match(line);
+    if (!match.hasMatch()) continue;
+
+    QChar demuxFlag = match.captured(1).at(0);
+    QChar muxFlag   = match.captured(2).at(0);
+    if (demuxFlag != 'D' && muxFlag != 'E') continue;
+
+    for (const QString &name : match.captured(3).split(',')) {
+      if (!name.isEmpty()) formats.insert(name.toLower());
+    }
+  }
+
+  return formats;
 }
 
 }  // namespace
@@ -76,19 +103,18 @@ Ffmpeg::~Ffmpeg() { cleanUpFiles(); }
 
 bool Ffmpeg::checkFormat(std::string format) {
   // Cache with reload every hour (avoids becoming outdated if ffmpeg changes)
-  static QString cachedFormats;
+  static QSet<QString> cachedFormats;
   static QDateTime lastCheck;
   static bool hasCachedFormats = false;
 
   QDateTime now = QDateTime::currentDateTime();
   if (!hasCachedFormats || lastCheck.secsTo(now) > 3600) {  // 1 hour
-    cachedFormats    = readFFmpegFormats();
+    cachedFormats    = parseFFmpegFormats(readFFmpegFormats());
     lastCheck        = now;
     hasCachedFormats = true;
   }
 
-  return cachedFormats.contains(QString::fromStdString(format),
-                                Qt::CaseInsensitive);
+  return cachedFormats.contains(QString::fromStdString(format).toLower());
 }
 
 TFilePath Ffmpeg::getFfmpegCache() const {
