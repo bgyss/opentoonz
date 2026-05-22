@@ -73,6 +73,7 @@ struct DVAPI TextureQuad final {
   TRectD m_rect;
   TPointD m_points[4];
   std::shared_ptr<Texture> m_texture;
+  TPixel32 m_colorScale    = TPixel32::White;
   bool m_blending          = false;
   bool m_hasExplicitPoints = false;
 };
@@ -109,6 +110,10 @@ public:
   void addTextureQuad(const TPointD& p00, const TPointD& p10,
                       const TPointD& p11, const TPointD& p01,
                       const TRaster32P& raster, bool blending);
+  void addTextureQuad(const TPointD& p00, const TPointD& p10,
+                      const TPointD& p11, const TPointD& p01,
+                      const TRaster32P& raster, const TPixel32& colorScale,
+                      bool blending);
 
   bool hasClearColor() const;
   const TPixel32& clearColor() const;

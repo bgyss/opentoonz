@@ -57,8 +57,10 @@ NSString *shaderSource() {
           "}\n"
           "fragment float4 tgraphicsFragment(VertexOut in [[stage_in]], "
           "texture2d<float> colorTexture [[texture(0)]], sampler "
-          "colorSampler [[sampler(0)]]) {\n"
-          "  return colorTexture.sample(colorSampler, in.texCoord);\n"
+          "colorSampler [[sampler(0)]], constant float4 &colorScale "
+          "[[buffer(0)]]) {\n"
+          "  return colorTexture.sample(colorSampler, in.texCoord) * "
+          "colorScale;\n"
           "}\n"
           "fragment float4 tgraphicsColorFragment(VertexOut in [[stage_in]], "
           "constant float4 &color [[buffer(0)]]) {\n"
@@ -234,10 +236,13 @@ public:
       if (!pipeline) continue;
 
       std::array<MetalVertex, 6> vertices = makeVertices(quad);
+      const float colorScale[4] = {quad.m_colorScale.r / 255.0f, quad.m_colorScale.g / 255.0f,
+                                   quad.m_colorScale.b / 255.0f, quad.m_colorScale.m / 255.0f};
       [encoder setRenderPipelineState:pipeline];
       [encoder setVertexBytes:vertices.data()
                        length:vertices.size() * sizeof(MetalVertex)
                       atIndex:0];
+      [encoder setFragmentBytes:colorScale length:sizeof(colorScale) atIndex:0];
       [encoder setFragmentTexture:metalTexture atIndex:0];
       [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
     }

@@ -23,8 +23,9 @@ vertex VertexOut tgraphicsVertex(uint vertexId [[vertex_id]],
 
 fragment float4 tgraphicsFragment(VertexOut in [[stage_in]],
                                   texture2d<float> colorTexture [[texture(0)]],
-                                  sampler colorSampler [[sampler(0)]]) {
-  return colorTexture.sample(colorSampler, in.texCoord);
+                                  sampler colorSampler [[sampler(0)]],
+                                  constant float4 &colorScale [[buffer(0)]]) {
+  return colorTexture.sample(colorSampler, in.texCoord) * colorScale;
 }
 
 fragment float4 tgraphicsColorFragment(VertexOut in [[stage_in]],

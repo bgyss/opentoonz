@@ -9,7 +9,8 @@ checkerboard background commands are now also validated through the
 Metal/OpenGL probe. Direct transformed texture-quad commands and the first
 direct Metal preview-raster presentation path are now also in place. Eligible
 normal scene `TRaster32P` nodes now have a conservative direct Metal emission
-path before the compatibility OpenGL compositor runs.
+path before the compatibility OpenGL compositor runs, including column-opacity
+modulation for otherwise eligible nodes.
 
 ## Objective
 
@@ -33,7 +34,9 @@ also supports explicit four-corner texture quads so viewer rasters can be
 submitted with camera/view transforms instead of only as axis-aligned
 screen-space rectangles. The normal 2D scene `Stage::RasterPainter` can now
 append simple full-color raster nodes to a direct Metal draw list before it
-falls back to the existing CPU raster composition and OpenGL upload.
+falls back to the existing CPU raster composition and OpenGL upload. Those
+direct texture quads now also carry a per-quad color scale so the Metal path can
+match OpenGL-style texture modulation and represent column opacity.
 
 This is not yet a full native Metal scene renderer. Scene composition still
 comes from the existing OpenGL viewer path, then the captured viewer framebuffer
@@ -112,6 +115,9 @@ before porting scene internals.
 - Added `DrawList2D::addTextureQuad(...)` for explicit four-corner raster
   texture draws. The axis-aligned `addTexture(...)` path remains available and
   still uses the existing OpenGL helper in the compatibility backend.
+- Added `TextureQuad::m_colorScale` and a `DrawList2D::addTextureQuad(...)`
+  overload that accepts a `TPixel32` modulation color. The default remains
+  white, preserving existing unmodulated texture behavior.
 - Added `DrawList2D::setClearColor(...)`, `hasClearColor()`, and
   `clearColor()` so small draw lists can represent a direct render-target clear
   without requiring a synthetic full-frame texture.
@@ -127,6 +133,10 @@ before porting scene internals.
 - Updated the OpenGL and Metal command encoders to draw explicit texture quads,
   with Metal/OpenGL parity covered by the probe for a camera-transform-like
   scaled and translated raster quad.
+- Updated the OpenGL and Metal explicit texture-quad encoders to apply
+  per-quad color-scale modulation. OpenGL uses `GL_MODULATE` on the explicit
+  quad fallback path; Metal multiplies sampled BGRA texture output by the same
+  normalized color scale in the fragment shader.
 - Updated Metal layer render passes without an explicit clear color to load the
   existing drawable contents. This lets direct scene-content draw lists layer on
   top of the direct background command before the final compatibility snapshot.
@@ -142,6 +152,9 @@ before porting scene internals.
   the same alpha behavior as the OpenGL baseline.
 - The probe now renders both cases through Metal and OpenGL and fails on any
   pixel mismatch outside a one-channel tolerance.
+- The probe now includes a modulated texture-quad case that draws a half-alpha
+  explicit texture quad over a solid base and validates Metal/OpenGL readback
+  parity.
 - Added `tgraphics_metal_shaders.metal` to keep the minimal vertex/fragment
   shader source visible in the build tree.
 - Added `tgraphicsColorFragment` to the runtime Metal shader source and the
@@ -180,9 +193,10 @@ before porting scene internals.
 - `SceneViewer::drawScene()` now asks `RasterPainter` for those direct raster
   texture quads before calling the existing `flushRasterImages()` OpenGL path.
   The bridge only emits straightforward `TRaster32P` nodes: no active visual
-  checks, channel masks, onion skin coloring, column opacity, filter colors,
+  checks, channel masks, onion skin coloring, filter colors,
   premultiply/white-transparent conversion, ignored alpha, or darken-blended
-  raster view mode.
+  raster view mode. Column opacity is now represented as alpha in the per-quad
+  texture color scale for otherwise eligible `TRaster32P` nodes.
 - Linked `tnzcore` against `Metal.framework` only when
   `WITH_GRAPHICS_METAL=ON`.
 - Linked `tnzcore` against `QuartzCore.framework` only when
@@ -242,8 +256,9 @@ Probe output after validating direct solid clear/background pixels, transparent
 clear pixels, solid-color rectangle drawing, solid-color rectangle alpha
 blending, checkerboard background drawing, deterministic axis-aligned color
 line drawing, opaque textured replace drawing, transformed texture-quad
-drawing, OpenGL-compatible texture alpha blending over both solid and gradient
-destinations, and Metal/OpenGL readback parity:
+drawing, modulated half-alpha texture-quad drawing, OpenGL-compatible texture
+alpha blending over both solid and gradient destinations, and Metal/OpenGL
+readback parity:
 
 ```text
 tgraphics_metal_probe: ok on Apple M1 Max
@@ -271,9 +286,10 @@ inside the full UI.
   compatibility snapshot.
 - The direct normal-scene raster path intentionally skips complex raster-node
   cases that still need the existing CPU compositor: Toonz raster/palette
-  conversion, onion skins, visual check modes, column opacity, filter colors,
+  conversion, onion skins, visual check modes, filter colors,
   premultiply/white-transparent behavior, ignored-alpha column behavior, and
-  raster darken-blended view mode.
+  raster darken-blended view mode. It now handles column opacity only for
+  otherwise eligible `TRaster32P` nodes through texture color-scale alpha.
 - The checkerboard helper expands into many solid rectangles. This is adequate
   for the current 50-device-pixel viewer checker cells and probe coverage, but
   a backend-native tiled/pattern path would be better before broad use.

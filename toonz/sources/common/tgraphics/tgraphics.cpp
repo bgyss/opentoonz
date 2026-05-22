@@ -151,6 +151,13 @@ void DrawList2D::addTexture(const TRectD& rect, const TRaster32P& raster,
 void DrawList2D::addTextureQuad(const TPointD& p00, const TPointD& p10,
                                 const TPointD& p11, const TPointD& p01,
                                 const TRaster32P& raster, bool blending) {
+  addTextureQuad(p00, p10, p11, p01, raster, TPixel32::White, blending);
+}
+
+void DrawList2D::addTextureQuad(const TPointD& p00, const TPointD& p10,
+                                const TPointD& p11, const TPointD& p01,
+                                const TRaster32P& raster,
+                                const TPixel32& colorScale, bool blending) {
   TextureQuad quad;
   quad.m_points[0] = p00;
   quad.m_points[1] = p10;
@@ -162,6 +169,7 @@ void DrawList2D::addTextureQuad(const TPointD& p00, const TPointD& p10,
              std::max(std::max(p00.x, p10.x), std::max(p11.x, p01.x)),
              std::max(std::max(p00.y, p10.y), std::max(p11.y, p01.y)));
   quad.m_texture           = std::make_shared<RasterTexture>(raster);
+  quad.m_colorScale        = colorScale;
   quad.m_blending          = blending;
   quad.m_hasExplicitPoints = true;
   m_textureQuads.push_back(quad);
@@ -381,10 +389,10 @@ private:
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+    glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
     glEnable(GL_TEXTURE_2D);
     glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
-    tglColor(TPixel32(0, 0, 0, 0));
+    tglColor(quad.m_colorScale);
 
     glBegin(GL_POLYGON);
     glTexCoord2d(0.0, 0.0);

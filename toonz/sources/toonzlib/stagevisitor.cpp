@@ -780,7 +780,6 @@ void RasterPainter::appendDirectRasterTextureQuads(
     TRaster32P raster = node.m_raster;
     if (!raster) continue;
     if (node.m_onionMode != Node::eOnionSkinNone) continue;
-    if (node.m_alpha != 255) continue;
     if (node.m_doPremultiply || node.m_whiteTransp || node.m_isFirstColumn)
       continue;
     if (node.m_filterColor != TPixel32::Black) continue;
@@ -792,7 +791,7 @@ void RasterPainter::appendDirectRasterTextureQuads(
 
     drawList.addTextureQuad(toTopLeftPixel(p00), toTopLeftPixel(p10),
                             toTopLeftPixel(p11), toTopLeftPixel(p01), raster,
-                            true);
+                            TPixel32(255, 255, 255, node.m_alpha), true);
   }
 }
 
