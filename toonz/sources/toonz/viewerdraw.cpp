@@ -44,15 +44,15 @@ void getSafeAreaSizeList(QList<QList<double>> &_sizeList);
 namespace {
 
 void appendDashedLine(TGraphics::DrawList2D &drawList, const TPointD &p0,
-                      const TPointD &p1, const TPixel32 &color) {
+                      const TPointD &p1, const TPixel32 &color,
+                      double dashLength = 6.0, double gapLength = 4.0) {
   const double dx     = p1.x - p0.x;
   const double dy     = p1.y - p0.y;
   const double length = sqrt(dx * dx + dy * dy);
   if (length <= 1e-6) return;
 
   const TPointD unit(dx / length, dy / length);
-  const double dashLength = 6.0;
-  const double gapLength  = 4.0;
+  if (dashLength <= 0.0 || gapLength < 0.0) return;
   for (double start = 0.0; start < length; start += dashLength + gapLength) {
     const double rawEnd = start + dashLength;
     const double end    = rawEnd < length ? rawEnd : length;
@@ -359,66 +359,54 @@ void ViewerDraw::drawGridAndGuides(SceneViewer *viewer, double sc, Ruler *vr,
   double y1 = j1 * step;
 
   if (gridEnabled) {
-    glColor3d(0.7, 0.7, 0.7);
+    TGraphics::DrawList2D drawList;
+    const TPixel32 axisColor(179, 179, 179);
+    const TPixel32 majorGridColor(204, 204, 204);
+    const TPixel32 minorGridColor(230, 230, 230);
+    const double dashLength = absSc > 1e-6 ? 6.0 / absSc : 6.0;
+    const double gapLength  = absSc > 1e-6 ? 4.0 / absSc : 4.0;
 
-    glBegin(GL_LINES);
-    glVertex2d(0, y0);
-    glVertex2d(0, y1);
-    glVertex2d(x0, 0);
-    glVertex2d(x1, 0);
-    glEnd();
+    drawList.addColorLine(TPointD(0, y0), TPointD(0, y1), axisColor, false);
+    drawList.addColorLine(TPointD(x0, 0), TPointD(x1, 0), axisColor, false);
 
-    glEnable(GL_LINE_STIPPLE);
-
-    glLineStipple(1, 0xAAAA);
-
-    glBegin(GL_LINES);
     int i;
     for (i = i0; i <= i1; i++) {
       double x = i * step;
       if (i == 0)
         continue;
-      else if ((abs(i) % 10) == 0)
-        glColor3d(0.8, 0.8, 0.8);
-      else
-        glColor3d(0.9, 0.9, 0.9);
-      glVertex2d(x, y0);
-      glVertex2d(x, y1);
+      const TPixel32 color =
+          (abs(i) % 10) == 0 ? majorGridColor : minorGridColor;
+      appendDashedLine(drawList, TPointD(x, y0), TPointD(x, y1), color,
+                       dashLength, gapLength);
     }
     for (i = j0; i <= j1; i++) {
       double y = i * step;
       if (i == 0)
         continue;
-      else if ((abs(i) % 10) == 0)
-        glColor3d(0.8, 0.8, 0.8);
-      else
-        glColor3d(0.9, 0.9, 0.9);
-      glVertex2d(x0, y);
-      glVertex2d(x1, y);
+      const TPixel32 color =
+          (abs(i) % 10) == 0 ? majorGridColor : minorGridColor;
+      appendDashedLine(drawList, TPointD(x0, y), TPointD(x1, y), color,
+                       dashLength, gapLength);
     }
-    glEnd();
-
-    glDisable(GL_LINE_STIPPLE);
+    TGraphics::drawWithOpenGLBackend(drawList);
   }
 
-  glColor3d(0.7, 0.7, 0.7);
-  glLineStipple(1, 0xAAAA);
-  glEnable(GL_LINE_STIPPLE);
-
+  TGraphics::DrawList2D guideDrawList;
+  const TPixel32 guideColor(179, 179, 179);
+  const double dashLength = absSc > 1e-6 ? 6.0 / absSc : 6.0;
+  const double gapLength  = absSc > 1e-6 ? 4.0 / absSc : 4.0;
   int i;
-  glBegin(GL_LINES);
   for (i = 0; i < hGuideCount; i++) {
     double x = hr->getGuide(i);
-    glVertex2d(x, y0);
-    glVertex2d(x, y1);
+    appendDashedLine(guideDrawList, TPointD(x, y0), TPointD(x, y1), guideColor,
+                     dashLength, gapLength);
   }
   for (i = 0; i < vGuideCount; i++) {
     double y = vr->getGuide(i);
-    glVertex2d(x0, y);
-    glVertex2d(x1, y);
+    appendDashedLine(guideDrawList, TPointD(x0, y), TPointD(x1, y), guideColor,
+                     dashLength, gapLength);
   }
-  glEnd();
-  glDisable(GL_LINE_STIPPLE);
+  TGraphics::drawWithOpenGLBackend(guideDrawList);
 }
 
 //-----------------------------------------------------------------------------
