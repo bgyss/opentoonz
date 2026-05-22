@@ -18,9 +18,12 @@ feedback for bbox and input-port geometry programs, and renders through
 The first implementation checkpoint ports the procedural `sunflare` fragment
 logic into the `tgraphics` Metal shader source and exposes a Metal-only
 offscreen render helper. The helper is validated by `tgraphics_metal_probe`
-against a CPU reference for the same formula. This proves the first procedural
-effect shader can render through Metal readback, but it is not yet connected to
-the production `ShaderFx` graph.
+against a CPU reference for the same formula.
+
+The follow-up checkpoint wires `SHADER_sunflare` into the production
+`ShaderFx::doCompute(...)` path when the active backend is Metal, the effect has
+no input ports, and the output tile is 32-bit RGBA. All other cases fall through
+to the existing OpenGL `ShaderFx` implementation.
 
 ## Files Changed
 
@@ -31,6 +34,7 @@ the production `ShaderFx` graph.
 - `toonz/sources/common/tgraphics/tgraphics_metal.mm`
 - `toonz/sources/common/tgraphics/tgraphics_metal_shaders.metal`
 - `toonz/sources/common/tgraphics/tgraphics_metal_probe.cpp`
+- `toonz/sources/stdfx/shaderfx.cpp`
 
 ## Inventory Command
 
@@ -102,6 +106,14 @@ The Metal implementation uses the same procedural inputs as the GLSL source:
 `sharpness`. It renders into a Metal texture target and returns `TRaster32P`
 readback for probe/image-diff workflows.
 
+Production integration status:
+
+- `OPENTOONZ_GRAPHICS_BACKEND=metal` can route 32-bit, no-input
+  `SHADER_sunflare` tiles through the Metal helper.
+- OpenGL remains the default backend.
+- Non-32-bit sunflare tiles and every other `ShaderFx` still use the existing
+  OpenGL path.
+
 Shared shader-generation candidates:
 
 - `HSLBlendGPU.frag`
@@ -141,9 +153,9 @@ sunflare fragment entry point.
 
 ## Next Effects Recommendation
 
-Continue from the validated `sunflare` helper by wiring a procedural source
-effect behind an opt-in Metal shader-effect path. The next useful acceptance
-test is:
+Continue from the opt-in `sunflare` `ShaderFx` path by adding an automated
+OpenGL-vs-Metal render comparison for the production effect graph. The next
+useful acceptance test is:
 
 - render the same small effect frame through the current OpenGL `ShaderFx`
   path and the new Metal path
@@ -156,8 +168,9 @@ test is:
 ```sh
 bash scripts/graphics_shader_inventory.sh
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=ON'
-nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tgraphics_metal_probe --parallel 3
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tnzstdfx tgraphics_metal_probe --parallel 3
 nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target OpenToonz --parallel 3
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=OFF'
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target OpenToonz --parallel 3
 ```
@@ -168,5 +181,7 @@ Metal probe output:
 tgraphics_metal_probe: ok on Apple M1 Max
 ```
 
-Known validation gap: this checkpoint compares Metal `sunflare` output to a CPU
-formula reference, not yet to the production OpenGL `ShaderFx` implementation.
+Known validation gap: this checkpoint verifies that the production effect graph
+can compile and route to the Metal sunflare path, and that the Metal helper
+matches a CPU formula reference. It does not yet image-diff the production
+OpenGL `ShaderFx` output against the production Metal `ShaderFx` output.

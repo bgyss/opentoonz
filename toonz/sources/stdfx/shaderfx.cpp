@@ -14,6 +14,7 @@
 #include "trenderer.h"
 
 // TnzCore includes
+#include "tgraphics.h"
 #include "tthread.h"
 #include "tfilepath.h"
 #include "tstream.h"
@@ -932,6 +933,77 @@ void ShaderFx::getInputData(const TRectD &rect, double frame,
 
 //-------------------------------------------------------------------
 
+bool renderSunflareWithMetal(const ShaderInterface *shaderInterface,
+                             const std::vector<boost::any> &params,
+                             TTile &tile, double frame,
+                             const TRenderSettings &info) {
+  if (TGraphics::activeBackendType() != TGraphics::BackendType::Metal)
+    return false;
+  if (shaderInterface->mainShader().m_name != QStringLiteral("SHADER_sunflare"))
+    return false;
+
+  TRaster32P outputRaster = tile.getRaster();
+  if (!outputRaster) return false;
+
+  TPixel32 color(255, 170, 75, 255);
+  int blades       = 6;
+  double intensity = 1.0;
+  double angle     = 0.0;
+  double bias      = 0.0;
+  double sharpness = 3.0;
+
+  const std::vector<ShaderInterface::Parameter> &siParams =
+      shaderInterface->parameters();
+  if (siParams.size() != params.size()) return false;
+
+  for (int i = 0, count = int(siParams.size()); i != count; ++i) {
+    const QString &name = siParams[i].m_name;
+    switch (siParams[i].m_type) {
+    case ShaderInterface::RGBA:
+    case ShaderInterface::RGB:
+      if (name == QStringLiteral("color")) {
+        const TPixelParamP &param =
+            *boost::unsafe_any_cast<TPixelParamP>(&params[i]);
+        color = param->getValue(frame);
+      }
+      break;
+    case ShaderInterface::INT:
+      if (name == QStringLiteral("blades")) {
+        const TIntParamP &param =
+            *boost::unsafe_any_cast<TIntParamP>(&params[i]);
+        blades = param->getValue();
+      }
+      break;
+    case ShaderInterface::FLOAT: {
+      const TDoubleParamP &param =
+          *boost::unsafe_any_cast<TDoubleParamP>(&params[i]);
+      if (name == QStringLiteral("intensity"))
+        intensity = param->getValue(frame);
+      else if (name == QStringLiteral("angle"))
+        angle = param->getValue(frame);
+      else if (name == QStringLiteral("bias"))
+        bias = param->getValue(frame);
+      else if (name == QStringLiteral("sharpness"))
+        sharpness = param->getValue(frame);
+      break;
+    }
+    default:
+      break;
+    }
+  }
+
+  TRaster32P rendered = TGraphics::renderSunflareWithMetalBackend(
+      outputRaster->getLx(), outputRaster->getLy(),
+      (TTranslation(-tile.m_pos) * info.m_affine).inv(), color, blades,
+      intensity, angle, bias, sharpness);
+  if (!rendered) return false;
+
+  outputRaster->copy(rendered);
+  return true;
+}
+
+//-------------------------------------------------------------------
+
 void ShaderFx::doCompute(TTile &tile, double frame,
                          const TRenderSettings &info) {
   struct locals {
@@ -975,6 +1047,10 @@ void ShaderFx::doCompute(TTile &tile, double frame,
   };  // locals
 
   ShadingContextManager *manager = ShadingContextManager::instance();
+  if (getInputPortCount() == 0 &&
+      renderSunflareWithMetal(m_shaderInterface, m_params, tile, frame, info))
+    return;
+
   if (manager->touchSupport() != ShadingContext::OK) return;
 
   QMutexLocker mLocker(
