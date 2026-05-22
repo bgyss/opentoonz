@@ -221,8 +221,9 @@ before porting scene internals.
   picker.
 - Simple geometric FX gadgets now extend that Metal CPU picker to radius,
   distance, angle, angle-range, diamond, size, rectangle, and polar handles.
-  More complex compass, rainbow-width, ellipse, parallelogram, and other
-  specialized gadget shapes still fall back to legacy OpenGL picking.
+  Linear-range and rainbow-width handles are also covered. More complex
+  compass, ellipse, parallelogram, and other specialized gadget shapes still
+  fall back to legacy OpenGL picking.
 - Skeleton Tool animate and inverse-kinematics modes now have a first CPU
   picker under Metal for center, translation, drawing-browser, and IK lock
   handles. Build Skeleton hook and magic-link picking still uses the legacy

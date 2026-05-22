@@ -1701,6 +1701,7 @@ public:
                       const TPointParamP &endPoint);
 
   void draw(bool picking) override;
+  int pickCpu(const TPointD &viewerPos) override;
 
   void leftButtonDown(const TPointD &pos, const TMouseEvent &) override;
   void leftButtonDrag(const TPointD &pos, const TMouseEvent &) override;
@@ -1820,6 +1821,21 @@ void LinearRangeFxGadget::draw(bool picking) {
   drawTooltip(end + TPointD(7, 3) * getPixelSize(), "End");
 
   glPopMatrix();
+}
+
+//---------------------------------------------------------------------------
+
+int LinearRangeFxGadget::pickCpu(const TPointD &viewerPos) {
+  const TPointD start = getValue(m_start);
+  const TPointD end   = getValue(m_end);
+  if (hitViewerPoint(m_controller, viewerPos, start, 8.0))
+    return static_cast<int>(getId() + Start);
+  if (hitViewerPoint(m_controller, viewerPos, end, 8.0))
+    return static_cast<int>(getId() + End);
+  if (start != end &&
+      hitViewerSegment(m_controller, viewerPos, start, end, 6.0))
+    return static_cast<int>(getId() + Body);
+  return -1;
 }
 
 //---------------------------------------------------------------------------
@@ -2198,6 +2214,7 @@ public:
   }
 
   void draw(bool picking) override;
+  int pickCpu(const TPointD &viewerPos) override;
 
   void leftButtonDown(const TPointD &pos, const TMouseEvent &) override;
   void leftButtonDrag(const TPointD &pos, const TMouseEvent &) override;
@@ -2239,6 +2256,23 @@ void RainbowWidthFxGadget::draw(bool picking) {
   if (isSelected(Inside)) {
     drawTooltip(center + TPointD(0.707, 0.707) * (radius - w), getLabel());
   }
+}
+
+//---------------------------------------------------------------------------
+
+int RainbowWidthFxGadget::pickCpu(const TPointD &viewerPos) {
+  const double radius     = getValue(m_radius);
+  const TPointD center    = getValue(m_center);
+  const double widthScale = getValue(m_widthScale);
+  const double w          = widthScale * radius / 41.3;
+  const TPointD dir(0.707, 0.707);
+  if (hitViewerPoint(m_controller, viewerPos, center + dir * (radius + w),
+                     8.0))
+    return static_cast<int>(getId() + Outside);
+  if (hitViewerPoint(m_controller, viewerPos, center + dir * (radius - w),
+                     8.0))
+    return static_cast<int>(getId() + Inside);
+  return -1;
 }
 
 //---------------------------------------------------------------------------
