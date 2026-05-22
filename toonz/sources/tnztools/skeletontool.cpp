@@ -88,6 +88,19 @@ void drawSkeletonIKBoneOutlineWithTGraphics(const TPointD &a, const TPointD &b,
   TGraphics::drawWithOpenGLBackend(drawList);
 }
 
+void fillRectWithTGraphics(const TRectD &rect, const TPixel32 &color) {
+  TGraphics::DrawList2D drawList;
+  drawList.addColorRect(rect, color, false);
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
+
+void fillTriangleWithTGraphics(const TPointD &p0, const TPointD &p1,
+                               const TPointD &p2, const TPixel32 &color) {
+  TGraphics::DrawList2D drawList;
+  drawList.addColorTriangle(p0, p1, p2, color, false);
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
+
 }  // namespace
 
 TEnv::IntVar SkeletonGlobalKeyFrame("SkeletonToolGlobalKeyFrame", 0);
@@ -1407,23 +1420,17 @@ void SkeletonTool::drawDrawingBrowser(const TXshCell &cell,
     double x  = (x0 + x1) * 0.5;
     double d  = arrowHeight * pixelSize;
 
-    glColor3d(0, 1, 0);
+    const TPixel32 pickColor(0, 255, 0, 255);
     glPushName(TD_ChangeDrawing);
-    glRectd(x0, y1, x1, y2);
+    fillRectWithTGraphics(TRectD(x0, y1, x1, y2), pickColor);
     glPopName();
     glPushName(TD_IncrementDrawing);
-    glBegin(GL_POLYGON);
-    glVertex2d(x, y0);
-    glVertex2d(x + d, y0 + d);
-    glVertex2d(x - d, y0 + d);
-    glEnd();
+    fillTriangleWithTGraphics(TPointD(x, y0), TPointD(x + d, y0 + d),
+                              TPointD(x - d, y0 + d), pickColor);
     glPopName();
     glPushName(TD_DecrementDrawing);
-    glBegin(GL_POLYGON);
-    glVertex2d(x, y3);
-    glVertex2d(x + d, y3 - d);
-    glVertex2d(x - d, y3 - d);
-    glEnd();
+    fillTriangleWithTGraphics(TPointD(x, y3), TPointD(x + d, y3 - d),
+                              TPointD(x - d, y3 - d), pickColor);
     glPopName();
     return;
   } else {

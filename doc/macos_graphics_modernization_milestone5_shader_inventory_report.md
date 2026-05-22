@@ -323,6 +323,10 @@ shear main-handle picking fills from `tglFillRect(...)` and immediate
 `GL_POLYGON` drawing to `DrawList2D` color-rect/color-quad commands. Circular
 pick disks remain on legacy OpenGL until disk primitives are represented in
 `tgraphics`.
+The skeleton drawing-selector picking checkpoint moves the change-drawing
+rectangle and increment/decrement triangle pick fills from `glRectd(...)` and
+immediate `GL_POLYGON` drawing to `DrawList2D` color-rect/color-triangle
+commands while preserving the OpenGL name stack around each picking shape.
 
 ## Files Changed
 
@@ -807,6 +811,8 @@ rectangle, line, arc construction, and polygon outline previews now also emit
 `tgraphics` color-line commands.
 Edit-tool main transform scale and shear picking fills now also emit
 `tgraphics` color-rect/color-quad commands.
+Skeleton drawing-selector picking fills now also emit `tgraphics`
+color-rect/color-triangle commands.
 Geometric multiline Bezier speed-handle connector segments now also emit
 `tgraphics` color-line commands.
 Edit-tool shear-handle visible outlines now also emit `tgraphics` color-line commands.
