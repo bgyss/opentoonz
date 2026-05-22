@@ -57,6 +57,10 @@ NSString *shaderSource() {
           "texture2d<float> colorTexture [[texture(0)]], sampler "
           "colorSampler [[sampler(0)]]) {\n"
           "  return colorTexture.sample(colorSampler, in.texCoord);\n"
+          "}\n"
+          "fragment float4 tgraphicsColorFragment(VertexOut in [[stage_in]], "
+          "constant float4 &color [[buffer(0)]]) {\n"
+          "  return color;\n"
           "}\n";
 }
 
@@ -173,18 +177,26 @@ public:
     id<MTLRenderCommandEncoder> encoder = [commandBuffer renderCommandEncoderWithDescriptor:pass];
     encoder.label                       = @"DrawList2D";
 
-    id<MTLRenderPipelineState> defaultPipeline = pipelineState(false);
-    id<MTLSamplerState> sampler                = samplerState();
-    if (!defaultPipeline || !sampler) {
-      [encoder endEncoding];
-      if (drawable) [commandBuffer presentDrawable:drawable];
-      [commandBuffer commit];
-      return;
+    for (const ColorRect &rect : drawList.colorRects()) {
+      id<MTLRenderPipelineState> pipeline = colorPipelineState(rect.m_blending);
+      if (!pipeline) continue;
+
+      std::array<MetalVertex, 6> vertices = makeVertices(rect.m_rect);
+      const float color[4]                = {rect.m_color.r / 255.0f, rect.m_color.g / 255.0f,
+                                             rect.m_color.b / 255.0f, rect.m_color.m / 255.0f};
+      [encoder setRenderPipelineState:pipeline];
+      [encoder setVertexBytes:vertices.data()
+                       length:vertices.size() * sizeof(MetalVertex)
+                      atIndex:0];
+      [encoder setFragmentBytes:color length:sizeof(color) atIndex:0];
+      [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
     }
 
-    [encoder setFragmentSamplerState:sampler atIndex:0];
+    id<MTLSamplerState> sampler = samplerState();
+    if (sampler) [encoder setFragmentSamplerState:sampler atIndex:0];
 
     for (const TextureQuad &quad : drawList.textureQuads()) {
+      if (!sampler) break;
       const RasterTexture *texture = dynamic_cast<const RasterTexture *>(quad.m_texture.get());
       if (!texture || !texture->raster()) continue;
 
@@ -233,6 +245,53 @@ private:
 
     MTLRenderPipelineDescriptor *descriptor        = [[MTLRenderPipelineDescriptor alloc] init];
     descriptor.label                               = @"OpenToonz TGraphics Texture";
+    descriptor.vertexFunction                      = vertexFunction;
+    descriptor.fragmentFunction                    = fragmentFunction;
+    descriptor.colorAttachments[0].pixelFormat     = MTLPixelFormatBGRA8Unorm;
+    descriptor.colorAttachments[0].blendingEnabled = blending ? YES : NO;
+    if (blending) {
+      descriptor.colorAttachments[0].sourceRGBBlendFactor      = MTLBlendFactorSourceAlpha;
+      descriptor.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+      descriptor.colorAttachments[0].sourceAlphaBlendFactor    = MTLBlendFactorSourceAlpha;
+      descriptor.colorAttachments[0].destinationAlphaBlendFactor =
+          MTLBlendFactorOneMinusSourceAlpha;
+    }
+
+    pipeline = [state.m_device newRenderPipelineStateWithDescriptor:descriptor error:&error];
+
+#if !__has_feature(objc_arc)
+    [descriptor release];
+    [fragmentFunction release];
+    [vertexFunction release];
+    [library release];
+#endif
+
+    return pipeline;
+  }
+
+  id<MTLRenderPipelineState> colorPipelineState(bool blending) {
+    static id<MTLRenderPipelineState> replacePipeline = nil;
+    static id<MTLRenderPipelineState> blendPipeline   = nil;
+    static bool attemptedReplace                      = false;
+    static bool attemptedBlend                        = false;
+
+    id<MTLRenderPipelineState> &pipeline = blending ? blendPipeline : replacePipeline;
+    bool &attempted                      = blending ? attemptedBlend : attemptedReplace;
+    if (attempted) return pipeline;
+    attempted = true;
+
+    MetalState &state      = metalState();
+    NSError *error         = nil;
+    id<MTLLibrary> library = [state.m_device newLibraryWithSource:shaderSource()
+                                                          options:nil
+                                                            error:&error];
+    if (!library) return nil;
+
+    id<MTLFunction> vertexFunction   = [library newFunctionWithName:@"tgraphicsVertex"];
+    id<MTLFunction> fragmentFunction = [library newFunctionWithName:@"tgraphicsColorFragment"];
+
+    MTLRenderPipelineDescriptor *descriptor        = [[MTLRenderPipelineDescriptor alloc] init];
+    descriptor.label                               = @"OpenToonz TGraphics Color";
     descriptor.vertexFunction                      = vertexFunction;
     descriptor.fragmentFunction                    = fragmentFunction;
     descriptor.colorAttachments[0].pixelFormat     = MTLPixelFormatBGRA8Unorm;

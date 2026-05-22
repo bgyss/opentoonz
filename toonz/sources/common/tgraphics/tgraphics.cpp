@@ -85,6 +85,15 @@ void DrawList2D::setClearColor(const TPixel32& color) {
   m_hasClearColor = true;
 }
 
+void DrawList2D::addColorRect(const TRectD& rect, const TPixel32& color,
+                              bool blending) {
+  ColorRect colorRect;
+  colorRect.m_rect     = rect;
+  colorRect.m_color    = color;
+  colorRect.m_blending = blending;
+  m_colorRects.push_back(colorRect);
+}
+
 void DrawList2D::addTexture(const TRectD& rect, const TRaster32P& raster,
                             bool blending) {
   TextureQuad quad;
@@ -98,12 +107,16 @@ bool DrawList2D::hasClearColor() const { return m_hasClearColor; }
 
 const TPixel32& DrawList2D::clearColor() const { return m_clearColor; }
 
+const std::vector<ColorRect>& DrawList2D::colorRects() const {
+  return m_colorRects;
+}
+
 const std::vector<TextureQuad>& DrawList2D::textureQuads() const {
   return m_textureQuads;
 }
 
 bool DrawList2D::empty() const {
-  return !m_hasClearColor && m_textureQuads.empty();
+  return !m_hasClearColor && m_colorRects.empty() && m_textureQuads.empty();
 }
 
 class OpenGLImageRenderTarget final : public RenderTarget {
@@ -166,6 +179,10 @@ public:
     if (imageTarget) beginImageTargetDraw(*imageTarget);
     if (drawList.hasClearColor()) clear(drawList.clearColor());
 
+    for (const ColorRect& rect : drawList.colorRects()) {
+      drawColorRect(rect);
+    }
+
     for (const TextureQuad& quad : drawList.textureQuads()) {
       const RasterTexture* texture =
           dynamic_cast<const RasterTexture*>(quad.m_texture.get());
@@ -183,6 +200,19 @@ private:
     glClearColor(color.r / 255.0f, color.g / 255.0f, color.b / 255.0f,
                  color.m / 255.0f);
     glClear(GL_COLOR_BUFFER_BIT);
+  }
+
+  void drawColorRect(const ColorRect& rect) {
+    if (rect.m_blending) {
+      glEnable(GL_BLEND);
+      glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    } else {
+      glDisable(GL_BLEND);
+    }
+
+    tglColor(rect.m_color);
+    tglFillRect(rect.m_rect);
+    glDisable(GL_BLEND);
   }
 
   void beginImageTargetDraw(OpenGLImageRenderTarget& target) {

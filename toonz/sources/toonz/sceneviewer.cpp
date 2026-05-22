@@ -1096,6 +1096,52 @@ bool SceneViewer::presentBackgroundWithMetal() {
   TGraphics::DrawList2D drawList;
   drawList.setClearColor(bgColor);
 
+  if (m_previewMode != FULL_PREVIEW && !m_draw3DMode &&
+      m_visualSettings.m_blankColor == TPixel::Transparent &&
+      m_drawEditingLevel == false && viewClcToggle.getStatus() &&
+      !m_drawCameraTest) {
+    ToonzScene* scene = TApp::instance()->getCurrentScene()->getScene();
+    TRectD cameraRect = ViewerDraw::getCameraRect();
+    const TPointD cameraCorners[4] = {m_drawCameraAff * cameraRect.getP00(),
+                                      m_drawCameraAff * cameraRect.getP10(),
+                                      m_drawCameraAff * cameraRect.getP11(),
+                                      m_drawCameraAff * cameraRect.getP01()};
+
+    double x0 = width;
+    double x1 = 0.0;
+    double y0 = height;
+    double y1 = 0.0;
+    for (const TPointD& corner : cameraCorners) {
+      const double x = width * 0.5 + corner.x;
+      const double y = height - (height * 0.5 + corner.y);
+      x0             = std::min(x0, x);
+      x1             = std::max(x1, x);
+      y0             = std::min(y0, y);
+      y1             = std::max(y1, y);
+    }
+
+    if (x1 > x0 && y1 > y0) {
+      TPixel color =
+          (ToonzCheck::instance()->getChecks() & ToonzCheck::eBlackBg)
+              ? TPixel::Black
+              : scene->getProperties()->getBgColor();
+      if (m_visualSettings.m_colorMask == 0)
+        color.m = 255;
+      else {
+        if (m_visualSettings.m_colorMask == TRop::MChan) {
+          color.r = color.g = color.b = color.m = color.m;
+        } else {
+          color.r = m_visualSettings.m_colorMask & TRop::RChan ? color.r : 0;
+          color.g = m_visualSettings.m_colorMask & TRop::GChan ? color.g : 0;
+          color.b = m_visualSettings.m_colorMask & TRop::BChan ? color.b : 0;
+        }
+      }
+
+      drawList.addColorRect(TRectD(x0, y0, x1, y1),
+                            TPixel32(color.r, color.g, color.b, color.m), true);
+    }
+  }
+
   std::unique_ptr<TGraphics::CommandEncoder> encoder =
       TGraphics::metalDevice().createCommandEncoder(m_metalLayerTarget.get());
   encoder->draw(drawList);

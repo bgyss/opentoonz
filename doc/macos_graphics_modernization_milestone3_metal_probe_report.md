@@ -2,8 +2,9 @@
 
 Status: initial Milestone 3 build/probe, render-target, textured-draw,
 offscreen-readback, replace/blend pipeline, OpenGL baseline comparison, first
-native-view Metal presentation slice, and first direct Metal viewer-background
-command completed locally on 2026-05-22.
+native-view Metal presentation slice, first direct Metal viewer-background
+command, and first direct Metal camera color-card command completed locally on
+2026-05-22.
 
 ## Objective
 
@@ -20,15 +21,16 @@ preserving OpenGL as the default renderer. It also adds the first opt-in
 native `CAMetalLayer` child widget when `OPENTOONZ_GRAPHICS_BACKEND=metal` is
 requested, plus a first direct Metal viewer command that clears the Metal layer
 to the active viewer background color before the compatibility snapshot is
-presented.
+presented. It now also emits a direct solid-color camera color-card rectangle
+for the narrow non-3D viewer path.
 
 This is not yet a full native Metal scene renderer. Scene composition still
 comes from the existing OpenGL viewer path, then the captured viewer framebuffer
 is uploaded to Metal and presented through `DrawList2D`. The direct Metal
-background clear is intentionally narrow and is immediately followed by that
-compatibility snapshot. This is a deliberate transitional slice to validate
-Qt/native-view ownership, drawable lifecycle, direct command encoding, and Metal
-presentation before porting scene internals.
+background/color-card work is intentionally narrow and is immediately followed
+by that compatibility snapshot. This is a deliberate transitional slice to
+validate Qt/native-view ownership, drawable lifecycle, direct command encoding,
+and Metal presentation before porting scene internals.
 
 ## Files Changed
 
@@ -80,7 +82,11 @@ presentation before porting scene internals.
   - TRaster32P texture upload to `MTLPixelFormatBGRA8Unorm`
   - triangle draws for `DrawList2D` texture quads
   - per-quad `TextureQuad::m_blending` handling
+  - solid-color rectangle draws
   - drawable presentation
+- Added `DrawList2D::addColorRect(...)` and `ColorRect` so viewer components
+  such as camera background/color-card fills can move to Metal without first
+  rasterizing synthetic textures.
 - Added `DrawList2D::setClearColor(...)`, `hasClearColor()`, and
   `clearColor()` so small draw lists can represent a direct render-target clear
   without requiring a synthetic full-frame texture.
@@ -88,6 +94,9 @@ presentation before porting scene internals.
   while preserving transparent black as the default when no clear color is set.
 - Updated the OpenGL baseline command encoder to honor the same `DrawList2D`
   clear color before drawing texture quads.
+- Updated the OpenGL baseline command encoder to draw `ColorRect` through the
+  existing `tglFillRect` path, keeping the compatibility backend aligned with
+  existing OpenGL behavior.
 - Matched Metal alpha blending to the existing `tglDraw` OpenGL baseline:
   `GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA` for both color and alpha channels.
 - Added `MetalTextureRenderTarget` for offscreen render/readback validation.
@@ -102,6 +111,8 @@ presentation before porting scene internals.
   pixel mismatch outside a one-channel tolerance.
 - Added `tgraphics_metal_shaders.metal` to keep the minimal vertex/fragment
   shader source visible in the build tree.
+- Added `tgraphicsColorFragment` to the runtime Metal shader source and the
+  checked-in shader source.
 - Exported `QT_PLUGIN_PATH` from the Nix dev shell using the existing
   `OPENTOONZ_QT_PLUGIN_DIRS` value so Qt-based command-line probes can find the
   Cocoa platform plugin.
@@ -117,6 +128,9 @@ presentation before porting scene internals.
   active viewer background color before presenting the compatibility OpenGL
   framebuffer snapshot. This is the first direct viewer-side Metal command, not
   the final direct scene rendering path.
+- The same direct Metal draw list now adds a camera color-card `ColorRect` for
+  the narrow non-3D, non-editing, non-blank-frame viewer path when the camera BG
+  color toggle is enabled.
 - Linked `tnzcore` against `Metal.framework` only when
   `WITH_GRAPHICS_METAL=ON`.
 - Linked `tnzcore` against `QuartzCore.framework` only when
@@ -137,12 +151,12 @@ OpenGL `DrawList2D` behavior:
 OpenToonz graphics API inventory
 source_root=toonz/sources
 
-all graphics markers               files=  121 matches=  2890
+all graphics markers               files=  121 matches=  2891
 Qt legacy QGL                      files=    0 matches=     0
 Qt QOpenGL                         files=   32 matches=   216
 GLU                                files=    5 matches=    53
 GLEW or GLUT                       files=   10 matches=    30
-fixed-function drawing             files=   85 matches=  2026
+fixed-function drawing             files=   86 matches=  2027
 fixed-function matrix              files=   57 matches=   460
 glDrawPixels                       files=    4 matches=    10
 OpenGL selection                   files=    5 matches=    95
@@ -172,8 +186,10 @@ the CMake target metadata, links `tnzcore` against AppKit, Metal, and
 QuartzCore, builds `tgraphics_metal_probe`, and links `OpenToonz.app`.
 
 Probe output after validating direct solid clear/background pixels, transparent
-clear pixels, opaque replace drawing, OpenGL-compatible alpha blending over both
-solid and gradient destinations, and Metal/OpenGL readback parity:
+clear pixels, solid-color rectangle drawing, solid-color rectangle alpha
+blending, opaque textured replace drawing, OpenGL-compatible texture alpha
+blending over both solid and gradient destinations, and Metal/OpenGL readback
+parity:
 
 ```text
 tgraphics_metal_probe: ok on Apple M1 Max
@@ -192,8 +208,9 @@ inside the full UI.
 
 - Qt native-view integration exists only for presenting a captured viewer
   framebuffer through Metal.
-- The direct Metal viewer background clear is currently superseded by the
-  compatibility OpenGL framebuffer snapshot in the same paint pass.
+- The direct Metal viewer background clear and camera color-card rectangle are
+  currently superseded by the compatibility OpenGL framebuffer snapshot in the
+  same paint pass.
 - Scene drawing, picking, overlays, and interaction still originate from the
   existing OpenGL viewer path.
 - Metal shader source is present in the build tree, but the experimental
@@ -206,8 +223,8 @@ inside the full UI.
 ## Next Milestone 3 Work
 
 - Replace the compatibility OpenGL framebuffer snapshot with direct Metal
-  drawing for the first actual scene components: camera stand background,
-  checker/background modes, raster image textures, and simple overlays.
+  drawing for more scene components: checker/background modes, raster image
+  textures, vector image textures, and simple overlays.
 - Expand the offscreen probe from synthetic quads into baseline scene fixtures.
 - Route only a narrow scene-viewer path to the Metal command encoder once
   drawable lifecycle and fallback behavior are stable.

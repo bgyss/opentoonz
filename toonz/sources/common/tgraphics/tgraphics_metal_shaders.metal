@@ -26,3 +26,8 @@ fragment float4 tgraphicsFragment(VertexOut in [[stage_in]],
                                   sampler colorSampler [[sampler(0)]]) {
   return colorTexture.sample(colorSampler, in.texCoord);
 }
+
+fragment float4 tgraphicsColorFragment(VertexOut in [[stage_in]],
+                                       constant float4 &color [[buffer(0)]]) {
+  return color;
+}

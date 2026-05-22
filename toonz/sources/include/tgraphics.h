@@ -75,17 +75,26 @@ struct DVAPI TextureQuad final {
   bool m_blending = false;
 };
 
+struct DVAPI ColorRect final {
+  TRectD m_rect;
+  TPixel32 m_color;
+  bool m_blending = false;
+};
+
 class DVAPI DrawList2D final {
+  std::vector<ColorRect> m_colorRects;
   std::vector<TextureQuad> m_textureQuads;
   TPixel32 m_clearColor;
   bool m_hasClearColor = false;
 
 public:
   void setClearColor(const TPixel32& color);
+  void addColorRect(const TRectD& rect, const TPixel32& color, bool blending);
   void addTexture(const TRectD& rect, const TRaster32P& raster, bool blending);
 
   bool hasClearColor() const;
   const TPixel32& clearColor() const;
+  const std::vector<ColorRect>& colorRects() const;
   const std::vector<TextureQuad>& textureQuads() const;
   bool empty() const;
 };

@@ -131,6 +131,39 @@ bool validateAlphaBlend(const TRaster32P& readback, int width, int height,
   return true;
 }
 
+bool validateColorRects(const TRaster32P& readback, int width, int height,
+                        const TPixel32& clearColor, int rectX0, int rectY0,
+                        int rectX1, int rectY1, const TPixel32& rectColor,
+                        int overlayX0, int overlayY0, int overlayX1,
+                        int overlayY1, const TPixel32& overlayColor) {
+  readback->lock();
+  for (int y = 0; y < height; ++y) {
+    const TPixel32* line = readback->pixels(y);
+    for (int x = 0; x < width; ++x) {
+      const bool inRect =
+          x >= rectX0 && x < rectX1 && y >= rectY0 && y < rectY1;
+      const bool inOverlay =
+          x >= overlayX0 && x < overlayX1 && y >= overlayY0 && y < overlayY1;
+
+      TPixel32 expected = inRect ? rectColor : clearColor;
+      if (inOverlay) expected = openGLBlend(overlayColor, expected);
+
+      if (!closePixel(line[x], expected)) {
+        readback->unlock();
+        std::cerr << "tgraphics_metal_probe: color rect pixel mismatch at " << x
+                  << "," << y << " expected ";
+        printPixel(expected);
+        std::cerr << " actual ";
+        printPixel(line[x]);
+        std::cerr << std::endl;
+        return false;
+      }
+    }
+  }
+  readback->unlock();
+  return true;
+}
+
 bool compareRasters(const TRaster32P& metal, const TRaster32P& opengl,
                     const char* caseName) {
   if (!metal || !opengl) return false;
@@ -249,6 +282,46 @@ int main(int argc, char* argv[]) {
     TRaster32P openGLReadback = renderOpenGL(drawList, width, height);
     if (!openGLReadback) return fail("could not read back clear OpenGL target");
     if (!compareRasters(readback, openGLReadback, "clear")) {
+      return EXIT_FAILURE;
+    }
+  }
+
+  {
+    const TPixel32 rectClearColor(11, 13, 17, 255);
+    const TPixel32 rectColor(120, 40, 200, 255);
+    const TPixel32 rectOverlayColor(40, 220, 70, 128);
+    const int rectX0    = 1;
+    const int rectY0    = 2;
+    const int rectX1    = 6;
+    const int rectY1    = 7;
+    const int overlayX0 = 3;
+    const int overlayY0 = 0;
+    const int overlayX1 = 8;
+    const int overlayY1 = 4;
+
+    TGraphics::DrawList2D drawList;
+    drawList.setClearColor(rectClearColor);
+    drawList.addColorRect(TRectD(rectX0, rectY0, rectX1, rectY1), rectColor,
+                          false);
+    drawList.addColorRect(TRectD(overlayX0, overlayY0, overlayX1, overlayY1),
+                          rectOverlayColor, true);
+
+    TRaster32P readback = renderMetal(drawList, width, height);
+    if (!readback) return fail("could not read back color rect Metal target");
+    if (!requireDimensions(readback, width, height)) {
+      return fail("color rect readback dimensions do not match render target");
+    }
+    if (!validateColorRects(readback, width, height, rectClearColor, rectX0,
+                            rectY0, rectX1, rectY1, rectColor, overlayX0,
+                            overlayY0, overlayX1, overlayY1,
+                            rectOverlayColor)) {
+      return EXIT_FAILURE;
+    }
+
+    TRaster32P openGLReadback = renderOpenGL(drawList, width, height);
+    if (!openGLReadback)
+      return fail("could not read back color rect OpenGL baseline");
+    if (!compareRasters(readback, openGLReadback, "color rect")) {
       return EXIT_FAILURE;
     }
   }
