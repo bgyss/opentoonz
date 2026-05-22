@@ -100,6 +100,32 @@ void drawLineWithTGraphics(const TPointD &p0, const TPointD &p1,
   TGraphics::drawWithOpenGLBackend(drawList);
 }
 
+void appendDashedLine(TGraphics::DrawList2D &drawList, const TPointD &p0,
+                      const TPointD &p1, const TPixel32 &color,
+                      double dashLength = 6.0, double gapLength = 4.0) {
+  const double dx     = p1.x - p0.x;
+  const double dy     = p1.y - p0.y;
+  const double length = sqrt(dx * dx + dy * dy);
+  if (length <= 1e-6) return;
+
+  const TPointD unit(dx / length, dy / length);
+  if (dashLength <= 0.0 || gapLength < 0.0) return;
+  for (double start = 0.0; start < length; start += dashLength + gapLength) {
+    const double rawEnd = start + dashLength;
+    const double end    = rawEnd < length ? rawEnd : length;
+    drawList.addColorLine(p0 + unit * start, p0 + unit * end, color, false);
+  }
+}
+
+void drawDashedPolylineWithTGraphics(const TPointD &p0, const TPointD &p1,
+                                     const TPointD &p2,
+                                     const TPixel32 &color) {
+  TGraphics::DrawList2D drawList;
+  appendDashedLine(drawList, p0, p1, color);
+  appendDashedLine(drawList, p1, p2, color);
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
+
 void drawRectOutlineWithTGraphics(const TRectD &rect, const TPixel32 &color) {
   TGraphics::DrawList2D drawList;
   drawList.addColorLine(rect.getP00(), rect.getP01(), color, false);
@@ -2838,10 +2864,10 @@ void MultiArcPrimitive::draw() {
 
   switch (m_clickNumber) {
   case 1:
-    tglColor(m_color);
-    tglDrawSegment(m_startPoint, m_endPoint);
+    drawLineWithTGraphics(m_startPoint, m_endPoint, m_color);
 
     if (m_stroke) {
+      tglColor(m_color);
       drawStrokeCenterline(*m_stroke, sqrt(tglGetPixelSize2()));
       TPointD firstPoint = m_stroke->getControlPoint(0);
       if (firstPoint == m_endPoint) {
@@ -2854,18 +2880,11 @@ void MultiArcPrimitive::draw() {
     break;
 
   case 2:
-    tglColor(m_isPrompting ? TPixel32::Green : m_color);
-    if (!m_isPrompting) {
-      glLineStipple(1, 0x5555);
-      glEnable(GL_LINE_STIPPLE);
-      glBegin(GL_LINE_STRIP);
-      tglVertex(m_startPoint);
-      tglVertex(m_centralPoint);
-      tglVertex(m_endPoint);
-      glEnd();
-      glDisable(GL_LINE_STIPPLE);
-    }
+    if (!m_isPrompting)
+      drawDashedPolylineWithTGraphics(m_startPoint, m_centralPoint, m_endPoint,
+                                      m_color);
 
+    tglColor(m_isPrompting ? TPixel32::Green : m_color);
     if (m_stroke) drawStrokeCenterline(*m_stroke, sqrt(tglGetPixelSize2()));
 
     if (m_strokeTemp)
