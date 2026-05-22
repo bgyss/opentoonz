@@ -9,6 +9,7 @@
 #include "timageinfo.h"
 #include "timagecache.h"
 #include "tgl.h"
+#include "tgraphics.h"
 
 #include "toonz/txsheethandle.h"
 #include "toonz/tframehandle.h"
@@ -57,6 +58,20 @@
 //****************************************************************************************
 
 namespace {
+
+void appendRectOutline(TGraphics::DrawList2D &drawList, const TRectD &rect,
+                       const TPixel32 &color) {
+  drawList.addColorLine(rect.getP00(), rect.getP01(), color, false);
+  drawList.addColorLine(rect.getP01(), rect.getP11(), color, false);
+  drawList.addColorLine(rect.getP11(), rect.getP10(), color, false);
+  drawList.addColorLine(rect.getP10(), rect.getP00(), color, false);
+}
+
+void drawRectOutlineWithTGraphics(const TRectD &rect, const TPixel32 &color) {
+  TGraphics::DrawList2D drawList;
+  appendRectOutline(drawList, rect, color);
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
 
 QImage convertToGLDrawPixelsFormat(const QImage &image) {
   return image.convertToFormat(QImage::Format_RGBA8888).mirrored();
@@ -230,6 +245,11 @@ TFrameId ToolUtils::getFrameId() {
 
 void ToolUtils::drawRect(const TRectD &rect, const TPixel32 &color,
                          unsigned short stipple, bool doContrast) {
+  if (!doContrast && stipple == 0xffff) {
+    drawRectOutlineWithTGraphics(rect, color);
+    return;
+  }
+
   GLint src, dst;
   bool isEnabled;
   tglColor(color);
@@ -264,14 +284,9 @@ void ToolUtils::drawRect(const TRectD &rect, const TPixel32 &color,
 //-----------------------------------------------------------------------------
 
 void ToolUtils::fillRect(const TRectD &rect, const TPixel32 &color) {
-  tglColor(color);
-  glBegin(GL_QUADS);
-  tglVertex(rect.getP00());
-  tglVertex(rect.getP01());
-  tglVertex(rect.getP11());
-  tglVertex(rect.getP10());
-  tglVertex(rect.getP00());
-  glEnd();
+  TGraphics::DrawList2D drawList;
+  drawList.addColorRect(rect, color, false);
+  TGraphics::drawWithOpenGLBackend(drawList);
 }
 
 //-----------------------------------------------------------------------------
@@ -346,14 +361,7 @@ void ToolUtils::drawArrow(const TSegment &s, double pixelSize) {
 void ToolUtils::drawSquare(const TPointD &pos, double r,
                            const TPixel32 &color) {
   TRectD rect(pos - TPointD(r, r), pos + TPointD(r, r));
-  tglColor(color);
-  glBegin(GL_LINE_STRIP);
-  tglVertex(rect.getP00());
-  tglVertex(rect.getP01());
-  tglVertex(rect.getP11());
-  tglVertex(rect.getP10());
-  tglVertex(rect.getP00());
-  glEnd();
+  drawRectOutlineWithTGraphics(rect, color);
 }
 
 //-----------------------------------------------------------------------------

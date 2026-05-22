@@ -214,6 +214,12 @@ diagonal guide lines from direct immediate-mode `GL_LINES` to `DrawList2D`
 color-line commands under the existing guide transform. Field-number text labels
 remain on the legacy `tglDrawText(...)` path.
 
+The tool-utility rectangle checkpoint moves shared non-contrast
+`ToolUtils::drawRect(...)`, `ToolUtils::fillRect(...)`, and
+`ToolUtils::drawSquare(...)` drawing to `DrawList2D` color-line/color-rect
+commands. Contrast-blended and stippled rectangle variants remain on the legacy
+OpenGL path until `tgraphics` has matching blend and stipple semantics.
+
 ## Files Changed
 
 - `scripts/graphics_shader_inventory.sh`
@@ -683,6 +689,8 @@ immediate-mode line drawing. Viewer grid axes, grid lines, and ruler guides now
 emit `tgraphics` color-line commands instead of direct `GL_LINES` and
 `glLineStipple(...)` state. Viewer field-guide grid and diagonal lines now also
 emit `tgraphics` color-line commands instead of immediate-mode `GL_LINES`.
+Shared plain tool rectangles, filled rectangles, and square outlines now also
+emit `tgraphics` color commands.
 Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
 effects and by moving the remaining preview/export and style-editor surfaces
 through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene
