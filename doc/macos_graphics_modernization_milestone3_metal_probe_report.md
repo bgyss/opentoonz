@@ -223,6 +223,10 @@ before porting scene internals.
   distance, diamond, and size handles. More complex angle-range, compass,
   rainbow-width, ellipse, parallelogram, and other specialized gadget shapes
   still fall back to legacy OpenGL picking.
+- Skeleton Tool animate and inverse-kinematics modes now have a first CPU
+  picker under Metal for center, translation, drawing-browser, and IK lock
+  handles. Build Skeleton hook and magic-link picking still uses the legacy
+  OpenGL selection path.
 - The direct Metal viewer background path now adds a checkerboard using
   `Preferences::getChessboardColors(...)` when `ToonzCheck::eTransparency` is
   active.

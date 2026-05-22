@@ -109,6 +109,7 @@ public:
   void drawIKBone(const TPointD &a, const TPointD &b);
   void drawMainGadget(const TPointD &center);
   void drawDrawingBrowser(const TXshCell &cell, const TPointD &center);
+  int pickCpu(const TPointD &viewerPos);
 
   void setParentProbe(const TPointD &parentProbe) {
     m_parentProbe        = parentProbe;

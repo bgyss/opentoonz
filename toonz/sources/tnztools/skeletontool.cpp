@@ -3,6 +3,7 @@
 // TnzCore includes
 #include "tstroke.h"
 #include "tgl.h"
+#include "tgraphics.h"
 
 // TnzBase includes
 #include "tenv.h"
@@ -37,6 +38,7 @@
 #include "tools/toolutils.h"
 
 #include <cmath>
+#include <algorithm>
 
 // Qt includes
 #include <QCoreApplication>  // Qt translation support
@@ -74,6 +76,26 @@ static int nextPowerOfTwo(int value) {
   int result = 1;
   while (result < value) result <<= 1;
   return result;
+}
+
+static bool shouldUseMetalCpuSkeletonPicking() {
+  return TGraphics::requestedBackendType() == TGraphics::BackendType::Metal &&
+         TGraphics::isMetalBackendAvailable();
+}
+
+static double viewerDistance2(const TPointD &a, const TPointD &b) {
+  const TPointD d = a - b;
+  return d.x * d.x + d.y * d.y;
+}
+
+static bool viewerRectContains(const TPointD &p, const TPointD &a,
+                               const TPointD &b, const TPointD &c,
+                               const TPointD &d) {
+  const double x0 = std::min({a.x, b.x, c.x, d.x});
+  const double x1 = std::max({a.x, b.x, c.x, d.x});
+  const double y0 = std::min({a.y, b.y, c.y, d.y});
+  const double y1 = std::max({a.y, b.y, c.y, d.y});
+  return x0 <= p.x && p.x <= x1 && y0 <= p.y && p.y <= y1;
 }
 
 static void drawImageTexture(const QImage &source, const TPointD &pos,
@@ -383,7 +405,11 @@ bool SkeletonTool::doesApply() const {
 //-------------------------------------------------------------------
 
 void SkeletonTool::mouseMove(const TPointD &, const TMouseEvent &e) {
-  int selectedDevice = pick(e.m_pos);
+  const bool useMetalCpuPicking =
+      shouldUseMetalCpuSkeletonPicking() && m_mode.getValue() != BUILD_SKELETON;
+  int selectedDevice = useMetalCpuPicking ? pickCpu(e.m_pos) : -1;
+  if (selectedDevice < 0 && !useMetalCpuPicking)
+    selectedDevice = pick(e.m_pos);
   if (selectedDevice != m_device) {
     m_device = selectedDevice;
     invalidate();
@@ -410,7 +436,11 @@ void SkeletonTool::leftButtonDown(const TPointD &ppos, const TMouseEvent &e) {
   TXsheet *xsh            = app->getCurrentScene()->getScene()->getXsheet();
   TPointD pos             = ppos;
 
-  int selectedDevice = pick(e.m_pos);
+  const bool useMetalCpuPicking =
+      shouldUseMetalCpuSkeletonPicking() && m_mode.getValue() != BUILD_SKELETON;
+  int selectedDevice = useMetalCpuPicking ? pickCpu(e.m_pos) : -1;
+  if (selectedDevice < 0 && !useMetalCpuPicking)
+    selectedDevice = pick(e.m_pos);
 
   // change drawing
   if (selectedDevice == TD_ChangeDrawing ||
@@ -555,9 +585,12 @@ void SkeletonTool::leftButtonUp(const TPointD &pos, const TMouseEvent &e) {
         false);  // Keyframes navigator reads this
   }
   if (m_device == TD_IncrementDrawing || m_device == TD_DecrementDrawing ||
-      m_device == TD_ChangeDrawing)
-    m_device = pick(e.m_pos);
-  else
+      m_device == TD_ChangeDrawing) {
+    const bool useMetalCpuPicking = shouldUseMetalCpuSkeletonPicking() &&
+                                    m_mode.getValue() != BUILD_SKELETON;
+    m_device = useMetalCpuPicking ? pickCpu(e.m_pos) : -1;
+    if (m_device < 0 && !useMetalCpuPicking) m_device = pick(e.m_pos);
+  } else
     m_device = -1;
   invalidate();
   TUndoManager::manager()->endBlock();
@@ -1426,6 +1459,107 @@ void SkeletonTool::drawDrawingBrowser(const TXshCell &cell,
 
     assert(glGetError() == 0);
   }
+}
+
+//-------------------------------------------------------------------
+
+int SkeletonTool::pickCpu(const TPointD &viewerPos) {
+  TTool::Application *app = TTool::getApplication();
+  if (!app || !doesApply() || getViewer()->is3DView()) return TD_None;
+
+  TXsheet *xsh = getXsheet();
+  if (!xsh) return TD_None;
+
+  TStageObjectId objId = app->getCurrentObject()->getObjectId();
+  if (!objId.isColumn()) return TD_None;
+
+  TAffine aff = getMatrix();
+  if (fabs(aff.det()) < 0.00001) return TD_None;
+  const TAffine skeletonToWorld = aff.inv();
+  auto toViewer = [&](const TPointD &p) {
+    return getViewer()->worldToPos(skeletonToWorld * p);
+  };
+
+  const int col   = objId.getIndex();
+  const int frame = app->getCurrentFrame()->getFrame();
+  Skeleton skeleton;
+  buildSkeleton(skeleton, col);
+
+  const double pixelSize = getPixelSize();
+  const double hitRadius = 12.0;
+  const double hit2      = hitRadius * hitRadius;
+  const bool ikEnabled   = m_mode.getValue() == INVERSE_KINEMATICS;
+
+  if (ikEnabled) {
+    for (int i = skeleton.getBoneCount() - 1; i >= 0; --i) {
+      Skeleton::Bone *bone = skeleton.getBone(i);
+      if (!bone || !canShowBone(bone, xsh, frame)) continue;
+      if (viewerDistance2(viewerPos, toViewer(bone->getCenter())) <= hit2)
+        return TD_LockStageObject + bone->getColumnIndex();
+    }
+    return TD_None;
+  }
+
+  std::string currentHandle = xsh->getStageObject(objId)->getHandle();
+  for (int i = skeleton.getBoneCount() - 1; i >= 0; --i) {
+    Skeleton::Bone *bone = skeleton.getBone(i);
+    if (!bone || bone->getStageObject()->getId() != objId) continue;
+
+    const TPointD center = bone->getCenter();
+    if (currentHandle.find("H") != 0 &&
+        viewerDistance2(viewerPos, toViewer(center)) <= hit2)
+      return TD_Center;
+
+    if (m_mode.getValue() == ANIMATE) {
+      TXshCell cell = xsh->getCell(frame, col);
+      if (cell.m_level && cell.m_level->getFrameCount() > 1) {
+        QString text = QString::fromStdString(
+            ::to_string(cell.m_level->getName()) + "." +
+            std::to_string(cell.m_frameId.getNumber()));
+        QFontMetrics fm(QFont("Arial", 10));
+        QSize textSize   = fm.boundingRect(text).size();
+        int arrowHeight  = 10;
+        int minTextWidth = 2 * arrowHeight + 5;
+        if (textSize.width() < minTextWidth) textSize.setWidth(minTextWidth);
+        QSize totalSize(textSize.width(), textSize.height() + 2 * arrowHeight);
+
+        TPointD p = center + TPointD(30, -arrowHeight) * pixelSize;
+        double x0 = p.x;
+        double x1 = p.x + totalSize.width() * pixelSize;
+        double y0 = p.y;
+        double y3 = p.y + totalSize.height() * pixelSize;
+        double y1 = y0 + arrowHeight * pixelSize;
+        double y2 = y3 - arrowHeight * pixelSize;
+        double x  = (x0 + x1) * 0.5;
+        double d  = arrowHeight * pixelSize;
+
+        if (viewerRectContains(viewerPos, toViewer(TPointD(x0, y1)),
+                               toViewer(TPointD(x1, y1)),
+                               toViewer(TPointD(x1, y2)),
+                               toViewer(TPointD(x0, y2))))
+          return TD_ChangeDrawing;
+        if (viewerRectContains(viewerPos, toViewer(TPointD(x - d, y0)),
+                               toViewer(TPointD(x + d, y0)),
+                               toViewer(TPointD(x + d, y1)),
+                               toViewer(TPointD(x - d, y1))))
+          return TD_IncrementDrawing;
+        if (viewerRectContains(viewerPos, toViewer(TPointD(x - d, y2)),
+                               toViewer(TPointD(x + d, y2)),
+                               toViewer(TPointD(x + d, y3)),
+                               toViewer(TPointD(x - d, y3))))
+          return TD_DecrementDrawing;
+      }
+
+      double r               = 10.0 * pixelSize;
+      const TPointD movePos  = center + TPointD(r * 1.1, -r * 1.1);
+      const double moveHit2  = 14.0 * 14.0;
+      if (viewerDistance2(viewerPos, toViewer(movePos)) <= moveHit2)
+        return TD_Translation;
+    }
+    break;
+  }
+
+  return TD_None;
 }
 
 //-------------------------------------------------------------------
