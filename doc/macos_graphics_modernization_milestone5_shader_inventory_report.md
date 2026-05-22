@@ -177,6 +177,11 @@ fills from repeated `tglFillRect(...)` calls to `DrawList2D` color-rect
 commands. The Bezier handle connector segments remain on the existing tool
 drawing path.
 
+The skeleton-tool checkpoint moves pinned IK joint square fills, outlines, and
+active lock square fills from `glRectd(...)`, `tglDrawRect(...)`, and
+`tglFillRect(...)` to `DrawList2D` color-rect and color-line commands. Circular
+free-joint drawing remains on the existing tool drawing path.
+
 ## Files Changed
 
 - `scripts/graphics_shader_inventory.sh`
@@ -194,6 +199,7 @@ drawing path.
 - `toonz/sources/tnztools/hooktool.cpp`
 - `toonz/sources/tnztools/selectiontool.cpp`
 - `toonz/sources/tnztools/setsaveboxtool.cpp`
+- `toonz/sources/tnztools/skeletontool.cpp`
 - `toonz/sources/tnztools/trackertool.cpp`
 - `toonz/sources/tnztools/viewtools.cpp`
 - `toonz/sources/toonz/CMakeLists.txt`
@@ -631,7 +637,9 @@ Polyline selection previews now emit `tgraphics` color-line commands instead of
 a direct `GL_LINE_STRIP`. Zoom tool drag crosses now emit `tgraphics` color-line
 commands instead of immediate-mode `GL_LINES`. Control-point editor square
 handles now emit `tgraphics` color-rect commands instead of repeated direct
-`tglFillRect(...)` calls.
+`tglFillRect(...)` calls. Pinned skeleton IK joint square markers now emit
+`tgraphics` color-rect and color-line commands instead of direct rectangle
+drawing calls.
 Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
 effects and by moving the remaining preview/export and style-editor surfaces
 through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene

@@ -3,6 +3,7 @@
 // TnzCore includes
 #include "tstroke.h"
 #include "tgl.h"
+#include "tgraphics.h"
 
 // TnzBase includes
 #include "tenv.h"
@@ -53,6 +54,23 @@
 #include "skeletontool.h"
 
 using namespace SkeletonSubtools;
+
+namespace {
+
+TRectD makePointRect(const TPointD &point, double radius) {
+  return TRectD(point.x - radius, point.y - radius, point.x + radius,
+                point.y + radius);
+}
+
+void appendRectOutline(TGraphics::DrawList2D &drawList, const TRectD &rect,
+                       const TPixel32 &color) {
+  drawList.addColorLine(rect.getP00(), rect.getP10(), color, false);
+  drawList.addColorLine(rect.getP10(), rect.getP11(), color, false);
+  drawList.addColorLine(rect.getP11(), rect.getP01(), color, false);
+  drawList.addColorLine(rect.getP01(), rect.getP00(), color, false);
+}
+
+}  // namespace
 
 TEnv::IntVar SkeletonGlobalKeyFrame("SkeletonToolGlobalKeyFrame", 0);
 TEnv::IntVar SkeletonInverseKinematics("SkeletonToolInverseKinematics", 0);
@@ -974,23 +992,22 @@ void SkeletonTool::drawIKJoint(const Skeleton::Bone *bone) {
   glPushName(code);
   glColor3d(0.8, 0.5, 0.05);
   if (bone->getPinnedStatus() != Skeleton::Bone::FREE) {
+    TGraphics::DrawList2D drawList;
+    const TPixel32 outlineColor(51, 26, 13, 255);
     if (bone->getPinnedStatus() == Skeleton::Bone::TEMP_PINNED) {
       double r1 = r0 * 0.60;
-      glColor3d(60.0 / 255.0, 250.0 / 255.0, 1.0);
-      glRectd(pos.x - r0, pos.y - r0, pos.x + r0, pos.y + r0);
-
-      glColor3d(0.78, 0.62, 0);
-      glRectd(pos.x - r1, pos.y - r1, pos.x + r1, pos.y + r1);
-
-      glColor3d(0.2, 0.1, 0.05);
-      tglDrawRect(pos.x - r0, pos.y - r0, pos.x + r0, pos.y + r0);
-      tglDrawRect(pos.x - r1, pos.y - r1, pos.x + r1, pos.y + r1);
+      TRectD outerRect = makePointRect(pos, r0);
+      TRectD innerRect = makePointRect(pos, r1);
+      drawList.addColorRect(outerRect, TPixel32(60, 250, 255, 255), false);
+      drawList.addColorRect(innerRect, TPixel32(199, 158, 0, 255), false);
+      appendRectOutline(drawList, outerRect, outlineColor);
+      appendRectOutline(drawList, innerRect, outlineColor);
     } else {
-      glColor3d(0, 175.0 / 255.0, 1.0);
-      glRectd(pos.x - r0, pos.y - r0, pos.x + r0, pos.y + r0);
-      glColor3d(0.2, 0.1, 0.05);
-      tglDrawRect(pos.x - r0, pos.y - r0, pos.x + r0, pos.y + r0);
+      TRectD rect = makePointRect(pos, r0);
+      drawList.addColorRect(rect, TPixel32(0, 175, 255, 255), false);
+      appendRectOutline(drawList, rect, outlineColor);
     }
+    TGraphics::drawWithOpenGLBackend(drawList);
   } else {
     if (bone->isSelected())
       glColor3d(1, 0.78, 0.19);
@@ -1002,8 +1019,10 @@ void SkeletonTool::drawIKJoint(const Skeleton::Bone *bone) {
   }
 
   if (m_device == code) {
-    glColor3d(0.9, 0.1, 0.1);
-    tglFillRect(pos.x - r1, pos.y - r1, pos.x + r1, pos.y + r1);
+    TGraphics::DrawList2D drawList;
+    drawList.addColorRect(makePointRect(pos, r1), TPixel32(230, 26, 26, 255),
+                          false);
+    TGraphics::drawWithOpenGLBackend(drawList);
   } else {
     glColor3d(0.2, 0.1, 0.05);
     const double r3 = 2 * getPixelSize();
