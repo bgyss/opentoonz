@@ -297,6 +297,11 @@ The geometric multiline speed-handle checkpoint moves Bezier speed-handle
 connector segments from direct `tglDrawSegment(...)` drawing to `DrawList2D`
 color-line commands. The speed-handle disks and join marker circle remain on
 legacy OpenGL until disk/circle primitives are represented in `tgraphics`.
+The shared tool arrow checkpoint moves the `ToolUtils::drawArrow(...)` shaft
+and the `ToolUtils::drawRectWhitArrow(...)` rectangular body from immediate
+OpenGL line/polygon drawing to `DrawList2D` color-line/color-rect commands.
+Triangle arrowheads remain on legacy OpenGL until triangle/fan primitives are
+represented in `tgraphics`.
 
 ## Files Changed
 
@@ -772,7 +777,8 @@ emit `tgraphics` color-line commands instead of direct `GL_LINES` and
 emit `tgraphics` color-line commands instead of immediate-mode `GL_LINES`.
 Shared plain tool rectangles, filled rectangles, and square outlines now also
 emit `tgraphics` color commands, and shared current-color tool point, cross,
-and line primitives now also emit `tgraphics` color commands. Geometric
+line, arrow-shaft, and arrow-rectangle primitives now also emit `tgraphics`
+color commands. Geometric
 rectangle, line, arc construction, and polygon outline previews now also emit
 `tgraphics` color-line commands.
 Geometric multiline Bezier speed-handle connector segments now also emit

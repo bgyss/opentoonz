@@ -361,10 +361,7 @@ void ToolUtils::drawArrow(const TSegment &s, double pixelSize) {
   vn = v;
 
   TPointD p1 = s.getP0() + v * length;
-  glBegin(GL_LINES);
-  tglVertex(s.getP0());
-  tglVertex(p1);
-  glEnd();
+  drawCurrentColorLineWithTGraphics(s.getP0(), p1);
 
   v = v * length * 0.7;
 
@@ -394,13 +391,7 @@ void ToolUtils::drawSquare(const TPointD &pos, double r,
 void ToolUtils::drawRectWhitArrow(const TPointD &pos, double r) {
   if (TTool::getApplication()->getCurrentObject()->isSpline()) return;
   TRectD rect(pos - TPointD(14 * r, 2 * r), pos + TPointD(14 * r, 2 * r));
-  tglColor(TPixel32::Black);
-  glBegin(GL_POLYGON);
-  tglVertex(rect.getP00());
-  tglVertex(rect.getP10());
-  tglVertex(rect.getP11());
-  tglVertex(rect.getP01());
-  glEnd();
+  fillRect(rect, TPixel32::Black);
 
   double par = 5 * r;
 
