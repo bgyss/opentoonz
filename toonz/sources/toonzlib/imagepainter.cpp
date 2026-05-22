@@ -527,15 +527,9 @@ void Painter::onVectorImage(TVectorImage *vi) {
     TRaster32P check =
         getCheckBoard(clipRect, m_aff, m_vSettings.m_sceneProperties);
 
-    glDisable(GL_BLEND);
-
     glPushMatrix();
     glLoadIdentity();
-    glRasterPos2d(0, 0);
-    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-
-    glDrawPixels(check->getLx(), check->getLy(), TGL_FMT, TGL_TYPE,
-                 check->getRawData());
+    tglDraw(TRectD(0, 0, check->getLx(), check->getLy()), check, false);
     glPopMatrix();
   } else {
     if (m_vSettings.m_bg == 0x40000 || thereIsColorFilter)

@@ -29,6 +29,10 @@ model needed for a future Metal backend.
   to avoid nested locks.
 - Replaced `PlaneViewer::flushRasterBuffer()` with `tglDraw(...)`.
 - Replaced the frozen scene viewer grab-image draw with `tglDraw(...)`.
+- Follow-up: replaced `ImagePainter::onVectorImage()` checkerboard background
+  `glDrawPixels` with the existing `tglDraw(TRectD, TRaster32P, false)`
+  texture helper. This covers the 32-bit vector-image checkerboard case while
+  leaving high-bit-depth raster presentation paths unchanged.
 
 ## Inventory Before and After
 
@@ -38,7 +42,7 @@ Previous inventory before this checkpoint:
 glDrawPixels                       files=    8 matches=    17
 ```
 
-Current source-like inventory:
+Current source-like inventory after the initial checkpoint:
 
 ```text
 OpenToonz graphics API inventory
@@ -55,6 +59,23 @@ glDrawPixels                       files=    4 matches=    10
 OpenGL selection                   files=    5 matches=    95
 ```
 
+Current source-like inventory after the vector checkerboard follow-up:
+
+```text
+OpenToonz graphics API inventory
+source_root=toonz/sources
+
+all graphics markers               files=  121 matches=  2864
+Qt legacy QGL                      files=    0 matches=     0
+Qt QOpenGL                         files=   32 matches=   218
+GLU                                files=    5 matches=    53
+GLEW or GLUT                       files=   10 matches=    30
+fixed-function drawing             files=   85 matches=  2009
+fixed-function matrix              files=   56 matches=   450
+glDrawPixels                       files=    4 matches=     9
+OpenGL selection                   files=    5 matches=    95
+```
+
 Remaining `glDrawPixels` sites:
 
 - `toonz/sources/toonz/sceneviewer.cpp`
@@ -64,9 +85,9 @@ Remaining `glDrawPixels` sites:
 
 These remaining sites should be handled with additional visual validation
 because they involve 3D side/top views, channel/bit-depth paths, stage
-visitation, and platform-specific vector render backgrounds. The 3D scene viewer
-buttons still need a screen-space texture helper because the existing code
-positions the raster with `glRasterPos3f`.
+visitation, and platform-specific vector render backgrounds. The 3D scene
+viewer buttons still need a screen-space texture helper because the existing
+code positions the raster with `glRasterPos3f`.
 
 ## Validation Run
 
@@ -82,6 +103,23 @@ Result: passed.
 
 The final build recompiled affected tool, offscreen render, plane viewer, and
 OpenToonz application targets and linked `OpenToonz.app`.
+
+Vector checkerboard follow-up validation:
+
+```sh
+bash scripts/graphics_inventory.sh
+git diff --check
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target toonzlib OpenToonz --parallel 3
+nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
+nix develop path:. --command cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=OFF
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target toonzlib OpenToonz --parallel 3
+```
+
+Result: passed. The Metal-enabled build linked `OpenToonz.app` and
+`tgraphics_metal_probe` reported `ok on Apple M1 Max`. The fallback build also
+linked `OpenToonz.app`. The broader fallback rebuild emitted existing unrelated
+warnings in image/trop/tool/viewer code, but the changed `imagepainter.cpp`
+compiled cleanly.
 
 ## Manual Smoke
 
