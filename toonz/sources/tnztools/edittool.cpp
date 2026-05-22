@@ -7,7 +7,6 @@
 #include "toonz/stageobjectutil.h"
 #include "tstroke.h"
 #include "tgl.h"
-#include "tgraphics.h"
 #include "tenv.h"
 #include "toonzqt/gutil.h"
 
@@ -48,11 +47,6 @@ enum { None = 0, AspectRatio, Mass };
 }
 
 namespace {
-
-bool shouldUseMetalCpuToolPicking() {
-  return TGraphics::requestedBackendType() == TGraphics::BackendType::Metal &&
-         TGraphics::isMetalBackendAvailable();
-}
 
 double distance2(const TPointD &a, const TPointD &b) {
   const double dx = a.x - b.x;
@@ -894,14 +888,13 @@ void EditTool::mouseMove(const TPointD &, const TMouseEvent &e) {
   /*-- Pick screen only when the FxGadget is displayed or
        when the "All" axis is selected. --*/
   int selectedDevice = -1;
-  const bool useMetalCpuPicking =
-      shouldUseMetalCpuToolPicking() && m_activeAxis.getValue() == L"All";
-  if (useMetalCpuPicking) {
+  const bool useCpuPicking = m_activeAxis.getValue() == L"All";
+  if (useCpuPicking) {
     if (m_fxGadgetController->hasGadget())
       selectedDevice = m_fxGadgetController->pickCpu(e.m_pos);
     if (selectedDevice < 0) selectedDevice = pickMainHandleCpu(e.m_pos);
   }
-  if (selectedDevice < 0 && !useMetalCpuPicking &&
+  if (selectedDevice < 0 && !useCpuPicking &&
       (m_fxGadgetController->hasGadget() || m_activeAxis.getValue() == L"All"))
     selectedDevice = pick(e.m_pos);
 
@@ -1018,15 +1011,10 @@ void EditTool::leftButtonDown(const TPointD &ppos, const TMouseEvent &e) {
 //-----------------------------------------------------------------------------
 
 void EditTool::onEditAllLeftButtonDown(TPointD &pos, const TMouseEvent &e) {
-  const bool useMetalCpuPicking = shouldUseMetalCpuToolPicking();
   int selectedDevice =
-      useMetalCpuPicking && m_fxGadgetController->hasGadget()
-          ? m_fxGadgetController->pickCpu(e.m_pos)
-          : -1;
-  if (useMetalCpuPicking && selectedDevice < 0)
-    selectedDevice = pickMainHandleCpu(e.m_pos);
-  if (selectedDevice < 0 && !useMetalCpuPicking)
-    selectedDevice = pick(e.m_pos);
+      m_fxGadgetController->hasGadget() ? m_fxGadgetController->pickCpu(e.m_pos)
+                                        : -1;
+  if (selectedDevice < 0) selectedDevice = pickMainHandleCpu(e.m_pos);
   m_what             = selectedDevice >= 0 ? selectedDevice : Translation;
 
   if (selectedDevice < 0 && m_autoSelect.getValue() != L"None") {
