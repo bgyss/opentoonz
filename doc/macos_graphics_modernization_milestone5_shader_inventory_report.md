@@ -114,6 +114,10 @@ border used by `ImageViewer` while an FX preview is remaking from direct
 `GL_LINE_LOOP` calls to `DrawList2D` color-line commands. This is limited to an
 identity-projection, axis-aligned overlay, so it avoids the transformed and
 stippled guide-line cases that still need a stronger `tgraphics` line contract.
+The follow-up image-viewer drag-overlay checkpoint moves the zoom-selection and
+rectangular RGB-pick overlays from direct `GL_LINE_STRIP` drawing to
+`DrawList2D` color-line commands. The RGB-pick overlay keeps the cursor gap and
+uses explicit dash segmentation instead of deprecated `glLineStipple`.
 
 The cleanup-preview camera-test checkpoint moves the cleanup camera and closest
 field camera outline/cross primitives from direct immediate-mode line strips and
@@ -542,9 +546,11 @@ camera-frame fills also now use a `tgraphics` color-rect command in the OpenGL
 compatibility path, matching the existing Metal overlay shape. Viewer camera
 masks and color-card fills now also emit `tgraphics` color-rect commands on the
 OpenGL compatibility path. Image-viewer FX preview-remake double borders now
-emit `tgraphics` color-line commands for their screen-space overlay. Cleanup
-preview camera-test frame/cross outlines now emit `tgraphics` color-quad
-commands sized by the current pixel size.
+emit `tgraphics` color-line commands for their screen-space overlay, and
+image-viewer zoom/RGB-pick drag overlays now emit `tgraphics` color-line
+commands instead of immediate-mode line strips. Cleanup preview camera-test
+frame/cross outlines now emit `tgraphics` color-quad commands sized by the
+current pixel size.
 Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
 effects and by moving the remaining preview/export and style-editor surfaces
 through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene

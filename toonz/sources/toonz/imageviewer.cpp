@@ -42,6 +42,9 @@
 #include <QOpenGLFramebufferObject>
 #include <QGestureEvent>
 
+#include <algorithm>
+#include <cmath>
+
 //===================================================================================
 
 extern ToggleCommandHandler safeAreaToggle;
@@ -67,6 +70,36 @@ void appendScreenRectOutline(TGraphics::DrawList2D &drawList,
   drawList.addColorLine(p01, p11, color, false);
   drawList.addColorLine(p11, p10, color, false);
   drawList.addColorLine(p10, p00, color, false);
+}
+
+void appendSolidPolyline(TGraphics::DrawList2D &drawList,
+                         const TPointD *points, int count,
+                         const TPixel32 &color) {
+  for (int i = 1; i < count; ++i)
+    drawList.addColorLine(points[i - 1], points[i], color, false);
+}
+
+void appendDashedLine(TGraphics::DrawList2D &drawList, const TPointD &p0,
+                      const TPointD &p1, const TPixel32 &color) {
+  const double dx     = p1.x - p0.x;
+  const double dy     = p1.y - p0.y;
+  const double length = sqrt(dx * dx + dy * dy);
+  if (length <= 1e-6) return;
+
+  const TPointD unit(dx / length, dy / length);
+  const double dashLength = 4.0;
+  const double gapLength  = 3.0;
+  for (double start = 0.0; start < length; start += dashLength + gapLength) {
+    const double end = std::min(start + dashLength, length);
+    drawList.addColorLine(p0 + unit * start, p0 + unit * end, color, false);
+  }
+}
+
+void appendDashedPolyline(TGraphics::DrawList2D &drawList,
+                          const TPointD *points, int count,
+                          const TPixel32 &color) {
+  for (int i = 1; i < count; ++i)
+    appendDashedLine(drawList, points[i - 1], points[i], color);
 }
 
 //-----------------------------------------------------------------------------
@@ -628,34 +661,30 @@ void ImageViewer::paintGL() {
     toPos   = TPoint(m_pos.x() - width() * 0.5, height() * 0.5 - m_pos.y());
   }
   if (fromPos != TPoint() || toPos != TPoint()) {
+    TGraphics::DrawList2D drawList;
     if (m_rectRGBPick) {
-      tglColor(TPixel32::Red);
-      // TODO: glLineStipple is deprecated in the latest OpenGL. Need to be
-      // replaced. (shun_iwasawa 2015/12/25)
-      glLineStipple(1, 0x3F33);
-      glEnable(GL_LINE_STIPPLE);
-
-      glBegin(GL_LINE_STRIP);
       // do not draw the rect around the mouse cursor
       int margin = (fromPos.y < toPos.y) ? -3 : 3;
-      glVertex2i(toPos.x, toPos.y + margin);
-      glVertex2i(toPos.x, fromPos.y);
-      glVertex2i(fromPos.x, fromPos.y);
-      glVertex2i(fromPos.x, toPos.y);
+      TPointD points[5] = {
+          TPointD(toPos.x, toPos.y + margin),
+          TPointD(toPos.x, fromPos.y),
+          TPointD(fromPos.x, fromPos.y),
+          TPointD(fromPos.x, toPos.y),
+          TPointD(toPos.x, toPos.y),
+      };
       margin = (fromPos.x < toPos.x) ? -3 : 3;
-      glVertex2i(toPos.x + margin, toPos.y);
-      glEnd();
-      glDisable(GL_LINE_STIPPLE);
+      points[4] = TPointD(toPos.x + margin, toPos.y);
+      appendDashedPolyline(drawList, points, 5, TPixel32::Red);
     } else {
-      tglColor(m_draggingZoomSelection ? TPixel32::Red : TPixel32::Blue);
-      glBegin(GL_LINE_STRIP);
-      glVertex2i(fromPos.x, fromPos.y);
-      glVertex2i(fromPos.x, toPos.y);
-      glVertex2i(toPos.x, toPos.y);
-      glVertex2i(toPos.x, fromPos.y);
-      glVertex2i(fromPos.x, fromPos.y);
-      glEnd();
+      const TPixel32 color =
+          m_draggingZoomSelection ? TPixel32::Red : TPixel32::Blue;
+      const TPointD points[5] = {
+          TPointD(fromPos.x, fromPos.y), TPointD(fromPos.x, toPos.y),
+          TPointD(toPos.x, toPos.y), TPointD(toPos.x, fromPos.y),
+          TPointD(fromPos.x, fromPos.y)};
+      appendSolidPolyline(drawList, points, 5, color);
     }
+    TGraphics::drawWithOpenGLBackend(drawList);
   }
 
   if (m_lutCalibrator && m_lutCalibrator->isValid())
