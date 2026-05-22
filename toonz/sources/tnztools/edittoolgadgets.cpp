@@ -540,7 +540,6 @@ void PointFxGadget::draw(bool picking) {
     glColor3dv(m_selectedColor);
   else
     glColor3d(0, 0, 1);
-  glPushName(getId());
   TPointD pos(getPoint());
   double unit = getPixelSize();
   glPushMatrix();
@@ -559,7 +558,6 @@ void PointFxGadget::draw(bool picking) {
   glEnd();
   tglDrawRect(-r, -r, r, r);
   glPopMatrix();
-  glPopName();
 
   if (isSelected()) {
     drawTooltip(pos + TPointD(7, 3) * unit, getLabel());
@@ -626,7 +624,6 @@ void RadiusFxGadget::draw(bool picking) {
     glColor3dv(m_selectedColor);
   else
     glColor3d(0, 0, 1);
-  glPushName(getId());
   double radius  = getValue(m_radius);
   TPointD center = getCenter();
 
@@ -635,7 +632,6 @@ void RadiusFxGadget::draw(bool picking) {
   tglDrawCircle(center, radius);
   glDisable(GL_LINE_STIPPLE);
   drawDot(center + TPointD(0.707, 0.707) * radius);
-  glPopName();
 
   if (isSelected()) {
     drawTooltip(center + TPointD(0.707, 0.707) * radius, getLabel());
@@ -707,8 +703,6 @@ void DistanceFxGadget::draw(bool picking) {
 
   tglDrawSegment(-u, u);
 
-  glPushName(getId());
-
   TPointD b, c;
   b = dir * (d * 0.5);
   c = b - dir * d;
@@ -718,8 +712,6 @@ void DistanceFxGadget::draw(bool picking) {
 
   tglDrawSegment(c - u, c + u);
   tglDrawCircle(c, getPixelSize() * 5);
-
-  glPopName();
 
   glLineStipple(1, 0xAAAA);
   glEnable(GL_LINE_STIPPLE);
@@ -791,7 +783,6 @@ void AngleFxGadget::draw(bool picking) {
     glColor3dv(m_selectedColor);
   else
     glColor3d(0, 0, 1);
-  glPushName(getId());
   double pixelSize = sqrt(tglGetPixelSize2()) * m_controller->getDevPixRatio();
   double r         = pixelSize * 40;
   double a = pixelSize * 10, b = pixelSize * 5;
@@ -809,7 +800,6 @@ void AngleFxGadget::draw(bool picking) {
   glVertex2d(r - a, -b);
   glEnd();
   glPopMatrix();
-  glPopName();
 
   if (isSelected()) {
     drawTooltip(m_pos + TPointD(0.707, 0.707) * r, getLabel());
@@ -905,7 +895,6 @@ void AngleRangeFxGadget::draw(bool picking) {
 
   setColorById(StartAngle);
   glPushMatrix();
-  glPushName(getId() + StartAngle);
   glRotated(start, 0, 0, 1);
   glBegin(GL_LINE_STRIP);
   glVertex2d(0, 0);
@@ -913,7 +902,6 @@ void AngleRangeFxGadget::draw(bool picking) {
   // expand handle while dragging
   if (m_handle == StartAngle) glVertex2d(r * 5.0, 0);
   glEnd();
-  glPopName();
 
   glPushMatrix();
   glTranslated(r * 1.05, 0, 0.0);
@@ -926,7 +914,6 @@ void AngleRangeFxGadget::draw(bool picking) {
 
   setColorById(EndAngle);
   glPushMatrix();
-  glPushName(getId() + EndAngle);
   glRotated(end, 0, 0, 1);
   glBegin(GL_LINE_STRIP);
   glVertex2d(0, 0);
@@ -934,8 +921,6 @@ void AngleRangeFxGadget::draw(bool picking) {
   // expand handle while dragging
   if (m_handle == EndAngle) glVertex2d(r * 5.0, 0);
   glEnd();
-
-  glPopName();
   glPushMatrix();
   glTranslated(r * 1.05, 0, 0.0);
   glScaled(pixelSize * 1.6, pixelSize * 1.6, 1);
@@ -1053,7 +1038,6 @@ void DiamondFxGadget::draw(bool picking) {
     glColor3dv(m_selectedColor);
   else
     glColor3d(0, 0, 1);
-  glPushName(getId());
   double size = getValue(m_param);
   double r    = 3 * getPixelSize();
 
@@ -1076,7 +1060,6 @@ void DiamondFxGadget::draw(bool picking) {
   drawDot(0, size);
 
   double d = getPixelSize() * 3;
-  glPopName();
   if (isSelected()) {
     drawTooltip(TPointD(d, size - d), getLabel());
   }
@@ -1131,7 +1114,6 @@ void SizeFxGadget::draw(bool picking) {
     glColor3dv(m_selectedColor);
   else
     glColor3d(0, 0, 1);
-  glPushName(getId());
   double lx = getValue(m_lx), ly = m_ly ? getValue(m_ly) : lx;
   double r = getPixelSize() * 3;
 
@@ -1151,7 +1133,6 @@ void SizeFxGadget::draw(bool picking) {
   drawDot(lx, ly);
 
   double d = getPixelSize() * 3;
-  glPopName();
   if (isSelected()) {
     drawTooltip(TPointD(lx, ly), getLabel());
   }
@@ -1224,7 +1205,6 @@ void RectFxGadget::draw(bool picking) {
     glColor3dv(m_selectedColor);
   else
     glColor3d(0, 0, 1);
-  glPushName(getId());
   glPushMatrix();
   TPointD center = getCenter();
   glTranslated(center.x, center.y, 0);
@@ -1329,7 +1309,6 @@ public:
       glColor3dv(m_selectedColor);
     else
       glColor3d(0, 0, 1);
-    glPushName(getId());
     double pixelSize = getPixelSize();
     double r         = getValue(m_lengthParam);
     double a = pixelSize * 10, b = pixelSize * 5, c = pixelSize * 4;
@@ -1358,7 +1337,6 @@ public:
     glRotated(-phi, 0, 0, 1);
     drawDot(0, 0);
     glPopMatrix();
-    glPopName();
 
     if (isSelected()) {
       double phiRad      = phi * M_PI_180;
@@ -1408,7 +1386,6 @@ public:
       glColor3dv(m_selectedColor);
     else
       glColor3d(0, 0, 1);
-    // glPushName(getId());
     double pixelSize = getPixelSize();
     TPointD pa       = getValue(m_pa);
     TPointD pb       = getValue(m_pb);
@@ -1435,7 +1412,6 @@ public:
       // drawDot(pb);
     }  // else
        // drawDot(pa);
-    // glPopName();
   }
 
   void leftButtonDown(const TPointD &pos, const TMouseEvent &) override {}
@@ -1512,14 +1488,12 @@ public:
 
     auto drawPoint = [&](const TPointD &pos, int id) {
       setColorById(id);
-      glPushName(idBase + id);
       double unit = getPixelSize();
       glPushMatrix();
       glTranslated(pos.x, pos.y, 0);
       double r = unit * 3;
       tglDrawRect(-r, -r, r, r);
       glPopMatrix();
-      glPopName();
 
       if (isSelected(id) && id >= TopLeft && id <= BottomLeft) {
         drawTooltip(pos + TPointD(7, 3) * unit,
@@ -1530,7 +1504,6 @@ public:
     setPixelSize();
 
     // lines for moving all vertices
-    glPushName(idBase + Body);
     setColorById(Body);
     double pixelSize    = getPixelSize();
     TPointD topLeft     = getValue(m_TL);
@@ -1547,7 +1520,6 @@ public:
     tglVertex(topLeft);
     glEnd();
     glDisable(GL_LINE_STIPPLE);
-    glPopName();
 
     // corners
     drawPoint(topLeft, TopLeft);
@@ -1845,7 +1817,6 @@ void LinearRangeFxGadget::draw(bool picking) {
 
     // line body
     setColorById(Body);
-    glPushName(getId() + Body);
     glBegin(GL_LINES);
     glVertex2d(start.x, start.y);
     glVertex2d(end.x, end.y);
@@ -1859,27 +1830,22 @@ void LinearRangeFxGadget::draw(bool picking) {
     glVertex2d(a, 0);
     glEnd();
     glPopMatrix();
-    glPopName();
   }
 
   // start point
   setColorById(Start);
-  glPushName(getId() + Start);
   glPushMatrix();
   glTranslated(start.x, start.y, 0);
   drawPoint();
   glPopMatrix();
-  glPopName();
   drawTooltip(start + TPointD(7, 3) * getPixelSize(), "Start");
 
   // end point
   setColorById(End);
-  glPushName(getId() + End);
   glPushMatrix();
   glTranslated(end.x, end.y, 0);
   drawPoint();
   glPopMatrix();
-  glPopName();
   drawTooltip(end + TPointD(7, 3) * getPixelSize(), "End");
 
   glPopMatrix();
@@ -2049,12 +2015,10 @@ void CompassFxGadget::draw(bool picking) {
   if (dCenter > lineHalf) {
     handleVec = normalize(center) * lineHalf;
     setColorById(Body);
-    glPushName(getId() + Body);
     glBegin(GL_LINES);
     glVertex2d(handleVec.x * 0.95, handleVec.y * 0.95);
     glVertex2d(-handleVec.x * 0.95, -handleVec.y * 0.95);
     glEnd();
-    glPopName();
 
     double angle = std::atan2(-center.y, -center.x) * M_180_PI;
     double theta = M_180_PI * lineInterval / dCenter;
@@ -2197,12 +2161,10 @@ void CompassFxGadget::draw(bool picking) {
     for (int id = Near; id <= Far; id++) {
       TPointD hPos = (id == Near) ? handleVec : -handleVec;
       setColorById(id);
-      glPushName(getId() + id);
       glPushMatrix();
       glTranslated(hPos.x, hPos.y, 0);
       tglDrawRect(-r, -r, r, r);
       glPopMatrix();
-      glPopName();
     }
   }
 
@@ -2315,26 +2277,20 @@ void RainbowWidthFxGadget::draw(bool picking) {
   TPointD center    = getValue(m_center);
   double widthScale = getValue(m_widthScale);
   double w          = widthScale * radius / 41.3;
-
-  glPushName(getId() + Outside);
   glLineStipple(1, 0x1C47);
   glEnable(GL_LINE_STIPPLE);
   tglDrawCircle(center, radius + w);
   glDisable(GL_LINE_STIPPLE);
   drawDot(center + TPointD(0.707, 0.707) * (radius + w));
-  glPopName();
 
   if (isSelected(Outside)) {
     drawTooltip(center + TPointD(0.707, 0.707) * (radius + w), getLabel());
   }
-
-  glPushName(getId() + Inside);
   glLineStipple(1, 0x1C47);
   glEnable(GL_LINE_STIPPLE);
   tglDrawCircle(center, radius - w);
   glDisable(GL_LINE_STIPPLE);
   drawDot(center + TPointD(0.707, 0.707) * (radius - w));
-  glPopName();
 
   if (isSelected(Inside)) {
     drawTooltip(center + TPointD(0.707, 0.707) * (radius - w), getLabel());
@@ -2474,7 +2430,6 @@ void EllipseFxGadget::draw(bool picking) {
 
   //--- radius ---
   setColorById(Radius);
-  glPushName(idBase + Radius);
   double radius = getValue(m_radius);
 
   double scale[2] = {1.0, 1.0};
@@ -2497,7 +2452,6 @@ void EllipseFxGadget::draw(bool picking) {
   QTransform transform = QTransform().rotate(angle).scale(scale[0], scale[1]);
   QPointF radiusHandlePos = transform.map(QPointF(0.0, radius));
   drawDot(TPointD(radiusHandlePos.x(), radiusHandlePos.y()));
-  glPopName();
 
   if (isSelected(Radius)) {
     QPointF namePos = transform.map(QPointF(0.707, 0.707) * radius);
@@ -2507,7 +2461,6 @@ void EllipseFxGadget::draw(bool picking) {
   //--- twist ---
   if (m_twist) {
     setColorById(Twist);
-    glPushName(idBase + Twist);
     glPushMatrix();
 
     glRotated(angle, 0., 0., 1.);
@@ -2519,7 +2472,6 @@ void EllipseFxGadget::draw(bool picking) {
     glDisable(GL_LINE_STIPPLE);
 
     glPopMatrix();
-    glPopName();
     if (isSelected(Twist)) {
       QPointF namePos = transform.map(QPointF(0.707, 0.707) * pivot);
       drawTooltip(TPointD(namePos.x(), namePos.y()), "Twist");
@@ -2527,7 +2479,6 @@ void EllipseFxGadget::draw(bool picking) {
   }
   //--- center ---
   setColorById(Center);
-  glPushName(idBase + Center);
   double d = unit * 8;
   tglDrawCircle(TPointD(), d);
 
@@ -2539,8 +2490,6 @@ void EllipseFxGadget::draw(bool picking) {
     glVertex2d(0, d);
     glEnd();
   }
-
-  glPopName();
   if (isSelected(Center)) {
     drawTooltip(TPointD(7, 3) * unit, "Center");
   }
@@ -2551,7 +2500,6 @@ void EllipseFxGadget::draw(bool picking) {
   setColorById(AngleAndAR);
   QPointF qHandleRoot = transform.map(QPointF(radius, 0.0));
   glPushMatrix();
-  glPushName(idBase + AngleAndAR);
   glTranslated(qHandleRoot.x(), qHandleRoot.y(), 0.);
   glRotated(angle, 0., 0., 1.);
   glBegin(GL_LINES);
@@ -2561,7 +2509,6 @@ void EllipseFxGadget::draw(bool picking) {
   drawDot(TPointD(handleLength, 0.));
 
   glPopMatrix();
-  glPopName();
 
   if (isSelected(AngleAndAR)) {
     double angle_radian = angle * M_PI_180;
@@ -2761,7 +2708,6 @@ void VerticalPosFxGadget::draw(bool picking) {
     glColor3dv(m_selectedColor);
   else
     glColor3d(0, 0, 1);
-  glPushName(getId());
   double vPos = getValue(m_yParam);
   double unit = getPixelSize();
   glPushMatrix();
@@ -2777,7 +2723,6 @@ void VerticalPosFxGadget::draw(bool picking) {
   drawTooltip(TPointD(7, 7) * unit, getLabel());
 
   glPopMatrix();
-  glPopName();
 }
 
 //---------------------------------------------------------------------------
@@ -2869,7 +2814,6 @@ public:
 
     setPixelSize();
     setColorById(Body);
-    glPushName(getId() + Body);
 
     double pixelSize = getPixelSize();
     double c         = pixelSize * 4;
@@ -2888,14 +2832,12 @@ public:
     tglDrawSegment(ph + unit_v * c, po);
     tglDrawSegment(pv + unit_h * c, po);
     glDisable(GL_LINE_STIPPLE);
-    glPopName();
 
     if (m_pcurve.getPointer()) {
       TPointD pcurve = getValue(m_pcurve);
       TPointD ppivot = pc + (pcurve.x + 0.5) * vec_h + (pcurve.y + 0.5) * vec_v;
 
       setColorById(Body);
-      glPushName(getId() + Body);
       glEnable(GL_LINE_STIPPLE);
       if (pcurve == TPointD()) {
         tglDrawSegment((pc + ph) * 0.5, vec_v + (pc + ph) * 0.5);
@@ -2914,26 +2856,21 @@ public:
         }
       }
       glDisable(GL_LINE_STIPPLE);
-      glPopName();
 
       setColorById(CurveAnchor);
-      glPushName(getId() + CurveAnchor);
       glPushMatrix();
       glTranslated(ppivot.x, ppivot.y, 0);
       double r = pixelSize * 3;
       tglDrawRect(-r, -r, r, r);
       glPopMatrix();
-      glPopName();
     }
 
     setColorById(Rotation);
-    glPushName(getId() + Rotation);
     double a = pixelSize * 10, b = pixelSize * 3;
     TPointD diagonal = normalize(po - pc);
     TPointD v        = rotate90(diagonal);
     tglDrawSegment(po + v * a, po - v * a);
     tglDrawSegment(po + diagonal * b + v * a, po + diagonal * b - v * a);
-    glPopName();
 
     m_hVecGadget->draw(picking);
     m_vVecGadget->draw(picking);

@@ -12,6 +12,7 @@ viewer paths that have not yet been migrated.
 ## Files Changed
 
 - `toonz/sources/tnztools/edittool.cpp`
+- `toonz/sources/tnztools/edittoolgadgets.cpp`
 - `toonz/sources/tnztools/skeletontool.cpp`
 
 ## Changes
@@ -21,6 +22,8 @@ viewer paths that have not yet been migrated.
   tests on both OpenGL and Metal backends.
 - Edit Tool FX gadget hover picking now uses the existing CPU hit tests even
   outside the "All" active-axis mode.
+- Removed obsolete OpenGL selection name markers from Edit Tool handles and FX
+  gadgets after their active picking paths moved to CPU hit tests.
 - Removed the now-unneeded `tgraphics.h` include from `edittool.cpp`.
 - Removed the Metal-backend gate from Skeleton Tool picking in non-3D views.
 - Skeleton Tool hover/down/up picking now uses existing CPU hit tests for 2D
@@ -38,7 +41,7 @@ Current source-like inventory after this checkpoint:
 OpenToonz graphics API inventory
 source_root=toonz/sources
 
-all graphics markers               files=  121 matches=  2874
+all graphics markers               files=  121 matches=  2803
 Qt legacy QGL                      files=    0 matches=     0
 Qt QOpenGL                         files=   32 matches=   218
 GLU                                files=    5 matches=    53
@@ -46,13 +49,13 @@ GLEW or GLUT                       files=   10 matches=    30
 fixed-function drawing             files=   85 matches=  2020
 fixed-function matrix              files=   56 matches=   458
 glDrawPixels                       files=    0 matches=     0
-OpenGL selection                   files=    5 matches=    95
+OpenGL selection                   files=    3 matches=    24
 ```
 
-The OpenGL selection inventory count is unchanged because the central
-`SceneViewer::pick()` implementation and legacy `glPushName(...)` draw markers
-remain for other tools. This checkpoint reduces runtime use of that path for a
-high-value Edit Tool workflow instead of deleting shared selection code.
+The OpenGL selection inventory is now limited to the central
+`SceneViewer::pick()` implementation, Skeleton Tool's 3D fallback draw markers,
+and a Skeleton subtool comment. Edit Tool and FX gadget draw markers were
+removed after their active picking paths moved to CPU hit tests.
 
 ## Validation Run
 
@@ -62,6 +65,7 @@ Commands run:
 git diff --check
 bash scripts/graphics_inventory.sh
 rg -n "shouldUseMetalCpuSkeletonPicking|TGraphics::|tgraphics.h|pick\\(e\\.m_pos\\)" toonz/sources/tnztools/skeletontool.cpp
+rg -n "glPushName|glPopName" toonz/sources/tnztools/edittool.cpp toonz/sources/tnztools/edittoolgadgets.cpp
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tnztools OpenToonz --parallel 3
 nix develop path:. --command cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=ON
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tgraphics_metal_probe OpenToonz --parallel 3
@@ -84,6 +88,7 @@ exercised before merging this milestone:
 - Edit Tool with Active Axis set to All.
 - Hover and drag center, rotation, scale, scale-XY, and shear handles.
 - Hover and drag visible FX gadget handles.
+- Hover visible FX gadget handles while Active Axis is not All.
 - Verify auto-select still works when clicking away from handles.
 - Skeleton Tool in Build Skeleton mode: hover/select centers, hooks,
   change-parent handles, and magic links.
@@ -96,7 +101,6 @@ exercised before merging this milestone:
 
 ## Remaining Work
 
-- Continue migrating tools that still call `SceneViewer::pick()`.
-- Remove `glPushName(...)` draw markers only after no active picking path needs
-  OpenGL selection names.
+- Replace Skeleton Tool's 3D picking fallback before removing its remaining
+  `glPushName(...)` draw markers.
 - Eventually replace or retire `SceneViewer::pick()` itself.

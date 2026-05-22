@@ -1235,7 +1235,6 @@ void EditTool::drawMainHandle() {
 
   // draw center
   tglColor(m_highlightedDevice == Center ? highlightedColor : normalColor);
-  glPushName(Center);
   if (isPicking())
     tglDrawDisk(center, unit * 12);
   else {
@@ -1244,7 +1243,6 @@ void EditTool::drawMainHandle() {
     if (m_highlightedDevice == Center && !dragging)
       drawText(center + TPointD(4 * unit, 0), unit, "Move center");
   }
-  glPopName();
 
   // draw label (column/pegbar name; possibly camera icon)
   tglColor(normalColor);
@@ -1265,13 +1263,11 @@ void EditTool::drawMainHandle() {
   // draw rotation handle
   const double delta = 30;
   tglColor(m_highlightedDevice == Rotation ? highlightedColor : normalColor);
-  glPushName(Rotation);
   TPointD p = center + unit * TPointD(0, delta);
   if (isPicking())
     tglDrawDisk(p, unit * 10);
   else
     tglDrawDisk(p, unit * 5);
-  glPopName();
   if (m_highlightedDevice == Rotation && !dragging && !isPicking())
     drawText(p, unit, "Rotate");
   tglColor(normalColor);
@@ -1284,7 +1280,6 @@ void EditTool::drawMainHandle() {
   TRectD hitRect;
 
   tglColor(m_highlightedDevice == Scale ? highlightedColor : normalColor);
-  glPushName(Scale);
   hitRect =
       TRectD(p.x - (f - 2) * r, p.y - (f - 2) * r, p.x + r * 2, p.y + r * 2);
   // tglDrawRect(hitRect);
@@ -1292,7 +1287,6 @@ void EditTool::drawMainHandle() {
     tglFillRect(hitRect);
   else
     tglDrawRect(p.x - r, p.y - r, p.x + r, p.y + r);
-  glPopName();
   TPointD scaleTooltipPos = p + unit * TPointD(-16, -16);
   if (m_highlightedDevice == Scale && !dragging && !isPicking())
     drawText(scaleTooltipPos, unit, "Scale");
@@ -1304,7 +1298,6 @@ void EditTool::drawMainHandle() {
   double dd = unit * 10;
   q         = p + TPointD(dd, dd);
   tglColor(m_highlightedDevice == ScaleXY ? highlightedColor : normalColor);
-  glPushName(ScaleXY);
   hitRect =
       TRectD(q.x - 2 * r, q.y - 2 * r, q.x + r * (f - 2), q.y + r * (f - 2));
   // tglDrawRect(hitRect);
@@ -1312,14 +1305,12 @@ void EditTool::drawMainHandle() {
     tglFillRect(hitRect);
   else
     tglDrawRect(q.x - r, q.y - r, q.x + r, q.y + r);
-  glPopName();
   if (m_highlightedDevice == ScaleXY && !dragging && !isPicking())
     drawText(scaleTooltipPos, unit, "Horizontal/Vertical scale");
 
   // draw shear handle
   p = center + m_currentScaleFactor * unit * delta * TPointD(1, -1);
   tglColor(m_highlightedDevice == Shear ? highlightedColor : normalColor);
-  glPushName(Shear);
   if (isPicking()) {
     glBegin(GL_POLYGON);
     glVertex2d(p.x - unit * 6, p.y - unit * 3);
@@ -1337,7 +1328,6 @@ void EditTool::drawMainHandle() {
     glVertex2d(p.x - unit * 6, p.y - unit * 3);
     glEnd();
   }
-  glPopName();
   if (m_highlightedDevice == Shear && !dragging)
     drawText(p + TPointD(0, -unit * 10), unit, "Shear");
   tglColor(normalColor);
@@ -1391,7 +1381,6 @@ void EditTool::draw() {
   /*-- Enable Z translation on 3D view --*/
   if (getViewer()->is3DView()) {
     glPushMatrix();
-    glPushName(ZTranslation);
     tglColor(m_highlightedDevice == ZTranslation ? highlightedColor
                                                  : normalColor);
     glPushMatrix();
@@ -1399,7 +1388,6 @@ void EditTool::draw() {
     glTranslated(0, -1, z);
     // Apply prefScale to the 3D arrow as well
     drawArrow(50 * prefScale, isPicking());
-    glPopName();
     glPopMatrix();
     glPopMatrix();
     return;
@@ -1457,7 +1445,6 @@ void EditTool::draw() {
 
   // Draw center with highlight
   tglColor(m_highlightedDevice == Center ? highlightedColor : normalColor);
-  glPushName(Center);
   {
     tglDrawCircle(center, unit * 10);
     tglDrawCircle(center, unit * 8);
@@ -1468,7 +1455,6 @@ void EditTool::draw() {
     glVertex2d(0.0, unit * 8);
     glEnd();
   }
-  glPopName();
 
   // draw label (column/pegbar name; possibly camera icon)
   tglColor(normalColor);
