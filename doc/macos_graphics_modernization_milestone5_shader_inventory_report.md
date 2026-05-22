@@ -268,6 +268,11 @@ The plastic skeleton edge checkpoint moves the black width-4 border and
 yellow/orange width-2 center strokes in `PlasticTool::drawSkeleton(...)` from
 OpenGL `glLineWidth(...)` and immediate-mode `GL_LINES` to `DrawList2D`
 line-width commands.
+The plastic handle checkpoint moves non-stippled plastic skeleton handle
+outlines, filled handles, and selected-vertex square outlines from OpenGL
+square drawing and line-width state to `DrawList2D` color rect/line-width
+commands. Stippled highlighted vertex squares remain on legacy OpenGL until
+stipple semantics are represented in `tgraphics`.
 
 ## Files Changed
 
@@ -757,7 +762,10 @@ one-pixel dashed edge highlights now also emit `tgraphics` color commands;
 `DrawList2D` color lines now carry explicit width semantics validated by
 OpenGL/Metal probe coverage, and width-2 selected mesh edges now use that shared
 path too. Plastic skeleton edge borders and center strokes now also use
-`DrawList2D` line-width commands instead of OpenGL line-width state.
+`DrawList2D` line-width commands instead of OpenGL line-width state. Plastic
+skeleton handle outlines, filled handles, and selected-vertex square outlines
+now also emit `tgraphics` color commands, while stippled highlighted vertex
+squares remain on legacy OpenGL.
 Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
 effects and by moving the remaining preview/export and style-editor surfaces
 through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene

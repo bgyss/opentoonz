@@ -63,6 +63,25 @@ void drawColorLineWithTGraphics(const TPointD &p0, const TPointD &p1,
   TGraphics::drawWithOpenGLBackend(drawList);
 }
 
+void appendSquareOutline(TGraphics::DrawList2D &drawList, const TPointD &pos,
+                         double radius, const TPixel32 &color, double width) {
+  const TPointD p00(pos.x - radius, pos.y - radius);
+  const TPointD p10(pos.x + radius, pos.y - radius);
+  const TPointD p11(pos.x + radius, pos.y + radius);
+  const TPointD p01(pos.x - radius, pos.y + radius);
+  drawList.addColorLine(p00, p10, color, true, width);
+  drawList.addColorLine(p10, p11, color, true, width);
+  drawList.addColorLine(p11, p01, color, true, width);
+  drawList.addColorLine(p01, p00, color, true, width);
+}
+
+void drawSquareOutlineWithTGraphics(const TPointD &pos, double radius,
+                                    const TPixel32 &color, double width = 1.0) {
+  TGraphics::DrawList2D drawList;
+  appendSquareOutline(drawList, pos, radius, color, width);
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
+
 }  // namespace
 
 //****************************************************************************************
@@ -1730,24 +1749,26 @@ static void drawFilledSquare(const TPointD &pos, double radius) {
 
 static void drawHandle(const TPointD &pos, double radius,
                        const TPixel32 &color) {
-  glColor4ub(0, 0, 0, color.m);  // Black border
-  glLineWidth(4.0f);
-  drawSquare(pos, radius);
-
-  glColor4ub(color.r, color.g, color.b, color.m);
-  glLineWidth(2.0f);
-  drawSquare(pos, radius);
+  TGraphics::DrawList2D drawList;
+  appendSquareOutline(drawList, pos, radius, TPixel32(0, 0, 0, color.m),
+                      4.0);
+  appendSquareOutline(drawList, pos, radius, color, 2.0);
+  TGraphics::drawWithOpenGLBackend(drawList);
 }
 
 //------------------------------------------------------------------------
 
 static void drawFilledHandle(const TPointD &pos, double radius,
                              double pixelSize, const TPixel32 &color) {
-  glColor4ub(0, 0, 0, color.m);
-  drawFilledSquare(pos, radius + pixelSize);
-
-  glColor4ub(color.r, color.g, color.b, color.m);
-  drawFilledSquare(pos, radius);
+  TGraphics::DrawList2D drawList;
+  const double borderRadius = radius + pixelSize;
+  drawList.addColorRect(TRectD(pos - TPointD(borderRadius, borderRadius),
+                               pos + TPointD(borderRadius, borderRadius)),
+                        TPixel32(0, 0, 0, color.m), true);
+  drawList.addColorRect(TRectD(pos - TPointD(radius, radius),
+                               pos + TPointD(radius, radius)),
+                        color, true);
+  TGraphics::drawWithOpenGLBackend(drawList);
 }
 
 //------------------------------------------------------------------------
@@ -1822,9 +1843,6 @@ void PlasticTool::drawHighlights(const SkDP &sd,
 void PlasticTool::drawSelections(const SkDP &sd,
                                  const PlasticSkeleton &skeleton,
                                  double pixelSize) {
-  glColor3f(1.0f, 0.0f, 0.0f);  // Red
-  glLineWidth(1.0f);
-
   double handleRadius = SELECTED_HANDLE_SIZE * pixelSize;
 
   if (!m_svSel.isEmpty()) {
@@ -1834,7 +1852,8 @@ void PlasticTool::drawSelections(const SkDP &sd,
     // Draw a handle square for each selected vertex
     objects_container::const_iterator vst, vsEnd = vIdxs.end();
     for (vst = vIdxs.begin(); vst != vsEnd; ++vst)
-      drawSquare(skeleton.vertex(*vst).P(), handleRadius);
+      drawSquareOutlineWithTGraphics(skeleton.vertex(*vst).P(), handleRadius,
+                                     TPixel32::Red);
 
     // Draw vertex descriptions (only in the single selection case - to avoid
     // text pollution)
