@@ -68,6 +68,27 @@ void appendDashedRectOutline(TGraphics::DrawList2D &drawList,
   appendDashedLine(drawList, rect.getP01(), rect.getP00(), color);
 }
 
+void appendLine(TGraphics::DrawList2D &drawList, const TPointD &p0,
+                const TPointD &p1, const TPixel32 &color, bool dashed) {
+  if (dashed)
+    appendDashedLine(drawList, p0, p1, color);
+  else
+    drawList.addColorLine(p0, p1, color, false);
+}
+
+void appendCameraRectOutline(TGraphics::DrawList2D &drawList,
+                             const TRectD &rect, double pixelSize,
+                             const TPixel32 &color, bool dashed) {
+  const TPointD p00(rect.x0, rect.y0);
+  const TPointD p01(rect.x0, rect.y1 - pixelSize);
+  const TPointD p11(rect.x1 - pixelSize, rect.y1 - pixelSize);
+  const TPointD p10(rect.x1 - pixelSize, rect.y0);
+  appendLine(drawList, p00, p01, color, dashed);
+  appendLine(drawList, p01, p11, color, dashed);
+  appendLine(drawList, p11, p10, color, dashed);
+  appendLine(drawList, p10, p00, color, dashed);
+}
+
 }  // namespace
 
 //=============================================================================
@@ -622,31 +643,23 @@ void ViewerDraw::drawCamera(unsigned long flags, double pixelSize) {
 
   TRectD rect = getCameraRect();
 
-  if (cameraRef) {
-    glColor3d(1.0, 0.0, 1.0);
-    glLineStipple(1, 0xFFFC);
-  } else {
-    glColor3d(1.0, 0.0, 0.0);
-    glLineStipple(1, solidLine ? 0xFFFF : 0xCCCC);
-  }
-  glEnable(GL_LINE_STIPPLE);
+  const TPixel32 cameraColor =
+      cameraRef ? TPixel32::Magenta : TPixel32::Red;
+  const bool dashedCameraLine = cameraRef || !solidLine;
+  TGraphics::DrawList2D drawList;
 
   // bordo
-  glBegin(GL_LINE_STRIP);
-  glVertex2d(rect.x0, rect.y0);
-  glVertex2d(rect.x0, rect.y1 - pixelSize);
-  glVertex2d(rect.x1 - pixelSize, rect.y1 - pixelSize);
-  glVertex2d(rect.x1 - pixelSize, rect.y0);
-  glVertex2d(rect.x0, rect.y0);
-  glEnd();
+  appendCameraRectOutline(drawList, rect, pixelSize, cameraColor,
+                          dashedCameraLine);
 
   // croce al centro
   double dx = 0.05 * rect.getP00().x;
   double dy = 0.05 * rect.getP00().y;
-  tglDrawSegment(TPointD(-dx, -dy), TPointD(dx, dy));
-  tglDrawSegment(TPointD(-dx, dy), TPointD(dx, -dy));
-
-  glDisable(GL_LINE_STIPPLE);
+  appendLine(drawList, TPointD(-dx, -dy), TPointD(dx, dy), cameraColor,
+             dashedCameraLine);
+  appendLine(drawList, TPointD(-dx, dy), TPointD(dx, -dy), cameraColor,
+             dashedCameraLine);
+  TGraphics::drawWithOpenGLBackend(drawList);
 
   // nome della camera
   if (!camera3d) {
@@ -670,20 +683,10 @@ void ViewerDraw::drawCamera(unsigned long flags, double pixelSize) {
     if (previewSubRect.getLx() > 0 && previewSubRect.getLy() > 0) {
       TRectD stagePreviewSubRect(inst->getEditingCameraInterestStageRect());
 
-      glLineStipple(1, 0xCCCC);
-      glEnable(GL_LINE_STIPPLE);
-
-      glColor3d(1.0, 0.0, 1.0);
-      glBegin(GL_LINE_STRIP);
-      glVertex2d(stagePreviewSubRect.x0, stagePreviewSubRect.y0);
-      glVertex2d(stagePreviewSubRect.x0, stagePreviewSubRect.y1 - pixelSize);
-      glVertex2d(stagePreviewSubRect.x1 - pixelSize,
-                 stagePreviewSubRect.y1 - pixelSize);
-      glVertex2d(stagePreviewSubRect.x1 - pixelSize, stagePreviewSubRect.y0);
-      glVertex2d(stagePreviewSubRect.x0, stagePreviewSubRect.y0);
-      glEnd();
-
-      glDisable(GL_LINE_STIPPLE);
+      TGraphics::DrawList2D subcameraDrawList;
+      appendCameraRectOutline(subcameraDrawList, stagePreviewSubRect, pixelSize,
+                              TPixel32::Magenta, true);
+      TGraphics::drawWithOpenGLBackend(subcameraDrawList);
     }
   }
 }

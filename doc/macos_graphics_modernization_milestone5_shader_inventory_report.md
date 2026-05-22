@@ -163,6 +163,10 @@ axis/center/shear primitives remain on the existing OpenGL path.
 The viewer safe-area checkpoint moves `ViewerDraw::drawSafeArea()` from OpenGL
 line stipple plus direct `tglDrawRect(...)` calls to explicit dashed
 `DrawList2D` color-line commands in camera space.
+The camera-frame checkpoint moves the 2D camera border, center cross, and
+preview-subcamera border in `ViewerDraw::drawCamera(...)` from OpenGL line
+stipple plus immediate-mode line strips/segments to `DrawList2D` color-line
+commands. The 3D camera cage path remains on legacy OpenGL.
 
 The selection-tool checkpoint moves the polyline selection preview from a direct
 `GL_LINE_STRIP` to `DrawList2D` color-line commands. The start-point circle and
@@ -638,6 +642,9 @@ visible scale-handle outlines and non-active camera guides now also emit
 `tgraphics` color-line commands instead of direct rectangle/stipple drawing.
 Viewer safe-area guides now emit explicit dashed `tgraphics` color-line
 commands instead of OpenGL line stipple and direct `tglDrawRect(...)` calls.
+Viewer camera-frame and preview-subcamera 2D outlines now emit `tgraphics`
+color-line commands instead of OpenGL line stipple and immediate-mode line
+strips.
 Polyline selection previews now emit `tgraphics` color-line commands instead of
 a direct `GL_LINE_STRIP`. Zoom tool drag crosses now emit `tgraphics` color-line
 commands instead of immediate-mode `GL_LINES`. Control-point editor square
