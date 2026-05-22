@@ -7,6 +7,7 @@
 #include "toonz/stageobjectutil.h"
 #include "tstroke.h"
 #include "tgl.h"
+#include "tgraphics.h"
 #include "tenv.h"
 #include "toonzqt/gutil.h"
 
@@ -61,6 +62,52 @@ double distanceToSegment2(const TPointD &p, const TPointD &a,
   if (len2 <= 1e-6) return distance2(p, a);
   const double t = std::max(0.0, std::min(1.0, ((p - a) * ab) / len2));
   return distance2(p, a + ab * t);
+}
+
+void appendLineDashes(TGraphics::DrawList2D &drawList, const TPointD &p0,
+                      const TPointD &p1, const TPixel32 &color) {
+  const double dx     = p1.x - p0.x;
+  const double dy     = p1.y - p0.y;
+  const double length = std::sqrt(dx * dx + dy * dy);
+  if (length <= 1e-6) return;
+
+  const TPointD unit(dx / length, dy / length);
+  const double dashLength = 6.0;
+  const double gapLength  = 4.0;
+  for (double start = 0.0; start < length; start += dashLength + gapLength) {
+    const double rawEnd = start + dashLength;
+    const double end    = rawEnd < length ? rawEnd : length;
+    drawList.addColorLine(p0 + unit * start, p0 + unit * end, color, false);
+  }
+}
+
+void appendRectOutline(TGraphics::DrawList2D &drawList, const TRectD &rect,
+                       const TPixel32 &color) {
+  drawList.addColorLine(rect.getP00(), rect.getP10(), color, false);
+  drawList.addColorLine(rect.getP10(), rect.getP11(), color, false);
+  drawList.addColorLine(rect.getP11(), rect.getP01(), color, false);
+  drawList.addColorLine(rect.getP01(), rect.getP00(), color, false);
+}
+
+void appendDashedRectOutline(TGraphics::DrawList2D &drawList,
+                             const TRectD &rect, const TPixel32 &color) {
+  appendLineDashes(drawList, rect.getP00(), rect.getP10(), color);
+  appendLineDashes(drawList, rect.getP10(), rect.getP11(), color);
+  appendLineDashes(drawList, rect.getP11(), rect.getP01(), color);
+  appendLineDashes(drawList, rect.getP01(), rect.getP00(), color);
+}
+
+void drawRectOutlineWithTGraphics(const TRectD &rect, const TPixel32 &color) {
+  TGraphics::DrawList2D drawList;
+  appendRectOutline(drawList, rect, color);
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
+
+void drawDashedRectOutlineWithTGraphics(const TRectD &rect,
+                                        const TPixel32 &color) {
+  TGraphics::DrawList2D drawList;
+  appendDashedRectOutline(drawList, rect, color);
+  TGraphics::drawWithOpenGLBackend(drawList);
 }
 
 }  // namespace
@@ -1286,7 +1333,10 @@ void EditTool::drawMainHandle() {
   if (isPicking())
     tglFillRect(hitRect);
   else
-    tglDrawRect(p.x - r, p.y - r, p.x + r, p.y + r);
+    drawRectOutlineWithTGraphics(TRectD(p.x - r, p.y - r, p.x + r, p.y + r),
+                                 m_highlightedDevice == Scale
+                                     ? highlightedColor
+                                     : normalColor);
   TPointD scaleTooltipPos = p + unit * TPointD(-16, -16);
   if (m_highlightedDevice == Scale && !dragging && !isPicking())
     drawText(scaleTooltipPos, unit, "Scale");
@@ -1304,7 +1354,10 @@ void EditTool::drawMainHandle() {
   if (isPicking())
     tglFillRect(hitRect);
   else
-    tglDrawRect(q.x - r, q.y - r, q.x + r, q.y + r);
+    drawRectOutlineWithTGraphics(TRectD(q.x - r, q.y - r, q.x + r, q.y + r),
+                                 m_highlightedDevice == ScaleXY
+                                     ? highlightedColor
+                                     : normalColor);
   if (m_highlightedDevice == ScaleXY && !dragging && !isPicking())
     drawText(scaleTooltipPos, unit, "Horizontal/Vertical scale");
 
@@ -1335,16 +1388,12 @@ void EditTool::drawMainHandle() {
 
   if (objId.isCamera()) {
     if (xsh->getStageObjectTree()->getCurrentCameraId() != objId) {
-      glEnable(GL_LINE_STIPPLE);
-      tglColor(normalColor);
-      glLineStipple(1, 0x1111);
       TRectD cameraRect = TTool::getApplication()
                               ->getCurrentScene()
                               ->getScene()
                               ->getCurrentCamera()
                               ->getStageRect();
-      tglDrawRect(cameraRect);
-      glDisable(GL_LINE_STIPPLE);
+      drawDashedRectOutlineWithTGraphics(cameraRect, normalColor);
     }
   }
   glPopMatrix();
@@ -1480,18 +1529,12 @@ void EditTool::draw() {
   /*--- When editing non-active camera, draw its camera frame ---*/
   if (objId.isCamera()) {
     if (xsh->getStageObjectTree()->getCurrentCameraId() != objId) {
-      // TODO : glLineStipple has been deprecated in the OpenGL APIs. Need to be
-      // replaced. 2016/1/20 shun_iwasawa
-      glEnable(GL_LINE_STIPPLE);
-      tglColor(normalColor);
-      glLineStipple(1, 0x1111);
       TRectD cameraRect = TTool::getApplication()
                               ->getCurrentScene()
                               ->getScene()
                               ->getCurrentCamera()
                               ->getStageRect();
-      tglDrawRect(cameraRect);
-      glDisable(GL_LINE_STIPPLE);
+      drawDashedRectOutlineWithTGraphics(cameraRect, normalColor);
     }
   }
   glPopMatrix();

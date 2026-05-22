@@ -155,6 +155,11 @@ The hook tool checkpoint moves the snapped-hook guide from OpenGL line stipple,
 solid `DrawList2D` color-line commands. Hook balloons and ordinary hook drawing
 remain on the existing tool drawing path.
 
+The edit-tool checkpoint moves visible scale-handle rectangle outlines and
+non-active camera frame guides from direct `tglDrawRect(...)` plus OpenGL line
+stipple state to `DrawList2D` color-line commands. Picking fills and the denser
+axis/center/shear primitives remain on the existing OpenGL path.
+
 ## Files Changed
 
 - `scripts/graphics_shader_inventory.sh`
@@ -167,6 +172,7 @@ remain on the existing tool drawing path.
 - `toonz/sources/common/tgraphics/tgraphics_metal_probe.cpp`
 - `toonz/sources/common/tvrender/tofflinegl_probe.cpp`
 - `toonz/sources/tnzcore/CMakeLists.txt`
+- `toonz/sources/tnztools/edittool.cpp`
 - `toonz/sources/tnztools/hooktool.cpp`
 - `toonz/sources/tnztools/setsaveboxtool.cpp`
 - `toonz/sources/tnztools/trackertool.cpp`
@@ -596,7 +602,9 @@ color-line rectangles instead of repeated direct `tglDrawRect(...)` calls.
 Tracker-region outlines now also emit `tgraphics` color-line rectangles instead
 of direct `tglDrawRect(...)` calls. Snapped-hook guides now emit explicit
 dashed and solid `tgraphics` color-line commands instead of OpenGL line stipple,
-direct `tglDrawRect(...)`, and immediate-mode crosshair lines.
+direct `tglDrawRect(...)`, and immediate-mode crosshair lines. Edit-tool
+visible scale-handle outlines and non-active camera guides now also emit
+`tgraphics` color-line commands instead of direct rectangle/stipple drawing.
 Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
 effects and by moving the remaining preview/export and style-editor surfaces
 through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene
