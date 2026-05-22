@@ -340,3 +340,21 @@ target_link_libraries(tnzstdfx Qt5::Core Qt5::Gui Qt5::OpenGL ${GL_LIB} ${GLEW_L
 if(OpenCV_FOUND)
     target_link_libraries(tnzstdfx ${OpenCV_LIBS})
 endif()
+
+if(BUILD_TARGET_APPLE AND WITH_GRAPHICS_METAL)
+    add_executable(shaderfx_metal_probe
+        shaderfx_metal_probe.cpp
+    )
+    target_link_libraries(shaderfx_metal_probe
+        tnzstdfx
+        tnzcore
+        tnzbase
+    )
+    add_custom_command(TARGET shaderfx_metal_probe POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:tnzcore> $<TARGET_FILE_DIR:shaderfx_metal_probe>
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:tnzbase> $<TARGET_FILE_DIR:shaderfx_metal_probe>
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:tnzext> $<TARGET_FILE_DIR:shaderfx_metal_probe>
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:toonzlib> $<TARGET_FILE_DIR:shaderfx_metal_probe>
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:tnzstdfx> $<TARGET_FILE_DIR:shaderfx_metal_probe>
+    )
+endif()

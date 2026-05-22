@@ -1046,11 +1046,11 @@ void ShaderFx::doCompute(TTile &tile, double frame,
     }
   };  // locals
 
-  ShadingContextManager *manager = ShadingContextManager::instance();
   if (getInputPortCount() == 0 &&
       renderSunflareWithMetal(m_shaderInterface, m_params, tile, frame, info))
     return;
 
+  ShadingContextManager *manager = ShadingContextManager::instance();
   if (manager->touchSupport() != ShadingContext::OK) return;
 
   QMutexLocker mLocker(
@@ -1279,4 +1279,14 @@ void loadShaderInterfaces(const TFilePath &shadersFolder) {
                          new ShaderFxDeclaration(shaderInterface)));
     }
   }
+}
+
+bool renderSunflareShaderFxWithMetalForProbe(TTile &tile, double frame,
+                                             const TRenderSettings &info) {
+  std::unique_ptr<TFx> fx(TFx::create("SHADER_sunflare"));
+  ShaderFx *shaderFx = dynamic_cast<ShaderFx *>(fx.get());
+  if (!shaderFx) return false;
+
+  shaderFx->doCompute(tile, frame, info);
+  return true;
 }
