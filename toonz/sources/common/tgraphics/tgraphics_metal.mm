@@ -14,6 +14,26 @@
 namespace TGraphics {
 namespace {
 
+bool makeStrokedLineQuad(const ColorLine &line,
+                         std::array<TPointD, 4> &points) {
+  const double dx     = line.m_p1.x - line.m_p0.x;
+  const double dy     = line.m_p1.y - line.m_p0.y;
+  const double length = std::sqrt(dx * dx + dy * dy);
+  if (length <= 1e-6) return false;
+
+  const double halfWidth = 0.5;
+  const TPointD tangent(dx / length * halfWidth, dy / length * halfWidth);
+  const TPointD normal(-dy / length * halfWidth, dx / length * halfWidth);
+  const TPointD p0 = line.m_p0 - tangent;
+  const TPointD p1 = line.m_p1 + tangent;
+
+  points[0] = p0 + normal;
+  points[1] = p1 + normal;
+  points[2] = p1 - normal;
+  points[3] = p0 - normal;
+  return true;
+}
+
 struct MetalState {
   id<MTLDevice> m_device             = nil;
   id<MTLCommandQueue> m_commandQueue = nil;
@@ -228,11 +248,13 @@ public:
                         atIndex:0];
         [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
       } else {
-        std::array<MetalVertex, 2> vertices = makeLineVertices(line);
+        std::array<TPointD, 4> points;
+        if (!makeStrokedLineQuad(line, points)) continue;
+        std::array<MetalVertex, 6> vertices = makeVertices(points);
         [encoder setVertexBytes:vertices.data()
                          length:vertices.size() * sizeof(MetalVertex)
                         atIndex:0];
-        [encoder drawPrimitives:MTLPrimitiveTypeLine vertexStart:0 vertexCount:2];
+        [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
       }
     }
 
@@ -454,11 +476,6 @@ private:
              {pixelToClipX(p01.x), pixelToClipY(p01.y), 0.0f, 1.0f}}};
   }
 
-  std::array<MetalVertex, 2> makeLineVertices(const ColorLine &line) const {
-    return {{{pixelToClipX(line.m_p0.x), pixelToClipY(line.m_p0.y), 0.0f, 0.0f},
-             {pixelToClipX(line.m_p1.x), pixelToClipY(line.m_p1.y), 0.0f, 0.0f}}};
-  }
-
   std::optional<TRectD> axisAlignedLineRect(const ColorLine &line) const {
     const double epsilon = 1e-6;
     if (std::abs(line.m_p0.y - line.m_p1.y) <= epsilon) {
@@ -472,6 +489,21 @@ private:
       return TRectD(line.m_p0.x, y0, line.m_p0.x + 1.0, y1 + 1.0);
     }
     return std::nullopt;
+  }
+
+  std::array<MetalVertex, 6> makeVertices(
+      const std::array<TPointD, 4> &points) const {
+    const TPointD &p00 = points[0];
+    const TPointD &p10 = points[1];
+    const TPointD &p11 = points[2];
+    const TPointD &p01 = points[3];
+
+    return {{{pixelToClipX(p00.x), pixelToClipY(p00.y), 0.0f, 0.0f},
+             {pixelToClipX(p10.x), pixelToClipY(p10.y), 1.0f, 0.0f},
+             {pixelToClipX(p01.x), pixelToClipY(p01.y), 0.0f, 1.0f},
+             {pixelToClipX(p10.x), pixelToClipY(p10.y), 1.0f, 0.0f},
+             {pixelToClipX(p11.x), pixelToClipY(p11.y), 1.0f, 1.0f},
+             {pixelToClipX(p01.x), pixelToClipY(p01.y), 0.0f, 1.0f}}};
   }
 
   float pixelToClipX(double x) const { return static_cast<float>((2.0 * x / targetWidth()) - 1.0); }

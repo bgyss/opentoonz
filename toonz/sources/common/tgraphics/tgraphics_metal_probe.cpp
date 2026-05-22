@@ -495,6 +495,31 @@ int main(int argc, char* argv[]) {
   }
 
   {
+    const TPixel32 diagonalClearColor(13, 19, 29, 255);
+    const TPixel32 diagonalLineColor(36, 221, 144, 255);
+    TGraphics::DrawList2D drawList;
+    drawList.setClearColor(diagonalClearColor);
+    drawList.addColorLine(TPointD(1, 6), TPointD(7, 2), diagonalLineColor,
+                          false);
+
+    TRaster32P readback = renderMetal(drawList, width, height);
+    if (!readback)
+      return fail("could not read back diagonal color line Metal target");
+    if (!requireDimensions(readback, width, height)) {
+      return fail(
+          "diagonal color line readback dimensions do not match render target");
+    }
+
+    TRaster32P openGLReadback = renderOpenGL(drawList, width, height);
+    if (!openGLReadback)
+      return fail("could not read back diagonal color line OpenGL baseline");
+    if (!compareRasters(readback, openGLReadback, "diagonal color line",
+                        artifactDir)) {
+      return EXIT_FAILURE;
+    }
+  }
+
+  {
     const TPixel32 quadClearColor(11, 17, 23, 255);
     const TPixel32 baseColor(31, 67, 103, 255);
     const TPixel32 quadColor(219, 181, 47, 192);

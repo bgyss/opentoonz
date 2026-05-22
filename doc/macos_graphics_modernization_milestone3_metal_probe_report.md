@@ -116,7 +116,9 @@ before porting scene internals.
 - Added `DrawList2D::addColorLine(...)` and `ColorLine` for simple overlay
   strokes. Axis-aligned lines are rendered as deterministic one-pixel
   rectangles in both backends to avoid backend-specific line endpoint
-  rasterization differences.
+  rasterization differences. Non-axis lines are now expanded to explicit
+  stroked quads before encoding so transformed camera guides do not depend on
+  backend-native line rasterization.
 - Added `DrawList2D::addTextureQuad(...)` for explicit four-corner raster
   texture draws. The axis-aligned `addTexture(...)` path remains available and
   still uses the existing OpenGL helper in the compatibility backend.
@@ -135,7 +137,7 @@ before porting scene internals.
   existing OpenGL behavior.
 - Updated the OpenGL and Metal command encoders to draw `ColorQuad` and
   `ColorLine`, with Metal/OpenGL parity covered by the probe for filled color
-  quads and axis-aligned lines.
+  quads, axis-aligned lines, and diagonal stroked lines.
 - Updated the OpenGL and Metal command encoders to draw explicit texture quads,
   with Metal/OpenGL parity covered by the probe for a camera-transform-like
   scaled and translated raster quad.
@@ -229,18 +231,19 @@ The OpenGL baseline target intentionally adds a small number of Qt/OpenGL
 references to `tgraphics.cpp` so the Metal probe can compare against the current
 OpenGL `DrawList2D` behavior. The transformed texture-quad checkpoint adds a
 few more fixed-function OpenGL references to that compatibility/probe encoder;
-the color-quad checkpoint adds the corresponding OpenGL baseline polygon path:
+the color-quad checkpoint adds the corresponding OpenGL baseline polygon path;
+the diagonal-line checkpoint adds the OpenGL baseline stroked-line polygon path:
 
 ```text
 OpenToonz graphics API inventory
 source_root=toonz/sources
 
-all graphics markers               files=  121 matches=  2910
+all graphics markers               files=  121 matches=  2913
 Qt legacy QGL                      files=    0 matches=     0
 Qt QOpenGL                         files=   32 matches=   216
 GLU                                files=    5 matches=    53
 GLEW or GLUT                       files=   10 matches=    30
-fixed-function drawing             files=   86 matches=  2046
+fixed-function drawing             files=   86 matches=  2049
 fixed-function matrix              files=   57 matches=   460
 glDrawPixels                       files=    4 matches=    10
 OpenGL selection                   files=    5 matches=    95
@@ -256,7 +259,7 @@ git diff --check
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=ON'
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tgraphics_metal_probe OpenToonz --parallel 3
 nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
-nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe --write-images /private/tmp/opentoonz-metal-probe-images-colorquad
+nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe --write-images /private/tmp/opentoonz-metal-probe-images-diagonal-line
 nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app/Contents/MacOS/OpenToonz >/tmp/opentoonz-metal-smoke.log 2>&1 & pid=$!; sleep 8; ...'
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --parallel 3
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=OFF'
@@ -273,19 +276,21 @@ QuartzCore, builds `tgraphics_metal_probe`, and links `OpenToonz.app`.
 Probe output after validating direct solid clear/background pixels, transparent
 clear pixels, solid-color rectangle drawing, solid-color rectangle alpha
 blending, checkerboard background drawing, deterministic axis-aligned color
-line drawing, filled color-quad blending, opaque textured replace drawing,
-transformed texture-quad drawing, modulated half-alpha texture-quad drawing,
-OpenGL-compatible texture alpha blending over both solid and gradient
-destinations, and Metal/OpenGL readback parity:
+line drawing, deterministic diagonal color-line drawing, filled color-quad
+blending, opaque textured replace drawing, transformed texture-quad drawing,
+modulated half-alpha texture-quad drawing, OpenGL-compatible texture alpha
+blending over both solid and gradient destinations, and Metal/OpenGL readback
+parity:
 
 ```text
 tgraphics_metal_probe: ok on Apple M1 Max
 ```
 
-The image-artifact probe run wrote 27 PNG files under
-`/private/tmp/opentoonz-metal-probe-images-colorquad`: Metal, OpenGL, and
-amplified diff images for clear, color-rect, checker, color-line, color-quad,
-gradient, transformed texture, modulated texture, and alpha cases.
+The image-artifact probe run wrote 30 PNG files under
+`/private/tmp/opentoonz-metal-probe-images-diagonal-line`: Metal, OpenGL, and
+amplified diff images for clear, color-rect, checker, color-line, diagonal
+color-line, color-quad, gradient, transformed texture, modulated texture, and
+alpha cases.
 
 ## Manual Smoke
 

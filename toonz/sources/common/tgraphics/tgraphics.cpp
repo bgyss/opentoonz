@@ -10,6 +10,7 @@
 #include <QSurfaceFormat>
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cctype>
 #include <cmath>
@@ -34,6 +35,26 @@ TRaster32P readNativeMetalRenderTarget(RenderTarget* target);
 #endif
 
 namespace {
+
+bool makeStrokedLineQuad(const ColorLine& line,
+                         std::array<TPointD, 4>& points) {
+  const double dx     = line.m_p1.x - line.m_p0.x;
+  const double dy     = line.m_p1.y - line.m_p0.y;
+  const double length = std::sqrt(dx * dx + dy * dy);
+  if (length <= 1e-6) return false;
+
+  const double halfWidth = 0.5;
+  const TPointD tangent(dx / length * halfWidth, dy / length * halfWidth);
+  const TPointD normal(-dy / length * halfWidth, dx / length * halfWidth);
+  const TPointD p0 = line.m_p0 - tangent;
+  const TPointD p1 = line.m_p1 + tangent;
+
+  points[0] = p0 + normal;
+  points[1] = p1 + normal;
+  points[2] = p1 - normal;
+  points[3] = p0 - normal;
+  return true;
+}
 
 std::string normalizedBackendName() {
   const char* value = std::getenv("OPENTOONZ_GRAPHICS_BACKEND");
@@ -354,7 +375,12 @@ private:
       const double y1 = std::max(line.m_p0.y, line.m_p1.y);
       tglFillRect(TRectD(line.m_p0.x, y0, line.m_p0.x + 1.0, y1 + 1.0));
     } else {
-      tglDrawSegment(line.m_p0, line.m_p1);
+      std::array<TPointD, 4> points;
+      if (makeStrokedLineQuad(line, points)) {
+        glBegin(GL_POLYGON);
+        for (const TPointD& point : points) tglVertex(point);
+        glEnd();
+      }
     }
     glDisable(GL_BLEND);
   }
