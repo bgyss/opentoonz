@@ -102,6 +102,13 @@ emits an equivalent color quad for this overlay; the frame-not-ready red
 hairline rectangles remain on the legacy OpenGL path until a pixel-stable
 hairline primitive is added to `tgraphics`.
 
+The viewer-mask checkpoint moves `ViewerDraw::drawCameraMask(...)` and
+`ViewerDraw::drawColorcard(...)` filled rectangles from direct `tglFillRect(...)`
+calls to `DrawList2D` color-rect commands on the OpenGL compatibility path.
+These functions feed `SceneViewer` camera-mask and color-card overlays; line and
+guide drawing in `ViewerDraw` remains on legacy OpenGL until line primitives
+can match OpenGL hairline behavior.
+
 ## Files Changed
 
 - `scripts/graphics_shader_inventory.sh`
@@ -116,6 +123,7 @@ hairline primitive is added to `tgraphics`.
 - `toonz/sources/tnzcore/CMakeLists.txt`
 - `toonz/sources/toonz/CMakeLists.txt`
 - `toonz/sources/toonz/sceneviewer.cpp`
+- `toonz/sources/toonz/viewerdraw.cpp`
 - `toonz/sources/toonzqt/planeviewer.cpp`
 - `toonz/sources/include/stdfx/shaderfx.h`
 - `toonz/sources/stdfx/CMakeLists.txt`
@@ -516,7 +524,9 @@ preview-swatch CPU raster-buffer presentation now goes through a matching
 scene-viewer OpenGL compatibility background clears now emit the same
 `tgraphics` clear command shape used by the Metal presenter. Preview blank-color
 camera-frame fills also now use a `tgraphics` color-rect command in the OpenGL
-compatibility path, matching the existing Metal overlay shape.
+compatibility path, matching the existing Metal overlay shape. Viewer camera
+masks and color-card fills now also emit `tgraphics` color-rect commands on the
+OpenGL compatibility path.
 Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
 effects and by moving the remaining preview/export and style-editor surfaces
 through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene

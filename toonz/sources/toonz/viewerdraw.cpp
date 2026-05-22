@@ -12,6 +12,7 @@
 #include "ruler.h"
 
 #include "tgl.h"
+#include "tgraphics.h"
 #include "trop.h"
 #include "toonz/txsheet.h"
 #include "toonz/toonzscene.h"
@@ -228,30 +229,36 @@ void ViewerDraw::drawCameraMask(SceneViewer *viewer) {
 
   // set the camera mask color same as the previewBG color
   TPixel32 maskColor = Preferences::instance()->getPreviewBgColor();
-  double mask_r, mask_g, mask_b;
-  mask_r = (double)maskColor.r / 255.0;
-  mask_g = (double)maskColor.g / 255.0;
-  mask_b = (double)maskColor.b / 255.0;
-  glColor3d(mask_r, mask_g, mask_b);
+  maskColor.m        = 255;
 
+  TGraphics::DrawList2D drawList;
   if (cameraRect.overlaps(bounds)) {
     double x0 = cameraRect.x0;
     double y0 = cameraRect.y0;
     double x1 = cameraRect.x1;
     double y1 = cameraRect.y1;
 
-    if (bounds.x0 <= x0) tglFillRect(bounds.x0, bounds.y0, x0, bounds.y1);
-    if (x1 <= bounds.x1) tglFillRect(x1, bounds.y0, bounds.x1, bounds.y1);
+    if (bounds.x0 <= x0)
+      drawList.addColorRect(TRectD(bounds.x0, bounds.y0, x0, bounds.y1),
+                            maskColor, false);
+    if (x1 <= bounds.x1)
+      drawList.addColorRect(TRectD(x1, bounds.y0, bounds.x1, bounds.y1),
+                            maskColor, false);
 
     if (x0 < bounds.x1 && x1 > bounds.x0) {
       double xa = std::max(x0, bounds.x0);
       double xb = std::min(x1, bounds.x1);
-      if (bounds.y0 < y0) tglFillRect(xa, bounds.y0, xb, y0);
-      if (y1 < bounds.y1) tglFillRect(xa, y1, xb, bounds.y1);
+      if (bounds.y0 < y0)
+        drawList.addColorRect(TRectD(xa, bounds.y0, xb, y0), maskColor,
+                              false);
+      if (y1 < bounds.y1)
+        drawList.addColorRect(TRectD(xa, y1, xb, bounds.y1), maskColor,
+                              false);
     }
   } else {
-    tglFillRect(bounds);
+    drawList.addColorRect(bounds, maskColor, false);
   }
+  TGraphics::drawWithOpenGLBackend(drawList);
 }
 
 //-----------------------------------------------------------------------------
@@ -400,8 +407,10 @@ void ViewerDraw::drawColorcard(UCHAR channel) {
       color.g = channel & TRop::GChan ? color.g : 0;
     }
   }
-  tglColor(color);
-  tglFillRect(rect);
+  TGraphics::DrawList2D drawList;
+  drawList.addColorRect(rect, TPixel32(color.r, color.g, color.b, color.m),
+                        false);
+  TGraphics::drawWithOpenGLBackend(drawList);
 }
 
 //-----------------------------------------------------------------------------
