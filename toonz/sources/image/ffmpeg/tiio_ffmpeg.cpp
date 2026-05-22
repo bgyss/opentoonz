@@ -40,21 +40,26 @@ bool Ffmpeg::checkFormat(std::string format) {
   // Cache with reload every hour (avoids becoming outdated if ffmpeg changes)
   static QString cachedFormats;
   static QDateTime lastCheck;
+  static bool hasCachedFormats = false;
 
   QDateTime now = QDateTime::currentDateTime();
-  if (cachedFormats.isEmpty() || lastCheck.secsTo(now) > 3600) {  // 1 hour
+  if (!hasCachedFormats || lastCheck.secsTo(now) > 3600) {  // 1 hour
     QStringList args;
     args << "-formats";
 
     QProcess ffmpeg;
     ThirdParty::runFFmpeg(ffmpeg, args);
-    ffmpeg.waitForFinished(8000);
+    if (!ffmpeg.waitForFinished(8000)) {
+      ffmpeg.terminate();
+      if (!ffmpeg.waitForFinished(500)) ffmpeg.kill();
+    }
 
     cachedFormats =
         ffmpeg.readAllStandardError() + ffmpeg.readAllStandardOutput();
     ffmpeg.close();
 
-    lastCheck = now;
+    lastCheck        = now;
+    hasCachedFormats = true;
   }
 
   return cachedFormats.contains(QString::fromStdString(format),
