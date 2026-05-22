@@ -110,6 +110,12 @@ void drawDashedRectOutlineWithTGraphics(const TRectD &rect,
   TGraphics::drawWithOpenGLBackend(drawList);
 }
 
+void fillRectWithTGraphics(const TRectD &rect, const TPixel32 &color) {
+  TGraphics::DrawList2D drawList;
+  drawList.addColorRect(rect, color, false);
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
+
 void drawLineWithTGraphics(const TPointD &p0, const TPointD &p1,
                            const TPixel32 &color) {
   TGraphics::DrawList2D drawList;
@@ -138,6 +144,16 @@ void drawShearHandleOutlineWithTGraphics(const TPointD &p, double unit,
   drawList.addColorLine(p1, p2, color, false);
   drawList.addColorLine(p2, p3, color, false);
   drawList.addColorLine(p3, p0, color, false);
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
+
+void fillShearHandleWithTGraphics(const TPointD &p, double unit,
+                                  const TPixel32 &color) {
+  TGraphics::DrawList2D drawList;
+  drawList.addColorQuad(TPointD(p.x - unit * 6, p.y - unit * 3),
+                        TPointD(p.x - unit * 3, p.y - unit * 3),
+                        TPointD(p.x + unit * 6, p.y + unit * 3),
+                        TPointD(p.x + unit * 3, p.y + unit * 3), color, false);
   TGraphics::drawWithOpenGLBackend(drawList);
 }
 
@@ -1346,9 +1362,11 @@ void EditTool::drawMainHandle() {
   hitRect =
       TRectD(p.x - (f - 2) * r, p.y - (f - 2) * r, p.x + r * 2, p.y + r * 2);
   // tglDrawRect(hitRect);
-  if (isPicking())
-    tglFillRect(hitRect);
-  else
+  if (isPicking()) {
+    fillRectWithTGraphics(hitRect, m_highlightedDevice == Scale
+                                       ? highlightedColor
+                                       : normalColor);
+  } else
     drawRectOutlineWithTGraphics(TRectD(p.x - r, p.y - r, p.x + r, p.y + r),
                                  m_highlightedDevice == Scale
                                      ? highlightedColor
@@ -1366,9 +1384,11 @@ void EditTool::drawMainHandle() {
   hitRect =
       TRectD(q.x - 2 * r, q.y - 2 * r, q.x + r * (f - 2), q.y + r * (f - 2));
   // tglDrawRect(hitRect);
-  if (isPicking())
-    tglFillRect(hitRect);
-  else
+  if (isPicking()) {
+    fillRectWithTGraphics(hitRect, m_highlightedDevice == ScaleXY
+                                       ? highlightedColor
+                                       : normalColor);
+  } else
     drawRectOutlineWithTGraphics(TRectD(q.x - r, q.y - r, q.x + r, q.y + r),
                                  m_highlightedDevice == ScaleXY
                                      ? highlightedColor
@@ -1380,13 +1400,9 @@ void EditTool::drawMainHandle() {
   p = center + m_currentScaleFactor * unit * delta * TPointD(1, -1);
   tglColor(m_highlightedDevice == Shear ? highlightedColor : normalColor);
   if (isPicking()) {
-    glBegin(GL_POLYGON);
-    glVertex2d(p.x - unit * 6, p.y - unit * 3);
-    glVertex2d(p.x - unit * 3, p.y - unit * 3);
-    glVertex2d(p.x + unit * 6, p.y + unit * 3);
-    glVertex2d(p.x + unit * 3, p.y + unit * 3);
-    glVertex2d(p.x - unit * 6, p.y - unit * 3);
-    glEnd();
+    fillShearHandleWithTGraphics(p, unit, m_highlightedDevice == Shear
+                                              ? highlightedColor
+                                              : normalColor);
   } else {
     drawShearHandleOutlineWithTGraphics(
         p, unit, m_highlightedDevice == Shear ? highlightedColor : normalColor);

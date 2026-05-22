@@ -318,6 +318,11 @@ picking fills from direct `glRectd(...)` and `GL_QUADS` drawing to
 picking color. The visible balloon label texture upload remains on its
 existing OpenGL texture path until Qt image texture helpers are represented in
 `tgraphics`.
+The edit-tool picking checkpoint moves scale, horizontal/vertical scale, and
+shear main-handle picking fills from `tglFillRect(...)` and immediate
+`GL_POLYGON` drawing to `DrawList2D` color-rect/color-quad commands. Circular
+pick disks remain on legacy OpenGL until disk primitives are represented in
+`tgraphics`.
 
 ## Files Changed
 
@@ -800,6 +805,8 @@ color commands. Shared non-contrast stippled tool rectangles now also emit
 `tgraphics` color-rect/color-quad commands. Geometric
 rectangle, line, arc construction, and polygon outline previews now also emit
 `tgraphics` color-line commands.
+Edit-tool main transform scale and shear picking fills now also emit
+`tgraphics` color-rect/color-quad commands.
 Geometric multiline Bezier speed-handle connector segments now also emit
 `tgraphics` color-line commands.
 Edit-tool shear-handle visible outlines now also emit `tgraphics` color-line commands.
