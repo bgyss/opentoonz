@@ -7,6 +7,7 @@
 #include "tdata.h"
 #include "tconvert.h"
 #include "tgl.h"
+#include "tgraphics.h"
 #include "tstroke.h"
 #include "tvectorimage.h"
 #include "hookselection.h"
@@ -43,6 +44,33 @@ using namespace ToolUtils;
 
 //=============================================================================
 namespace {
+//-----------------------------------------------------------------------------
+
+void appendDashedLine(TGraphics::DrawList2D &drawList, const TPointD &p0,
+                      const TPointD &p1, const TPixel32 &color) {
+  const double dx     = p1.x - p0.x;
+  const double dy     = p1.y - p0.y;
+  const double length = sqrt(dx * dx + dy * dy);
+  if (length <= 1e-6) return;
+
+  const TPointD unit(dx / length, dy / length);
+  const double dashLength = 6.0;
+  const double gapLength  = 4.0;
+  for (double start = 0.0; start < length; start += dashLength + gapLength) {
+    const double rawEnd = start + dashLength;
+    const double end    = rawEnd < length ? rawEnd : length;
+    drawList.addColorLine(p0 + unit * start, p0 + unit * end, color, false);
+  }
+}
+
+void appendDashedRectOutline(TGraphics::DrawList2D &drawList,
+                             const TRectD &rect, const TPixel32 &color) {
+  appendDashedLine(drawList, rect.getP00(), rect.getP10(), color);
+  appendDashedLine(drawList, rect.getP10(), rect.getP11(), color);
+  appendDashedLine(drawList, rect.getP11(), rect.getP01(), color);
+  appendDashedLine(drawList, rect.getP01(), rect.getP00(), color);
+}
+
 //-----------------------------------------------------------------------------
 
 //=============================================================================
@@ -260,8 +288,7 @@ void HookTool::draw() {
   // ToolUtils::drawRect(TRectD(10,10,110,110), TPixel32(255,200,200), 0xFFF0);
 
   // draw the current image bounding box
-  const double v200 = 200.0 / 255.0;
-  TImageP image     = getImage(false);
+  TImageP image = getImage(false);
   if (!image) return;
 
   TToonzImageP ti  = image;
@@ -348,19 +375,14 @@ void HookTool::draw() {
     TPointD pos = m_snappedPos;
     TRectD bbox = m_shapeBBox;
     if (bbox.getLx() > 0 && bbox.getLy() > 0) {
-      glColor3d(v200, v200, v200);
-      glEnable(GL_LINE_STIPPLE);
-      glLineStipple(5, 0xAAAA);
-      tglDrawRect(bbox);
-      glDisable(GL_LINE_STIPPLE);
-
-      glBegin(GL_LINES);
-      glVertex2d(pos.x, bbox.y0);
-      glVertex2d(pos.x, bbox.y1);
-      glVertex2d(bbox.x0, pos.y);
-      glVertex2d(bbox.x1, pos.y);
-      glEnd();
-      glDisable(GL_LINE_STIPPLE);
+      const TPixel32 guideColor(200, 200, 200, 255);
+      TGraphics::DrawList2D drawList;
+      appendDashedRectOutline(drawList, bbox, guideColor);
+      drawList.addColorLine(TPointD(pos.x, bbox.y0), TPointD(pos.x, bbox.y1),
+                            guideColor, false);
+      drawList.addColorLine(TPointD(bbox.x0, pos.y), TPointD(bbox.x1, pos.y),
+                            guideColor, false);
+      TGraphics::drawWithOpenGLBackend(drawList);
     }
     drawBalloon(pos, m_snappedReason, TPixel32(200, 250, 180, 200),
                 TPoint(20, 20), getPixelSize(), false, &balloons);
