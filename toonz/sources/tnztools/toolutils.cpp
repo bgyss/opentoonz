@@ -73,6 +73,36 @@ void drawRectOutlineWithTGraphics(const TRectD &rect, const TPixel32 &color) {
   TGraphics::drawWithOpenGLBackend(drawList);
 }
 
+TPixel32 currentGLColor() {
+  GLdouble color[4];
+  glGetDoublev(GL_CURRENT_COLOR, color);
+
+  auto toChannel = [](double value) {
+    return static_cast<UCHAR>(tcrop(value, 0.0, 1.0) * 255.0 + 0.5);
+  };
+
+  return TPixel32(toChannel(color[0]), toChannel(color[1]),
+                  toChannel(color[2]), toChannel(color[3]));
+}
+
+bool currentGLBlendEnabled() { return glIsEnabled(GL_BLEND) == GL_TRUE; }
+
+void drawCurrentColorRectWithTGraphics(const TRectD &rect) {
+  TGraphics::DrawList2D drawList;
+  drawList.addColorRect(rect, currentGLColor(), currentGLBlendEnabled());
+  glPushAttrib(GL_ENABLE_BIT | GL_COLOR_BUFFER_BIT);
+  TGraphics::drawWithOpenGLBackend(drawList);
+  glPopAttrib();
+}
+
+void drawCurrentColorLineWithTGraphics(const TPointD &p0, const TPointD &p1) {
+  TGraphics::DrawList2D drawList;
+  drawList.addColorLine(p0, p1, currentGLColor(), currentGLBlendEnabled());
+  glPushAttrib(GL_ENABLE_BIT | GL_COLOR_BUFFER_BIT);
+  TGraphics::drawWithOpenGLBackend(drawList);
+  glPopAttrib();
+}
+
 QImage convertToGLDrawPixelsFormat(const QImage &image) {
   return image.convertToFormat(QImage::Format_RGBA8888).mirrored();
 }
@@ -293,35 +323,30 @@ void ToolUtils::fillRect(const TRectD &rect, const TPixel32 &color) {
 
 void ToolUtils::drawPoint(const TPointD &q, double pixelSize) {
   double size = pixelSize * 2.0;
-  glBegin(GL_QUADS);
-  glVertex2d(q.x - size, q.y - size);
-  glVertex2d(q.x - size, q.y + size);
-  glVertex2d(q.x + size, q.y + size);
-  glVertex2d(q.x + size, q.y - size);
-  glEnd();
+  drawCurrentColorRectWithTGraphics(
+      TRectD(q.x - size, q.y - size, q.x + size, q.y + size));
 }
 
 //-----------------------------------------------------------------------------
 
 void ToolUtils::drawCross(const TPointD &q, double pixelSize) {
   double size = pixelSize;
-  glBegin(GL_LINES);
-  glVertex2d(q.x - size, q.y);
-  glVertex2d(q.x + size, q.y);
-  glEnd();
-  glBegin(GL_LINES);
-  glVertex2d(q.x, q.y - size);
-  glVertex2d(q.x, q.y + size);
-  glEnd();
+  TGraphics::DrawList2D drawList;
+  TPixel32 color = currentGLColor();
+  bool blending  = currentGLBlendEnabled();
+  drawList.addColorLine(TPointD(q.x - size, q.y), TPointD(q.x + size, q.y),
+                        color, blending);
+  drawList.addColorLine(TPointD(q.x, q.y - size), TPointD(q.x, q.y + size),
+                        color, blending);
+  glPushAttrib(GL_ENABLE_BIT | GL_COLOR_BUFFER_BIT);
+  TGraphics::drawWithOpenGLBackend(drawList);
+  glPopAttrib();
 }
 
 
 //-----------------------------------------------------------------------------
 void ToolUtils::drawLine(const TPointD &p0, const TPointD p1) {
-  glBegin(GL_LINE_STRIP);
-  glVertex2d(p0.x, p0.y);
-  glVertex2d(p1.x, p1.y);
-  glEnd();
+  drawCurrentColorLineWithTGraphics(p0, p1);
 }
     //-----------------------------------------------------------------------------
 

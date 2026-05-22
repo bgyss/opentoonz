@@ -219,6 +219,12 @@ The tool-utility rectangle checkpoint moves shared non-contrast
 `ToolUtils::drawSquare(...)` drawing to `DrawList2D` color-line/color-rect
 commands. Contrast-blended and stippled rectangle variants remain on the legacy
 OpenGL path until `tgraphics` has matching blend and stipple semantics.
+The follow-up ToolUtils primitive checkpoint moves shared current-color
+`ToolUtils::drawPoint(...)`, `ToolUtils::drawCross(...)`, and
+`ToolUtils::drawLine(...)` overlays to `DrawList2D` color commands while
+preserving the caller's current OpenGL color and blend enable state. Arrowhead,
+contrast, stipple, balloon picking, and hook icon geometry remain on legacy
+OpenGL until those primitive semantics are represented directly in `tgraphics`.
 
 The edit-tool shear checkpoint moves the visible shear-handle outline in
 `EditTool::drawMainHandle()` from direct immediate-mode `GL_LINE_STRIP` drawing
@@ -721,16 +727,17 @@ emit `tgraphics` color-line commands instead of direct `GL_LINES` and
 `glLineStipple(...)` state. Viewer field-guide grid and diagonal lines now also
 emit `tgraphics` color-line commands instead of immediate-mode `GL_LINES`.
 Shared plain tool rectangles, filled rectangles, and square outlines now also
-emit `tgraphics` color commands. Edit-tool shear-handle visible outlines now
-also emit `tgraphics` color-line commands. Edit-tool camera and Z-translation
-icons now also emit `tgraphics` color-line commands. Scene-viewer FPS graph
-panels now emit `tgraphics` color commands instead of direct immediate-mode
-drawing. Scene-viewer spline/motion-path overlay lines now emit explicit dashed
-`tgraphics` color-line commands. Canon live-view zoom-box borders now also emit
-`tgraphics` color-line commands. Plastic angle-limit guide lines now emit
-`tgraphics` color-line commands, while thicker plastic skeleton and mesh edit
-edge overlays remain on legacy OpenGL until width/stipple semantics are
-represented in `tgraphics`.
+emit `tgraphics` color commands, and shared current-color tool point, cross,
+and line primitives now also emit `tgraphics` color commands. Edit-tool
+shear-handle visible outlines now also emit `tgraphics` color-line commands.
+Edit-tool camera and Z-translation icons now also emit `tgraphics` color-line
+commands. Scene-viewer FPS graph panels now emit `tgraphics` color commands
+instead of direct immediate-mode drawing. Scene-viewer spline/motion-path
+overlay lines now emit explicit dashed `tgraphics` color-line commands. Canon
+live-view zoom-box borders now also emit `tgraphics` color-line commands.
+Plastic angle-limit guide lines now emit `tgraphics` color-line commands, while
+thicker plastic skeleton and mesh edit edge overlays remain on legacy OpenGL
+until width/stipple semantics are represented in `tgraphics`.
 Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
 effects and by moving the remaining preview/export and style-editor surfaces
 through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene
