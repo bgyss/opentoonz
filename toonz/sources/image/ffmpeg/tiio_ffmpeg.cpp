@@ -13,7 +13,6 @@
 #include <QImage>
 #include <QElapsedTimer>
 #include <QProcess>
-#include <QRegularExpression>
 #include <QSet>
 #include <QUuid>
 #include <QDir>
@@ -66,17 +65,25 @@ QString readFFmpegFormats() {
 
 QSet<QString> parseFFmpegFormats(const QString &output) {
   QSet<QString> formats;
-  QRegularExpression formatLinePattern("^\\s*([D ])([E ])(?:[d ])\\s+(\\S+)");
 
   for (const QString &line : output.split('\n')) {
-    QRegularExpressionMatch match = formatLinePattern.match(line);
-    if (!match.hasMatch()) continue;
+    if (line.size() < 5) continue;
 
-    QChar demuxFlag = match.captured(1).at(0);
-    QChar muxFlag   = match.captured(2).at(0);
+    QChar demuxFlag  = line.at(1);
+    QChar muxFlag    = line.at(2);
+    QChar deviceFlag = line.at(3);
+    if ((demuxFlag != 'D' && demuxFlag != ' ') ||
+        (muxFlag != 'E' && muxFlag != ' ') ||
+        (deviceFlag != 'd' && deviceFlag != ' '))
+      continue;
     if (demuxFlag != 'D' && muxFlag != 'E') continue;
 
-    for (const QString &name : match.captured(3).split(',')) {
+    QString names = line.mid(4).trimmed();
+    int nameEnd   = 0;
+    while (nameEnd < names.size() && !names.at(nameEnd).isSpace()) ++nameEnd;
+    names = names.left(nameEnd);
+
+    for (const QString &name : names.split(',')) {
       if (!name.isEmpty()) formats.insert(name.toLower());
     }
   }
