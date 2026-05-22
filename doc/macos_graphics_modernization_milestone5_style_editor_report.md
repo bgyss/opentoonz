@@ -1,7 +1,8 @@
 # macOS Graphics Modernization Milestone 5 Checkpoint
 
-Status: first contained style-editor rendering migration and first reusable
-offscreen `DrawList2D` readback helper completed locally on 2026-05-22.
+Status: first contained style-editor rendering migration, first reusable
+offscreen `DrawList2D` readback helper, and first migrated style-chip consumer
+completed locally on 2026-05-22.
 
 ## Objective
 
@@ -21,6 +22,12 @@ rendering a `DrawList2D` into a `TRaster32P` through the OpenGL, Metal, or
 active backend. This is the reusable bridge needed before migrating preview,
 export, and other secondary render surfaces one call site at a time.
 
+The next call-site checkpoint routes transparent `TSolidColorStyle` icon
+generation through `TGraphics::renderDrawListWithActiveBackend(...)` using a
+checkerboard plus alpha-blended color-rectangle draw list. This gives the new
+offscreen API a real style-chip consumer while preserving the old CPU
+checkerboard/over fallback if no backend render target is available.
+
 ## Files Changed
 
 - `toonz/sources/include/toonzqt/styleeditor.h`
@@ -28,6 +35,7 @@ export, and other secondary render surfaces one call site at a time.
 - `toonz/sources/include/tgraphics.h`
 - `toonz/sources/common/tgraphics/tgraphics.cpp`
 - `toonz/sources/common/tgraphics/tgraphics_metal_probe.cpp`
+- `toonz/sources/common/tvrender/tsimplecolorstyles.cpp`
 
 ## Changes
 
@@ -60,6 +68,12 @@ export, and other secondary render surfaces one call site at a time.
   creating backend-specific image render targets, command encoders, and
   readback calls. The probe now validates the same reusable offscreen API that
   future preview/export/style-editor migrations can call.
+- Updated transparent `TSolidColorStyle` icon generation to emit a
+  `DrawList2D` checkerboard plus blended color rectangle through the active
+  graphics backend.
+- Kept opaque solid-color icons on the existing direct raster fill path and
+  retained the prior CPU `TRop::checkBoard`/`TRop::over` implementation as a
+  fallback for transparent icons.
 
 ## Inventory Impact
 
@@ -87,6 +101,10 @@ increase slightly because the LUT calibration path now uses
 The offscreen helper checkpoint does not reduce inventory counts by itself; it
 removes duplicated backend setup from the probe and creates the API surface for
 later call-site migrations.
+
+The transparent solid-style icon checkpoint is expected to keep fixed-function
+inventory materially unchanged: it does not add direct OpenGL calls, and it
+uses the backend-neutral `TGraphics` offscreen helper instead.
 
 ## Validation Run
 
@@ -119,6 +137,8 @@ tgraphics_metal_probe: ok on Apple M1 Max
 - The new offscreen helpers currently operate on `DrawList2D`; broad
   `TOfflineGL` vector/raster rendering still needs staged conversion into
   draw-list emitters or backend-specific adapters.
+- Non-solid and more complex color-style icons still use the broader
+  `TColorStyle::makeIcon` path and `TOfflineGL`-backed rendering.
 - Preview/export, shader effects, and broader offscreen render targets remain
   Milestone 5 work.
 

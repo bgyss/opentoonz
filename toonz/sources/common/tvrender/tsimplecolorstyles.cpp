@@ -25,6 +25,7 @@
 #include "tcurveutil.h"
 #include "tstrokeoutline.h"
 #include "tregion.h"
+#include "tgraphics.h"
 
 #include "tsimplecolorstyles.h"
 
@@ -87,6 +88,16 @@ TRaster32P makeTexture(const TRaster32P &ras) {
     TRop::resample(texture, ras32, sc);
     return texture;
   }
+}
+
+TRaster32P makeTransparentSolidIconWithTGraphics(const TDimension &size,
+                                                 const TPixel32 &color) {
+  TGraphics::DrawList2D drawList;
+  drawList.addCheckerboard(TRectD(0, 0, size.lx, size.ly), TDimensionD(6, 6),
+                           TPointD(), TPixel32::Black, TPixel32::White);
+  drawList.addColorRect(TRectD(0, 0, size.lx, size.ly), color, true);
+  return TGraphics::renderDrawListWithActiveBackend(drawList, size.lx,
+                                                    size.ly);
 }
 
 //-----------------------------------------------------------------------------
@@ -603,11 +614,16 @@ void TSolidColorStyle::makeIcon(const TDimension &size) {
     if (col.m == 255)
       m_icon->fill(col);
     else {
-      TRaster32P fg(size);
-      fg->fill(premultiply(col));
-      TRop::checkBoard(m_icon, TPixel32::Black, TPixel32::White,
-                       TDimensionD(6, 6), TPointD());
-      TRop::over(m_icon, fg);
+      TRaster32P rendered = makeTransparentSolidIconWithTGraphics(size, col);
+      if (rendered) {
+        m_icon->copy(rendered);
+      } else {
+        TRaster32P fg(size);
+        fg->fill(premultiply(col));
+        TRop::checkBoard(m_icon, TPixel32::Black, TPixel32::White,
+                         TDimensionD(6, 6), TPointD());
+        TRop::over(m_icon, fg);
+      }
     }
   }
 }
