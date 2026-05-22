@@ -1460,6 +1460,30 @@ bool SceneViewer::presentSafeAreaWithMetal() {
 
 //-------------------------------------------------------------------------------
 
+bool SceneViewer::presentLocatorCrossWithMetal() {
+  if (!m_isLocator || m_draw3DMode) return false;
+
+  const int targetWidth  = std::max(1, width() * getDevPixRatio());
+  const int targetHeight = std::max(1, height() * getDevPixRatio());
+  if (!ensureMetalLayerTarget(targetWidth, targetHeight)) return false;
+
+  auto toMetalPixel = [targetWidth, targetHeight](const TPointD& point) {
+    return TPointD(targetWidth * 0.5 + point.x,
+                   targetHeight - (targetHeight * 0.5 + point.y));
+  };
+
+  TGraphics::DrawList2D drawList;
+  const TPixel32 red(255, 0, 0, 255);
+  drawList.addColorLine(toMetalPixel(TPointD(-4, 0)),
+                        toMetalPixel(TPointD(5, 0)), red, false);
+  drawList.addColorLine(toMetalPixel(TPointD(0, -4)),
+                        toMetalPixel(TPointD(0, 5)), red, false);
+
+  return presentDrawListWithMetal(drawList);
+}
+
+//-------------------------------------------------------------------------------
+
 bool SceneViewer::presentPreviewFrameOverlayWithMetal(const TRectD& frameRect,
                                                       bool frameNotReady) {
   if (m_draw3DMode) return false;
@@ -2635,6 +2659,8 @@ void SceneViewer::drawOverlay() {
 
     // draw cross at the center of the locator window
     if (m_isLocator) {
+      if (shouldPresentWithMetal()) presentLocatorCrossWithMetal();
+
       glColor3d(1.0, 0.0, 0.0);
       tglDrawSegment(TPointD(-4, 0), TPointD(5, 0));
       tglDrawSegment(TPointD(0, -4), TPointD(0, 5));

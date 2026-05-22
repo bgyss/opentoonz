@@ -352,6 +352,7 @@ protected:
   bool presentGuidesWithMetal();
   bool presentCameraOverlayWithMetal(unsigned long flags, double pixelSize);
   bool presentSafeAreaWithMetal();
+  bool presentLocatorCrossWithMetal();
   bool presentPreviewFrameOverlayWithMetal(const TRectD& frameRect,
                                            bool frameNotReady);
   bool presentDrawListWithMetal(const TGraphics::DrawList2D& drawList);

@@ -208,6 +208,8 @@ before porting scene internals.
 - Safe-area overlays now mirror into direct Metal when the safe-area toggle is
   active: configured safe-area percentages and optional RGB colors are converted
   into dashed camera-space `ColorLine` rectangles.
+- Locator-window center cross overlay now mirrors into direct Metal as two red
+  `ColorLine` commands when the viewer is used as a locator.
 - The direct Metal viewer background path now adds a checkerboard using
   `Preferences::getChessboardColors(...)` when `ToonzCheck::eTransparency` is
   active.
