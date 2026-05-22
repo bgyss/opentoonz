@@ -405,8 +405,7 @@ bool SkeletonTool::doesApply() const {
 //-------------------------------------------------------------------
 
 void SkeletonTool::mouseMove(const TPointD &, const TMouseEvent &e) {
-  const bool useMetalCpuPicking =
-      shouldUseMetalCpuSkeletonPicking() && m_mode.getValue() != BUILD_SKELETON;
+  const bool useMetalCpuPicking = shouldUseMetalCpuSkeletonPicking();
   int selectedDevice = useMetalCpuPicking ? pickCpu(e.m_pos) : -1;
   if (selectedDevice < 0 && !useMetalCpuPicking)
     selectedDevice = pick(e.m_pos);
@@ -436,8 +435,7 @@ void SkeletonTool::leftButtonDown(const TPointD &ppos, const TMouseEvent &e) {
   TXsheet *xsh            = app->getCurrentScene()->getScene()->getXsheet();
   TPointD pos             = ppos;
 
-  const bool useMetalCpuPicking =
-      shouldUseMetalCpuSkeletonPicking() && m_mode.getValue() != BUILD_SKELETON;
+  const bool useMetalCpuPicking = shouldUseMetalCpuSkeletonPicking();
   int selectedDevice = useMetalCpuPicking ? pickCpu(e.m_pos) : -1;
   if (selectedDevice < 0 && !useMetalCpuPicking)
     selectedDevice = pick(e.m_pos);
@@ -586,8 +584,7 @@ void SkeletonTool::leftButtonUp(const TPointD &pos, const TMouseEvent &e) {
   }
   if (m_device == TD_IncrementDrawing || m_device == TD_DecrementDrawing ||
       m_device == TD_ChangeDrawing) {
-    const bool useMetalCpuPicking = shouldUseMetalCpuSkeletonPicking() &&
-                                    m_mode.getValue() != BUILD_SKELETON;
+    const bool useMetalCpuPicking = shouldUseMetalCpuSkeletonPicking();
     m_device = useMetalCpuPicking ? pickCpu(e.m_pos) : -1;
     if (m_device < 0 && !useMetalCpuPicking) m_device = pick(e.m_pos);
   } else
@@ -1489,6 +1486,80 @@ int SkeletonTool::pickCpu(const TPointD &viewerPos) {
   const double hitRadius = 12.0;
   const double hit2      = hitRadius * hitRadius;
   const bool ikEnabled   = m_mode.getValue() == INVERSE_KINEMATICS;
+  const bool buildMode   = m_mode.getValue() == BUILD_SKELETON;
+  std::string currentHandle = xsh->getStageObject(objId)->getHandle();
+
+  if (buildMode) {
+    std::vector<int> showBoneIndex;
+    for (int i = 0; i < skeleton.getBoneCount(); ++i) {
+      Skeleton::Bone *bone = skeleton.getBone(i);
+      if (!bone || !canShowBone(bone, xsh, frame)) continue;
+      showBoneIndex.push_back(i);
+    }
+
+    for (int i = (int)showBoneIndex.size() - 1; i >= 0; --i) {
+      Skeleton::Bone *bone = skeleton.getBone(showBoneIndex[i]);
+      if (!bone || bone->getStageObject()->getId() != objId) continue;
+
+      const TPointD a = bone->getCenter();
+      TPointD pm;
+      if (bone->getParent()) {
+        const TPointD b = bone->getParent()->getCenter();
+        pm = (a + b) * 0.5;
+      } else {
+        pm = a + TPointD(0, 60) * pixelSize;
+      }
+
+      if (viewerDistance2(viewerPos, toViewer(pm)) <= hit2)
+        return TD_ChangeParent;
+      if (currentHandle.find("H") != 0 &&
+          viewerDistance2(viewerPos, toViewer(a)) <= hit2)
+        return TD_Center;
+      break;
+    }
+
+    if (!xsh->getStageObjectParent(objId).isColumn()) {
+      std::set<int> connectedColumns;
+      getConnectedColumns(connectedColumns, xsh, col);
+
+      std::vector<HookData> currentColumnHooks;
+      std::vector<HookData> otherColumnsHooks;
+      getHooks(currentColumnHooks, xsh, frame, col, TPointD(1, 1));
+      for (int i = 0; i < xsh->getColumnCount(); ++i) {
+        TXshColumn *column = xsh->getColumn(i);
+        if (column && column->isCamstandVisible() &&
+            connectedColumns.count(i) == 0) {
+          getHooks(otherColumnsHooks, xsh, frame, i, TPointD(1, 1));
+        }
+      }
+
+      m_magicLinks.clear();
+      const double snapRadius2bis = 100.0;
+      for (const HookData &currentHook : currentColumnHooks) {
+        for (const HookData &otherHook : otherColumnsHooks) {
+          if (currentHook.m_hookId == 0 || otherHook.m_hookId == 0) continue;
+          const double dist2 = norm2(currentHook.m_pos - otherHook.m_pos);
+          if (dist2 < snapRadius2bis)
+            m_magicLinks.push_back(MagicLink(currentHook, otherHook, dist2));
+        }
+      }
+
+      for (int i = (int)m_magicLinks.size() - 1; i >= 0; --i) {
+        if (viewerDistance2(viewerPos, toViewer(m_magicLinks[i].m_h0.m_pos)) <=
+            hit2)
+          return TD_MagicLink + i;
+      }
+
+      for (int i = (int)currentColumnHooks.size() - 1; i >= 0; --i) {
+        const HookData &hook = currentColumnHooks[i];
+        if (hook.m_name == "") continue;
+        if (viewerDistance2(viewerPos, toViewer(hook.m_pos)) <= hit2)
+          return TD_Hook + hook.m_hookId;
+      }
+    }
+
+    return TD_None;
+  }
 
   if (ikEnabled) {
     for (int i = skeleton.getBoneCount() - 1; i >= 0; --i) {
@@ -1500,7 +1571,6 @@ int SkeletonTool::pickCpu(const TPointD &viewerPos) {
     return TD_None;
   }
 
-  std::string currentHandle = xsh->getStageObject(objId)->getHandle();
   for (int i = skeleton.getBoneCount() - 1; i >= 0; --i) {
     Skeleton::Bone *bone = skeleton.getBone(i);
     if (!bone || bone->getStageObject()->getId() != objId) continue;

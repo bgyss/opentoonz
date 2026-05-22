@@ -226,8 +226,9 @@ before porting scene internals.
   Metal picking work.
 - Skeleton Tool animate and inverse-kinematics modes now have a first CPU
   picker under Metal for center, translation, drawing-browser, and IK lock
-  handles. Build Skeleton hook and magic-link picking still uses the legacy
-  OpenGL selection path.
+  handles. Build Skeleton mode also routes through CPU picking for center,
+  change-parent, hook, and static magic-link handles without entering the
+  legacy OpenGL selection path.
 - The direct Metal viewer background path now adds a checkerboard using
   `Preferences::getChessboardColors(...)` when `ToonzCheck::eTransparency` is
   active.
