@@ -876,6 +876,35 @@ int main(int argc, char* argv[]) {
   }
 
   {
+    const int shaderWidth      = 1;
+    const int shaderHeight     = 1;
+    const bool blendHue        = true;
+    const bool blendSaturation = true;
+    const bool blendLuminosity = false;
+    const double blendAlpha    = 1.0;
+    const bool baseMask        = false;
+    TRaster32P foreground =
+        makeSolidRaster(shaderWidth, shaderHeight, TPixel32(75, 120, 180, 255));
+    TRaster32P background =
+        makeSolidRaster(shaderWidth, shaderHeight, TPixel32(180, 80, 60, 255));
+    const TAffine outputToTexture = TScale(1.0, 1.0);
+
+    TRaster32P readback = TGraphics::renderHSLBlendWithMetalBackend(
+        shaderWidth, shaderHeight, foreground, background, outputToTexture,
+        outputToTexture, blendHue, blendSaturation, blendLuminosity, blendAlpha,
+        baseMask);
+    if (!readback) return fail("could not read back 1x1 HSL blend shader");
+    if (!requireDimensions(readback, shaderWidth, shaderHeight)) {
+      return fail("1x1 HSL blend dimensions do not match render target");
+    }
+    if (!validateHSLBlend(readback, foreground, background, blendHue,
+                          blendSaturation, blendLuminosity, blendAlpha,
+                          baseMask)) {
+      return EXIT_FAILURE;
+    }
+  }
+
+  {
     const int shaderWidth       = 16;
     const int shaderHeight      = 12;
     const TAffine outputToWorld = TTranslation(24.0, 31.0);

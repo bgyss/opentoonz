@@ -1,7 +1,10 @@
 #include "stdfx/shaderfx.h"
 
+#include "tfxcachemanager.h"
 #include "tgraphics.h"
+#include "trenderer.h"
 #include "trasterfx.h"
+#include "tthread.h"
 #include "ttile.h"
 
 #include <QGuiApplication>
@@ -228,6 +231,102 @@ const char* activeBackendName() {
              : "opengl";
 }
 
+TPixel32 hslProbeForegroundPixel(int x, int y) {
+  return TPixel32(32 + (x * 7) % 180, 48 + (y * 5) % 160,
+                  64 + (x * 3 + y * 2) % 150, 255);
+}
+
+TPixel32 hslProbeBackgroundPixel(int x, int y) {
+  return TPixel32(180 - (x * 5) % 130, 58 + (x * 2 + y * 3) % 150,
+                  80 + (y * 7) % 150, 255);
+}
+
+TRaster32P makeHSLProbeRaster(int width, int height, const TPointD& pos,
+                              bool foreground) {
+  TRaster32P raster(width, height);
+  raster->lock();
+  for (int y = 0; y < height; ++y) {
+    TPixel32* row = raster->pixels(y);
+    for (int x = 0; x < width; ++x) {
+      const int worldX = tround(pos.x) + x;
+      const int worldY = tround(pos.y) + y;
+      row[x] = foreground ? hslProbeForegroundPixel(worldX, worldY)
+                          : hslProbeBackgroundPixel(worldX, worldY);
+    }
+  }
+  raster->unlock();
+  return raster;
+}
+
+class HSLProbeRasterFx final : public TRasterFx {
+  FX_DECLARATION(HSLProbeRasterFx)
+
+  bool m_foreground = false;
+
+public:
+  HSLProbeRasterFx() = default;
+  explicit HSLProbeRasterFx(bool foreground) : m_foreground(foreground) {}
+
+  TFx* clone(bool recursive = true) const override {
+    HSLProbeRasterFx* fx =
+        dynamic_cast<HSLProbeRasterFx*>(TRasterFx::clone(recursive));
+    fx->m_foreground = m_foreground;
+    return fx;
+  }
+
+  std::string getPluginId() const override { return std::string(); }
+
+  bool doGetBBox(double, TRectD& bbox, const TRenderSettings&) override {
+    bbox = TRectD(-100000.0, -100000.0, 100000.0, 100000.0);
+    return true;
+  }
+
+  bool canHandle(const TRenderSettings&, double) override { return true; }
+
+  int getMemoryRequirement(const TRectD&, double,
+                           const TRenderSettings&) override {
+    return -1;
+  }
+
+  std::string getAlias(double frame, const TRenderSettings& info) const override {
+    return TRasterFx::getAlias(frame, info) + (m_foreground ? "[fg]" : "[bg]");
+  }
+
+protected:
+  void doCompute(TTile& tile, double, const TRenderSettings&) override {
+    TRaster32P raster = tile.getRaster();
+    if (!raster) return;
+    TRaster32P source =
+        makeHSLProbeRaster(raster->getLx(), raster->getLy(), tile.m_pos,
+                           m_foreground);
+    raster->copy(source);
+  }
+};
+
+FX_IDENTIFIER_IS_HIDDEN(HSLProbeRasterFx, "hslProbeRasterFx")
+
+class ProbeRenderScope {
+  TRenderer m_renderer;
+  unsigned long m_renderId;
+  double m_frame;
+
+public:
+  explicit ProbeRenderScope(double frame)
+      : m_renderer(1), m_renderId(TRenderer::buildRenderId()), m_frame(frame) {
+    m_renderer.install(m_renderId);
+    m_renderer.declareRenderStart(m_renderId);
+    m_renderer.declareFrameStart(m_frame);
+    TFxCacheManager::instance()->onRenderStatusStart(TRenderer::COMPUTING);
+  }
+
+  ~ProbeRenderScope() {
+    TFxCacheManager::instance()->onRenderStatusEnd(TRenderer::COMPUTING);
+    m_renderer.declareFrameEnd(m_frame);
+    m_renderer.declareRenderEnd(m_renderId);
+    m_renderer.uninstall();
+  }
+};
+
 TRaster32P renderExpectedMetalHelper(const Options& options, int width,
                                      int height, const TTile& tile,
                                      const TRenderSettings& settings) {
@@ -256,6 +355,13 @@ TRaster32P renderExpectedMetalHelper(const Options& options, int width,
         width, height, outputToWorld, TPixel32(255, 0, 0, 255),
         TPixel32(225, 200, 0, 255), 12.0, 0.0);
   }
+  if (options.shaderName == "SHADER_HSLBlendGPU") {
+    const TAffine outputToTexture = TScale(1.0 / width, 1.0 / height);
+    return TGraphics::renderHSLBlendWithMetalBackend(
+        width, height, makeHSLProbeRaster(width, height, tile.m_pos, true),
+        makeHSLProbeRaster(width, height, tile.m_pos, false), outputToTexture,
+        outputToTexture, true, true, false, 1.0, false);
+  }
   return TRaster32P();
 }
 
@@ -275,8 +381,17 @@ int main(int argc, char* argv[]) {
   QObject mainScope;
   mainScope.setObjectName("mainScope");
   mainScope.setParent(&app);
+  TThread::init();
+  TRenderer::initialize();
 
   loadShaderInterfaces(options.shaderFolder);
+
+  TFxP foregroundFx;
+  TFxP backgroundFx;
+  if (options.shaderName == "SHADER_HSLBlendGPU") {
+    foregroundFx = TFxP(new HSLProbeRasterFx(true));
+    backgroundFx = TFxP(new HSLProbeRasterFx(false));
+  }
 
   const int width  = 96;
   const int height = 64;
@@ -286,8 +401,23 @@ int main(int argc, char* argv[]) {
   settings.m_bpp = 32;
   settings.m_affine =
       TAffine::translation(4.0, -3.0) * TAffine::scale(1.25, 0.75);
+  if (options.shaderName == "SHADER_HSLBlendGPU")
+    settings.m_affine = TAffine();
 
-  if (!renderShaderFxForProbe(options.shaderName.c_str(), tile, 1.0, settings))
+  bool rendered = false;
+  if (options.shaderName == "SHADER_HSLBlendGPU") {
+    if (TGraphics::activeBackendType() != TGraphics::BackendType::Metal)
+      return fail("SHADER_HSLBlendGPU probe requires the Metal backend") ? 0
+                                                                         : 1;
+    ProbeRenderScope renderScope(1.0);
+    rendered = renderConnectedShaderFxForProbe(
+        options.shaderName.c_str(), foregroundFx.getPointer(),
+        backgroundFx.getPointer(), tile, 1.0, settings);
+  } else {
+    rendered =
+        renderShaderFxForProbe(options.shaderName.c_str(), tile, 1.0, settings);
+  }
+  if (!rendered)
     return fail("could not render shader through ShaderFx") ? 0 : 1;
 
   TRaster32P actual = tile.getRaster();

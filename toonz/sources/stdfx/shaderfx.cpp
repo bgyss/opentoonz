@@ -186,6 +186,8 @@ public:
   bool doGetBBox(double frame, TRectD &bBox,
                  const TRenderSettings &info) override;
   bool canHandle(const TRenderSettings &info, double frame) override;
+  int getMemoryRequirement(const TRectD &rect, double frame,
+                           const TRenderSettings &info) override;
 
   void doDryCompute(TRectD &rect, double frame,
                     const TRenderSettings &ri) override;
@@ -687,6 +689,17 @@ bool ShaderFx::canHandle(const TRenderSettings &info, double frame) {
 
 //-------------------------------------------------------------------
 
+int ShaderFx::getMemoryRequirement(const TRectD &rect, double frame,
+                                   const TRenderSettings &info) {
+  if (TGraphics::activeBackendType() == TGraphics::BackendType::Metal &&
+      m_shaderInterface->mainShader().m_name ==
+          QStringLiteral("SHADER_HSLBlendGPU"))
+    return -1;
+  return TStandardZeraryFx::getMemoryRequirement(rect, frame, info);
+}
+
+//-------------------------------------------------------------------
+
 QOpenGLShaderProgram *ShaderFx::touchShaderProgram(
     const ShaderInterface::ShaderData &sd, ShadingContext &context,
     int varyingsCount, const GLchar **varyings) {
@@ -1053,6 +1066,94 @@ bool renderProceduralShaderWithMetal(const ShaderInterface *shaderInterface,
   return true;
 }
 
+bool renderHSLBlendShaderWithMetal(const ShaderInterface *shaderInterface,
+                                   const std::vector<boost::any> &params,
+                                   boost::ptr_vector<TRasterFxPort> &ports,
+                                   TTile &tile, double frame,
+                                   const TRenderSettings &info) {
+  if (TGraphics::activeBackendType() != TGraphics::BackendType::Metal)
+    return false;
+  if (shaderInterface->mainShader().m_name !=
+      QStringLiteral("SHADER_HSLBlendGPU"))
+    return false;
+  if (ports.size() != 2 || !ports[0].isConnected() || !ports[1].isConnected())
+    return false;
+
+  TRaster32P outputRaster = tile.getRaster();
+  if (!outputRaster || info.m_bpp != 32) return false;
+
+  bool blendHue        = true;
+  bool blendSaturation = true;
+  bool blendLuminosity = false;
+  bool baseMask        = false;
+  double blendAlpha    = 1.0;
+
+  const std::vector<ShaderInterface::Parameter> &siParams =
+      shaderInterface->parameters();
+  if (siParams.size() != params.size()) return false;
+
+  for (int i = 0, count = int(siParams.size()); i != count; ++i) {
+    const QString &name = siParams[i].m_name;
+    switch (siParams[i].m_type) {
+    case ShaderInterface::BOOL: {
+      const TBoolParamP &param =
+          *boost::unsafe_any_cast<TBoolParamP>(&params[i]);
+      if (name == QStringLiteral("bhue"))
+        blendHue = param->getValue();
+      else if (name == QStringLiteral("bsat"))
+        blendSaturation = param->getValue();
+      else if (name == QStringLiteral("blum"))
+        blendLuminosity = param->getValue();
+      else if (name == QStringLiteral("bmask"))
+        baseMask = param->getValue();
+      break;
+    }
+    case ShaderInterface::FLOAT: {
+      const TDoubleParamP &param =
+          *boost::unsafe_any_cast<TDoubleParamP>(&params[i]);
+      if (name == QStringLiteral("balpha")) blendAlpha = param->getValue(frame);
+      break;
+    }
+    default:
+      break;
+    }
+  }
+
+  const TRectD outRect = ::tileRect(tile);
+  if (outRect.getLx() <= 0.0 || outRect.getLy() <= 0.0) return false;
+
+  TRectD inputRect = outRect;
+  ::ceilRect(inputRect);
+  const TDimension inputSize(tround(inputRect.getLx()),
+                             tround(inputRect.getLy()));
+  if (inputSize.lx <= 0 || inputSize.ly <= 0) return false;
+
+  TTile inTiles[2];
+  TRenderSettings inputInfo(info);
+  inputInfo.m_affine = info.m_affine;
+  for (int p = 0; p != 2; ++p) {
+    ports[p]->allocateAndCompute(inTiles[p], inputRect.getP00(), inputSize,
+                                 tile.getRaster(), frame, inputInfo);
+    if (!TRaster32P(inTiles[p].getRaster())) return false;
+  }
+
+  const TAffine textureToOutput =
+      TTranslation(-tile.m_pos) * info.m_affine * info.m_affine.inv() *
+      TTranslation(inputRect.getP00()) *
+      TScale(inputRect.getLx(), inputRect.getLy());
+  const TAffine outputToTexture = textureToOutput.inv();
+
+  TRaster32P rendered = TGraphics::renderHSLBlendWithMetalBackend(
+      outputRaster->getLx(), outputRaster->getLy(),
+      TRaster32P(inTiles[0].getRaster()), TRaster32P(inTiles[1].getRaster()),
+      outputToTexture, outputToTexture, blendHue, blendSaturation,
+      blendLuminosity, blendAlpha, baseMask);
+  if (!rendered) return false;
+
+  outputRaster->copy(rendered);
+  return true;
+}
+
 //-------------------------------------------------------------------
 
 void ShaderFx::doCompute(TTile &tile, double frame,
@@ -1100,6 +1201,9 @@ void ShaderFx::doCompute(TTile &tile, double frame,
   if (getInputPortCount() == 0 &&
       renderProceduralShaderWithMetal(m_shaderInterface, m_params, tile, frame,
                                       info))
+    return;
+  if (renderHSLBlendShaderWithMetal(m_shaderInterface, m_params, m_inputPorts,
+                                    tile, frame, info))
     return;
 
   ShadingContextManager *manager = ShadingContextManager::instance();
@@ -1253,6 +1357,23 @@ void ShaderFx::doCompute(TTile &tile, double frame,
 
 void ShaderFx::doDryCompute(TRectD &rect, double frame,
                             const TRenderSettings &info) {
+  if (TGraphics::activeBackendType() == TGraphics::BackendType::Metal &&
+      m_shaderInterface->mainShader().m_name ==
+          QStringLiteral("SHADER_HSLBlendGPU") &&
+      m_inputPorts.size() == 2) {
+    TRectD inputRect = rect;
+    if (inputRect.getLx() <= 0.0 || inputRect.getLy() <= 0.0) return;
+    ::ceilRect(inputRect);
+
+    TRenderSettings inputInfo(info);
+    inputInfo.m_affine = info.m_affine;
+    for (int p = 0; p != 2; ++p) {
+      TRasterFxPort &port = m_inputPorts[p];
+      if (port.isConnected()) port->dryCompute(inputRect, frame, inputInfo);
+    }
+    return;
+  }
+
   ShadingContextManager *manager = ShadingContextManager::instance();
   if (manager->touchSupport() != ShadingContext::OK) return;
 
@@ -1340,6 +1461,22 @@ bool renderShaderFxForProbe(const char *shaderName, TTile &tile, double frame,
   ShaderFx *shaderFx = dynamic_cast<ShaderFx *>(fx.get());
   if (!shaderFx) return false;
 
+  shaderFx->doCompute(tile, frame, info);
+  return true;
+}
+
+bool renderConnectedShaderFxForProbe(const char *shaderName, TFx *input0,
+                                     TFx *input1, TTile &tile, double frame,
+                                     const TRenderSettings &info) {
+  if (!shaderName || !input0 || !input1) return false;
+  std::unique_ptr<TFx> fx(TFx::create(shaderName));
+  ShaderFx *shaderFx = dynamic_cast<ShaderFx *>(fx.get());
+  if (!shaderFx) return false;
+  if (shaderFx->getInputPortCount() != 2) return false;
+  if (!shaderFx->getInputPort(0) || !shaderFx->getInputPort(1)) return false;
+
+  shaderFx->getInputPort(0)->setFx(input0);
+  shaderFx->getInputPort(1)->setFx(input1);
   shaderFx->doCompute(tile, frame, info);
   return true;
 }

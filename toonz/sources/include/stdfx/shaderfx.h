@@ -20,6 +20,7 @@
 //    Forward declarations
 
 class TFilePath;
+class TFx;
 class TRenderSettings;
 class TTile;
 
@@ -28,6 +29,10 @@ class TTile;
 void DVAPI loadShaderInterfaces(const TFilePath &shaderInterfacesFolder);
 bool DVAPI renderShaderFxForProbe(const char *shaderName, TTile &tile,
                                   double frame, const TRenderSettings &info);
+bool DVAPI renderConnectedShaderFxForProbe(const char *shaderName,
+                                           TFx *input0, TFx *input1,
+                                           TTile &tile, double frame,
+                                           const TRenderSettings &info);
 bool DVAPI renderSunflareShaderFxForProbe(TTile &tile, double frame,
                                           const TRenderSettings &info);
 bool DVAPI renderSunflareShaderFxWithMetalForProbe(

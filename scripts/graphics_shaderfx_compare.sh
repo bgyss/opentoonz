@@ -38,6 +38,10 @@ fi
       --write-diff-pam "$diff_pam" \
       --tolerance "$shader_tolerance"
   done
+
+  OPENTOONZ_GRAPHICS_BACKEND=metal "$probe" \
+    --shader SHADER_HSLBlendGPU \
+    --write-pam "$artifact_dir/HSLBlendGPU-metal.pam"
 )
 
 echo "graphics_shaderfx_compare: ok"
