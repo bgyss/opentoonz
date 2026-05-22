@@ -190,6 +190,10 @@ before porting scene internals.
   when the camera BG color toggle is enabled.
 - That draw list now also adds four direct Metal `ColorLine` commands using the
   transformed camera corners for the camera outline in the same narrow path.
+- `SceneViewer::drawOverlay()` now mirrors 2D ruler guides into direct Metal
+  dashed `ColorLine` commands when guides are visible and Metal is requested.
+  The existing OpenGL guide drawing remains in place for compatibility
+  snapshots and non-Metal runs.
 - The direct Metal viewer background path now adds a checkerboard using
   `Preferences::getChessboardColors(...)` when `ToonzCheck::eTransparency` is
   active.

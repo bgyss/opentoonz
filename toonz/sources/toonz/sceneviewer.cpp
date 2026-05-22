@@ -125,6 +125,25 @@ struct DummyProxy : public TGLDisplayListsProxy {
 
 //-------------------------------------------------------------------------------
 
+void appendDashedLine(TGraphics::DrawList2D& drawList, const TPointD& p0,
+                      const TPointD& p1, const TPixel32& color) {
+  const double dx     = p1.x - p0.x;
+  const double dy     = p1.y - p0.y;
+  const double length = std::sqrt(dx * dx + dy * dy);
+  if (length <= 1e-6) return;
+
+  const double dashLength = 4.0;
+  const double gapLength  = 4.0;
+  const TPointD unit(dx / length, dy / length);
+
+  for (double start = 0.0; start < length; start += dashLength + gapLength) {
+    const double end = std::min(start + dashLength, length);
+    drawList.addColorLine(p0 + unit * start, p0 + unit * end, color, false);
+  }
+}
+
+//-------------------------------------------------------------------------------
+
 double getActualFrameRate() {
   // compute frame per second
   static double fps = 0;
@@ -1187,6 +1206,64 @@ bool SceneViewer::presentBackgroundWithMetal() {
 
 //-------------------------------------------------------------------------------
 
+bool SceneViewer::presentGuidesWithMetal() {
+  if (m_drawCameraTest || m_draw3DMode) return false;
+  if (!viewGuideToggle.getStatus()) return false;
+  if ((!m_vRuler || !m_vRuler->getGuideCount()) &&
+      (!m_hRuler || !m_hRuler->getGuideCount()))
+    return false;
+
+  const int targetWidth  = std::max(1, width() * getDevPixRatio());
+  const int targetHeight = std::max(1, height() * getDevPixRatio());
+  if (!ensureMetalLayerTarget(targetWidth, targetHeight)) return false;
+
+  TRect clipRect(-20, -10, width() + 10, height() + 20);
+  clipRect -=
+      TPoint((clipRect.x0 + clipRect.x1) / 2, (clipRect.y0 + clipRect.y1) / 2);
+
+  const TAffine viewAff = getViewMatrix();
+  const TAffine invViewAff = viewAff.inv();
+  const TPointD p00 = invViewAff * convert(clipRect.getP00());
+  const TPointD p01 = invViewAff * convert(clipRect.getP01());
+  const TPointD p10 = invViewAff * convert(clipRect.getP10());
+  const TPointD p11 = invViewAff * convert(clipRect.getP11());
+
+  const double x0 = std::min({p00.x, p01.x, p10.x, p11.x});
+  const double x1 = std::max({p00.x, p01.x, p10.x, p11.x});
+  const double y0 = std::min({p00.y, p01.y, p10.y, p11.y});
+  const double y1 = std::max({p00.y, p01.y, p10.y, p11.y});
+
+  auto toMetalPixel = [targetWidth, targetHeight,
+                       &viewAff](const TPointD& point) {
+    const TPointD viewerPoint = viewAff * point;
+    return TPointD(targetWidth * 0.5 + viewerPoint.x,
+                   targetHeight - (targetHeight * 0.5 + viewerPoint.y));
+  };
+
+  const TPixel32 guideColor(179, 179, 179, 255);
+  TGraphics::DrawList2D drawList;
+
+  if (m_hRuler) {
+    for (int i = 0; i < m_hRuler->getGuideCount(); ++i) {
+      const double x = m_hRuler->getGuide(i);
+      appendDashedLine(drawList, toMetalPixel(TPointD(x, y0)),
+                       toMetalPixel(TPointD(x, y1)), guideColor);
+    }
+  }
+
+  if (m_vRuler) {
+    for (int i = 0; i < m_vRuler->getGuideCount(); ++i) {
+      const double y = m_vRuler->getGuide(i);
+      appendDashedLine(drawList, toMetalPixel(TPointD(x0, y)),
+                       toMetalPixel(TPointD(x1, y)), guideColor);
+    }
+  }
+
+  return presentDrawListWithMetal(drawList);
+}
+
+//-------------------------------------------------------------------------------
+
 bool SceneViewer::presentDrawListWithMetal(
     const TGraphics::DrawList2D& drawList) {
   if (drawList.empty()) return false;
@@ -2091,6 +2168,8 @@ void SceneViewer::drawOverlay() {
     if (viewGuideToggle.getStatus() &&
         ((m_vRuler && m_vRuler->getGuideCount()) ||
          (m_hRuler && m_hRuler->getGuideCount()))) {
+      if (shouldPresentWithMetal()) presentGuidesWithMetal();
+
       glPushMatrix();
       tglMultMatrix(getViewMatrix());
       ViewerDraw::drawGridAndGuides(
