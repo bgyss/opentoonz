@@ -1281,12 +1281,19 @@ void loadShaderInterfaces(const TFilePath &shadersFolder) {
   }
 }
 
-bool renderSunflareShaderFxWithMetalForProbe(TTile &tile, double frame,
-                                             const TRenderSettings &info) {
+bool renderSunflareShaderFxForProbe(TTile &tile, double frame,
+                                    const TRenderSettings &info) {
   std::unique_ptr<TFx> fx(TFx::create("SHADER_sunflare"));
   ShaderFx *shaderFx = dynamic_cast<ShaderFx *>(fx.get());
   if (!shaderFx) return false;
 
   shaderFx->doCompute(tile, frame, info);
   return true;
+}
+
+bool renderSunflareShaderFxWithMetalForProbe(TTile &tile, double frame,
+                                             const TRenderSettings &info) {
+  if (TGraphics::activeBackendType() != TGraphics::BackendType::Metal)
+    return false;
+  return renderSunflareShaderFxForProbe(tile, frame, info);
 }
