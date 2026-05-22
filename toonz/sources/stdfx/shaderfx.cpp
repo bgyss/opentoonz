@@ -693,8 +693,10 @@ bool ShaderFx::canHandle(const TRenderSettings &info, double frame) {
 int ShaderFx::getMemoryRequirement(const TRectD &rect, double frame,
                                    const TRenderSettings &info) {
   if (TGraphics::activeBackendType() == TGraphics::BackendType::Metal &&
-      m_shaderInterface->mainShader().m_name ==
-          QStringLiteral("SHADER_HSLBlendGPU"))
+      (m_shaderInterface->mainShader().m_name ==
+           QStringLiteral("SHADER_HSLBlendGPU") ||
+       m_shaderInterface->mainShader().m_name ==
+           QStringLiteral("SHADER_radialblurGPU")))
     return -1;
   return TStandardZeraryFx::getMemoryRequirement(rect, frame, info);
 }
@@ -1164,6 +1166,85 @@ bool renderHSLBlendShaderWithMetal(const ShaderInterface *shaderInterface,
   return true;
 }
 
+bool renderRadialBlurShaderWithMetal(const ShaderInterface *shaderInterface,
+                                     const std::vector<boost::any> &params,
+                                     boost::ptr_vector<TRasterFxPort> &ports,
+                                     TTile &tile, double frame,
+                                     const TRenderSettings &info) {
+  if (TGraphics::activeBackendType() != TGraphics::BackendType::Metal)
+    return false;
+  if (shaderInterface->mainShader().m_name !=
+      QStringLiteral("SHADER_radialblurGPU"))
+    return false;
+  if (ports.size() != 1 || !ports[0].isConnected()) return false;
+
+  TRaster32P outputRaster = tile.getRaster();
+  if (!outputRaster || info.m_bpp != 32) return false;
+
+  TPointD center(0.0, 0.0);
+  double radius = 3.0;
+  double blur   = 0.3;
+
+  const std::vector<ShaderInterface::Parameter> &siParams =
+      shaderInterface->parameters();
+  if (siParams.size() != params.size()) return false;
+
+  for (int i = 0, count = int(siParams.size()); i != count; ++i) {
+    const QString &name = siParams[i].m_name;
+    switch (siParams[i].m_type) {
+    case ShaderInterface::VEC2: {
+      const TPointParamP &param =
+          *boost::unsafe_any_cast<TPointParamP>(&params[i]);
+      if (name == QStringLiteral("center")) center = param->getValue(frame);
+      break;
+    }
+    case ShaderInterface::FLOAT: {
+      const TDoubleParamP &param =
+          *boost::unsafe_any_cast<TDoubleParamP>(&params[i]);
+      if (name == QStringLiteral("radius"))
+        radius = param->getValue(frame);
+      else if (name == QStringLiteral("blur"))
+        blur = param->getValue(frame);
+      break;
+    }
+    default:
+      break;
+    }
+  }
+
+  const TRectD outRect = ::tileRect(tile);
+  if (outRect.getLx() <= 0.0 || outRect.getLy() <= 0.0) return false;
+
+  TRectD inputRect = outRect;
+  ::ceilRect(inputRect);
+  const TDimension inputSize(tround(inputRect.getLx()),
+                             tround(inputRect.getLy()));
+  if (inputSize.lx <= 0 || inputSize.ly <= 0) return false;
+
+  TTile inTile;
+  TRenderSettings inputInfo(info);
+  inputInfo.m_affine = info.m_affine;
+  ports[0]->allocateAndCompute(inTile, inputRect.getP00(), inputSize,
+                               tile.getRaster(), frame, inputInfo);
+  if (!TRaster32P(inTile.getRaster())) return false;
+
+  const TAffine textureToOutput =
+      TTranslation(-tile.m_pos) * info.m_affine * info.m_affine.inv() *
+      TTranslation(inputRect.getP00()) *
+      TScale(inputRect.getLx(), inputRect.getLy());
+  const TAffine outputToTexture = textureToOutput.inv();
+  const TAffine worldToOutput = TTranslation(-tile.m_pos) * info.m_affine;
+
+  TRaster32P rendered = TGraphics::renderRadialBlurWithMetalBackend(
+      outputRaster->getLx(), outputRaster->getLy(),
+      TRaster32P(inTile.getRaster()), outputToTexture, worldToOutput, center,
+      radius, blur);
+  if (!rendered) return false;
+
+  outputRaster->copy(rendered);
+  return true;
+}
+
 //-------------------------------------------------------------------
 
 void ShaderFx::doCompute(TTile &tile, double frame,
@@ -1214,6 +1295,9 @@ void ShaderFx::doCompute(TTile &tile, double frame,
     return;
   if (renderHSLBlendShaderWithMetal(m_shaderInterface, m_params, m_inputPorts,
                                     tile, frame, info))
+    return;
+  if (renderRadialBlurShaderWithMetal(m_shaderInterface, m_params, m_inputPorts,
+                                      tile, frame, info))
     return;
 
   ShadingContextManager *manager = ShadingContextManager::instance();
@@ -1380,6 +1464,13 @@ void ShaderFx::compute(TTile &tile, double frame, const TRenderSettings &info) {
       doCompute(tile, frame, info);
       return;
     }
+    if (m_shaderInterface->mainShader().m_name ==
+            QStringLiteral("SHADER_radialblurGPU") &&
+        m_inputPorts.size() == 1 && m_inputPorts[0].isConnected() &&
+        TRaster32P(tile.getRaster()) && info.m_bpp == 32) {
+      doCompute(tile, frame, info);
+      return;
+    }
   }
 
   TStandardZeraryFx::compute(tile, frame, info);
@@ -1407,6 +1498,21 @@ void ShaderFx::doDryCompute(TRectD &rect, double frame,
       TRasterFxPort &port = m_inputPorts[p];
       if (port.isConnected()) port->dryCompute(inputRect, frame, inputInfo);
     }
+    return;
+  }
+
+  if (TGraphics::activeBackendType() == TGraphics::BackendType::Metal &&
+      m_shaderInterface->mainShader().m_name ==
+          QStringLiteral("SHADER_radialblurGPU") &&
+      m_inputPorts.size() == 1) {
+    TRectD inputRect = rect;
+    if (inputRect.getLx() <= 0.0 || inputRect.getLy() <= 0.0) return;
+    ::ceilRect(inputRect);
+
+    TRenderSettings inputInfo(info);
+    inputInfo.m_affine = info.m_affine;
+    TRasterFxPort &port = m_inputPorts[0];
+    if (port.isConnected()) port->dryCompute(inputRect, frame, inputInfo);
     return;
   }
 
@@ -1504,15 +1610,18 @@ bool renderShaderFxForProbe(const char *shaderName, TTile &tile, double frame,
 bool renderConnectedShaderFxForProbe(const char *shaderName, TFx *input0,
                                      TFx *input1, TTile &tile, double frame,
                                      const TRenderSettings &info) {
-  if (!shaderName || !input0 || !input1) return false;
+  if (!shaderName || !input0) return false;
   std::unique_ptr<TFx> fx(TFx::create(shaderName));
   ShaderFx *shaderFx = dynamic_cast<ShaderFx *>(fx.get());
   if (!shaderFx) return false;
-  if (shaderFx->getInputPortCount() != 2) return false;
-  if (!shaderFx->getInputPort(0) || !shaderFx->getInputPort(1)) return false;
+  const int inputPortCount = shaderFx->getInputPortCount();
+  if (inputPortCount != 1 && inputPortCount != 2) return false;
+  if (!shaderFx->getInputPort(0)) return false;
+  if (inputPortCount == 2 && (!input1 || !shaderFx->getInputPort(1)))
+    return false;
 
   shaderFx->getInputPort(0)->setFx(input0);
-  shaderFx->getInputPort(1)->setFx(input1);
+  if (inputPortCount == 2) shaderFx->getInputPort(1)->setFx(input1);
   shaderFx->doCompute(tile, frame, info);
   return true;
 }

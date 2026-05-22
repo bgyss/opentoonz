@@ -203,6 +203,10 @@ DVAPI TRaster32P renderHSLBlendWithMetalBackend(
     const TRaster32P& background, const TAffine& outputToForeground,
     const TAffine& outputToBackground, bool blendHue, bool blendSaturation,
     bool blendLuminosity, double blendAlpha, bool baseMask);
+DVAPI TRaster32P renderRadialBlurWithMetalBackend(
+    int width, int height, const TRaster32P& source,
+    const TAffine& outputToInput, const TAffine& worldToOutput,
+    const TPointD& center, double radius, double blur);
 
 }  // namespace TGraphics
 

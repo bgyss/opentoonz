@@ -154,6 +154,44 @@ NSString *shaderSource() {
           "mix(bPix, oPix, bgAlpha) * fgAlpha;\n"
           "  return float4(outRgb, outAlpha);\n"
           "}\n"
+          "struct RadialBlurUniforms { float inputA11; float inputA12; "
+          "float inputA13; float inputA21; float inputA22; float inputA23; "
+          "float worldA11; float worldA12; float worldA13; float worldA21; "
+          "float worldA22; float worldA23; float centerX; float centerY; "
+          "float radius; float blur; };\n"
+          "fragment float4 tgraphicsRadialBlurFragment(VertexOut in "
+          "[[stage_in]], texture2d<float> sourceTexture [[texture(0)]], "
+          "sampler colorSampler [[sampler(0)]], constant RadialBlurUniforms "
+          "&u [[buffer(0)]]) {\n"
+          "  float2 center = float2(u.centerX * u.worldA11 + u.centerY * "
+          "u.worldA12 + u.worldA13, u.centerX * u.worldA21 + u.centerY * "
+          "u.worldA22 + u.worldA23);\n"
+          "  float scale = sqrt(abs(u.worldA11 * u.worldA22 - u.worldA12 * "
+          "u.worldA21));\n"
+          "  float radius = scale * max(u.radius, 0.0);\n"
+          "  float2 v = in.position.xy - center;\n"
+          "  float vLength = length(v);\n"
+          "  float dist = max(vLength - radius, 0.0);\n"
+          "  float blur = u.blur * dist;\n"
+          "  int samplesCount = int(clamp(ceil(blur * 4.0), 1.0, 2000.0));\n"
+          "  float step = blur / float(samplesCount);\n"
+          "  float2 texPos = float2(in.position.x * u.inputA11 + "
+          "in.position.y * u.inputA12 + u.inputA13, in.position.x * "
+          "u.inputA21 + in.position.y * u.inputA22 + u.inputA23);\n"
+          "  float4 pix = sourceTexture.sample(colorSampler, texPos);\n"
+          "  float2 vStep = v * (step / max(vLength, 0.01));\n"
+          "  vStep = float2(vStep.x * u.inputA11 + vStep.y * u.inputA12, "
+          "vStep.x * u.inputA21 + vStep.y * u.inputA22);\n"
+          "  float2 tPos0 = texPos + vStep;\n"
+          "  float2 tPos1 = texPos - vStep;\n"
+          "  for (int s = 1; s < samplesCount; ++s) {\n"
+          "    pix += sourceTexture.sample(colorSampler, tPos0);\n"
+          "    pix += sourceTexture.sample(colorSampler, tPos1);\n"
+          "    tPos0 += vStep;\n"
+          "    tPos1 -= vStep;\n"
+          "  }\n"
+          "  return pix / float(2 * samplesCount - 1);\n"
+          "}\n"
           "struct SunflareUniforms { float a11; float a12; float a13; float "
           "a21; float a22; float a23; float4 color; float blades; float "
           "intensity; float angle; float bias; float sharpness; };\n"
@@ -525,6 +563,25 @@ struct HSLBlendUniforms {
   float m_padding[3] = {0.0f, 0.0f, 0.0f};
 };
 
+struct RadialBlurUniforms {
+  float m_inputA11 = 1.0f;
+  float m_inputA12 = 0.0f;
+  float m_inputA13 = 0.0f;
+  float m_inputA21 = 0.0f;
+  float m_inputA22 = 1.0f;
+  float m_inputA23 = 0.0f;
+  float m_worldA11 = 1.0f;
+  float m_worldA12 = 0.0f;
+  float m_worldA13 = 0.0f;
+  float m_worldA21 = 0.0f;
+  float m_worldA22 = 1.0f;
+  float m_worldA23 = 0.0f;
+  float m_centerX  = 0.0f;
+  float m_centerY  = 0.0f;
+  float m_radius   = 3.0f;
+  float m_blur     = 0.3f;
+};
+
 id<MTLRenderPipelineState> proceduralShaderPipelineState(id<MTLRenderPipelineState> &pipeline,
                                                          bool &attempted, NSString *label,
                                                          NSString *fragmentFunctionName) {
@@ -602,6 +659,13 @@ id<MTLRenderPipelineState> hslBlendPipelineState() {
   static bool attempted                      = false;
   return proceduralShaderPipelineState(pipeline, attempted, @"create HSL blend pipeline",
                                        @"tgraphicsHSLBlendFragment");
+}
+
+id<MTLRenderPipelineState> radialBlurPipelineState() {
+  static id<MTLRenderPipelineState> pipeline = nil;
+  static bool attempted                      = false;
+  return proceduralShaderPipelineState(pipeline, attempted, @"create radial blur pipeline",
+                                       @"tgraphicsRadialBlurFragment");
 }
 
 id<MTLSamplerState> sharedSamplerState() {
@@ -1417,6 +1481,72 @@ TRaster32P renderNativeMetalHSLBlend(int width, int height, const TRaster32P &fo
   [encoder setVertexBytes:vertices length:sizeof(vertices) atIndex:0];
   [encoder setFragmentTexture:foregroundTexture atIndex:0];
   [encoder setFragmentTexture:backgroundTexture atIndex:1];
+  [encoder setFragmentSamplerState:sampler atIndex:0];
+  [encoder setFragmentBytes:&uniforms length:sizeof(uniforms) atIndex:0];
+  [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+  [encoder endEncoding];
+  [commandBuffer commit];
+  [commandBuffer waitUntilCompleted];
+
+  return readNativeMetalRenderTarget(&target);
+}
+
+TRaster32P renderNativeMetalRadialBlur(int width, int height, const TRaster32P &source,
+                                       const TAffine &outputToInput,
+                                       const TAffine &worldToOutput,
+                                       const TPointD &center, double radius, double blur) {
+  if (!probeMetalDevice() || width <= 0 || height <= 0 || !source) return TRaster32P();
+
+  MetalTextureRenderTarget target(width, height);
+  if (!target.texture()) return TRaster32P();
+
+  id<MTLRenderPipelineState> pipeline = radialBlurPipelineState();
+  id<MTLSamplerState> sampler         = sharedSamplerState();
+  id<MTLTexture> sourceTexture        = uploadRasterTexture(source);
+  if (!pipeline || !sampler || !sourceTexture) return TRaster32P();
+
+  MetalState &state = metalState();
+
+  MTLRenderPassDescriptor *pass        = [MTLRenderPassDescriptor renderPassDescriptor];
+  pass.colorAttachments[0].texture     = target.texture();
+  pass.colorAttachments[0].loadAction  = MTLLoadActionClear;
+  pass.colorAttachments[0].storeAction = MTLStoreActionStore;
+  pass.colorAttachments[0].clearColor  = MTLClearColorMake(0.0, 0.0, 0.0, 0.0);
+
+  id<MTLCommandBuffer> commandBuffer  = [state.m_commandQueue commandBuffer];
+  commandBuffer.label                 = @"OpenToonz TGraphics Radial Blur";
+  id<MTLRenderCommandEncoder> encoder = [commandBuffer renderCommandEncoderWithDescriptor:pass];
+  encoder.label                       = @"Radial Blur";
+
+  const float left              = -1.0f;
+  const float right             = 1.0f;
+  const float top               = 1.0f;
+  const float bottom            = -1.0f;
+  const MetalVertex vertices[6] = {{left, top, 0.0f, 0.0f},     {right, top, 1.0f, 0.0f},
+                                   {left, bottom, 0.0f, 1.0f},  {right, top, 1.0f, 0.0f},
+                                   {right, bottom, 1.0f, 1.0f}, {left, bottom, 0.0f, 1.0f}};
+
+  RadialBlurUniforms uniforms;
+  uniforms.m_inputA11 = static_cast<float>(outputToInput.a11);
+  uniforms.m_inputA12 = static_cast<float>(outputToInput.a12);
+  uniforms.m_inputA13 = static_cast<float>(outputToInput.a13);
+  uniforms.m_inputA21 = static_cast<float>(outputToInput.a21);
+  uniforms.m_inputA22 = static_cast<float>(outputToInput.a22);
+  uniforms.m_inputA23 = static_cast<float>(outputToInput.a23);
+  uniforms.m_worldA11 = static_cast<float>(worldToOutput.a11);
+  uniforms.m_worldA12 = static_cast<float>(worldToOutput.a12);
+  uniforms.m_worldA13 = static_cast<float>(worldToOutput.a13);
+  uniforms.m_worldA21 = static_cast<float>(worldToOutput.a21);
+  uniforms.m_worldA22 = static_cast<float>(worldToOutput.a22);
+  uniforms.m_worldA23 = static_cast<float>(worldToOutput.a23);
+  uniforms.m_centerX  = static_cast<float>(center.x);
+  uniforms.m_centerY  = static_cast<float>(center.y);
+  uniforms.m_radius   = static_cast<float>(radius);
+  uniforms.m_blur     = static_cast<float>(blur);
+
+  [encoder setRenderPipelineState:pipeline];
+  [encoder setVertexBytes:vertices length:sizeof(vertices) atIndex:0];
+  [encoder setFragmentTexture:sourceTexture atIndex:0];
   [encoder setFragmentSamplerState:sampler atIndex:0];
   [encoder setFragmentBytes:&uniforms length:sizeof(uniforms) atIndex:0];
   [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];

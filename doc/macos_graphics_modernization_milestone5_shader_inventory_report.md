@@ -157,13 +157,14 @@ Production integration status:
   output for the direct Metal helper routes.
 - `scripts/graphics_shaderfx_compare.sh` captures the same transformed
   production `ShaderFx` tiles through OpenGL and Metal, writes OpenGL/Metal/diff
-  PAM artifacts for the migrated no-input procedural shaders, writes a Metal HSL
-  artifact for `SHADER_HSLBlendGPU`, writes renderer-driven Metal artifacts for
-  the migrated shaders, writes an HSL Metal scene-render artifact, writes
-  `ToonzScene`/`buildSceneFx(...)` scene-render OpenGL/Metal/diff artifacts for
-  the migrated no-input procedural shaders, writes saved-and-reloaded `.tnz`
-  scene fixtures plus OpenGL/Metal/diff artifacts for the same procedural
-  subset, and passes on Apple M1 Max.
+  PAM artifacts for the migrated no-input procedural shaders, writes Metal HSL
+  and radial blur artifacts for `SHADER_HSLBlendGPU` and
+  `SHADER_radialblurGPU`, writes renderer-driven Metal artifacts for the
+  migrated no-input shaders and HSL, writes an HSL Metal scene-render artifact,
+  writes `ToonzScene`/`buildSceneFx(...)` scene-render OpenGL/Metal/diff
+  artifacts for the migrated no-input procedural shaders, writes
+  saved-and-reloaded `.tnz` scene fixtures plus OpenGL/Metal/diff artifacts for
+  the same procedural subset, and passes on Apple M1 Max.
 - OpenGL remains the default backend.
 - Non-32-bit tiles and every other `ShaderFx` still use the existing OpenGL
   path.
@@ -171,7 +172,6 @@ Production integration status:
 Remaining shared shader-generation candidates:
 
 - `glitter.frag`
-- `radialblurGPU.frag`
 - `spinblurGPU.frag`
 
 These sample `inputImage` textures through GLSL `sampler2D`/`texture2D` and use
@@ -180,6 +180,11 @@ backend-neutral input texture and coordinate binding path exists in
 `tgraphics`. `HSLBlendGPU.frag` is now the first hand-routed input-texture
 ShaderFx case, but it is not yet generated from the GLSL source and does not
 cover bbox/ports shaders that need non-identity input geometry.
+
+`radialblurGPU.frag` now has a direct hand-routed Metal implementation for the
+simple connected 32-bit tile path, but renderer-driven, scene-render, saved
+scene, and bbox/port parity are still open before it should be counted as a
+fully migrated effect.
 
 Input-texture Metal groundwork:
 
@@ -203,6 +208,17 @@ Input-texture Metal groundwork:
   because level-column placement intentionally changes the input coordinate
   contract; the probe still fails if the scene-render output is fully
   transparent.
+- `TGraphics::renderRadialBlurWithMetalBackend(...)` renders a single-input
+  radial blur into an offscreen Metal render target using the GLSL
+  `radialblurGPU.frag` sampling formula and explicit `outputToInput` and
+  `worldToOutput` transforms.
+- `shaderfx_metal_probe --shader SHADER_radialblurGPU` validates the direct
+  connected `ShaderFx::doCompute(...)` Metal route against the lower-level
+  radial blur helper for the current simple 32-bit tile path.
+- `shaderfx_metal_probe --shader SHADER_radialblurGPU --renderer` is not yet a
+  passing validation target. It currently terminates during renderer execution
+  before producing an artifact, so radial blur preview/export parity remains a
+  known follow-up.
 
 Blocked by OpenGL-specific transform feedback:
 
@@ -315,6 +331,7 @@ Artifacts:
 - `/private/tmp/opentoonz-shaderfx-compare/HSLBlendGPU-metal.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/HSLBlendGPU-metal-renderer.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/HSLBlendGPU-metal-scene.pam`
+- `/private/tmp/opentoonz-shaderfx-compare/radialblurGPU-metal.pam`
 
 The default tolerance is 2 channel values. `fireball` uses
 `SHADERFX_FIREBALL_COMPARE_TOLERANCE=32` by default because its procedural noise
@@ -327,12 +344,14 @@ alpha, or coordinate mismatches.
 
 The direct no-input procedural shader subset now has direct, renderer-driven,
 `ToonzScene`/`buildSceneFx(...)`, and saved-and-reloaded `.tnz` scene fixture
-coverage. The first direct input-texture route (`HSLBlendGPU`) now has direct,
-renderer-driven, and `ToonzScene`/`buildSceneFx(...)` scene-render coverage.
-Continue by adding backend-neutral input texture binding for the remaining
-shared shader-generation candidates (`glitter`, `radialblurGPU`, and
-`spinblurGPU`) before widening preview/export coverage. Keep OpenGL `ShaderFx`
-as the default until full scene parity is broader.
+coverage. The first complete direct input-texture route (`HSLBlendGPU`) now has
+direct, renderer-driven, and `ToonzScene`/`buildSceneFx(...)` scene-render
+coverage. `radialblurGPU` now has a direct connected Metal path, but it does not
+yet have renderer-driven, scene-render, or saved-scene validation. Continue by
+stabilizing the radial blur renderer path, then port the remaining input-texture
+shader candidates (`glitter` and `spinblurGPU`) and replace transform-feedback
+bbox/port shaders with backend-neutral CPU or Metal buffer computation. Keep
+OpenGL `ShaderFx` as the default until full scene parity is broader.
 
 ## Validation Run
 
@@ -348,6 +367,7 @@ nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/bu
 nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_HSLBlendGPU'
 nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_HSLBlendGPU --renderer'
 nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_HSLBlendGPU --scene-render'
+nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_radialblurGPU'
 nix develop path:. --command bash scripts/graphics_shaderfx_compare.sh /private/tmp/opentoonz-shaderfx-compare-saved-scene
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=OFF'
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target OpenToonz --parallel 3
@@ -368,6 +388,7 @@ shaderfx_metal_probe: ok shader=SHADER_fireball backend=metal device=Apple M1 Ma
 shaderfx_metal_probe: ok shader=SHADER_HSLBlendGPU backend=metal device=Apple M1 Max
 shaderfx_metal_probe: ok shader=SHADER_HSLBlendGPU backend=metal device=Apple M1 Max
 shaderfx_metal_probe: ok shader=SHADER_HSLBlendGPU backend=metal device=Apple M1 Max
+shaderfx_metal_probe: ok shader=SHADER_radialblurGPU backend=metal device=Apple M1 Max
 shaderfx_metal_probe: ok shader=SHADER_sunflare backend=metal device=Apple M1 Max
 shaderfx_metal_probe: ok shader=SHADER_sunflare backend=opengl
 shaderfx_metal_probe: ok shader=SHADER_caustics backend=opengl

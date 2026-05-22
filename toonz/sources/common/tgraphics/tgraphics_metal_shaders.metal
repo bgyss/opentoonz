@@ -54,6 +54,25 @@ struct HSLBlendUniforms {
   float3 padding;
 };
 
+struct RadialBlurUniforms {
+  float inputA11;
+  float inputA12;
+  float inputA13;
+  float inputA21;
+  float inputA22;
+  float inputA23;
+  float worldA11;
+  float worldA12;
+  float worldA13;
+  float worldA21;
+  float worldA22;
+  float worldA23;
+  float centerX;
+  float centerY;
+  float radius;
+  float blur;
+};
+
 float hslMin3(float3 c) { return min(min(c.r, c.g), c.b); }
 float hslMax3(float3 c) { return max(max(c.r, c.g), c.b); }
 float hslLum3(float3 c) { return dot(c, float3(0.30, 0.59, 0.11)); }
@@ -116,6 +135,46 @@ fragment float4 tgraphicsHSLBlendFragment(
   float3 outRgb =
       bgPix * bgAlpha * (1.0 - fgAlpha) + mix(bPix, oPix, bgAlpha) * fgAlpha;
   return float4(outRgb, outAlpha);
+}
+
+fragment float4 tgraphicsRadialBlurFragment(
+    VertexOut in [[stage_in]], texture2d<float> sourceTexture [[texture(0)]],
+    sampler colorSampler [[sampler(0)]],
+    constant RadialBlurUniforms& u [[buffer(0)]]) {
+  float2 center =
+      float2(u.centerX * u.worldA11 + u.centerY * u.worldA12 + u.worldA13,
+             u.centerX * u.worldA21 + u.centerY * u.worldA22 + u.worldA23);
+  float scale =
+      sqrt(abs(u.worldA11 * u.worldA22 - u.worldA12 * u.worldA21));
+  float radius = scale * max(u.radius, 0.0);
+  float2 v = in.position.xy - center;
+  float vLength = length(v);
+  float dist = max(vLength - radius, 0.0);
+  float blur = u.blur * dist;
+  int samplesCount = int(clamp(ceil(blur * 4.0), 1.0, 2000.0));
+  float step = blur / float(samplesCount);
+
+  float2 texPos =
+      float2(in.position.x * u.inputA11 + in.position.y * u.inputA12 +
+                 u.inputA13,
+             in.position.x * u.inputA21 + in.position.y * u.inputA22 +
+                 u.inputA23);
+  float4 pix = sourceTexture.sample(colorSampler, texPos);
+
+  float2 vStep = v * (step / max(vLength, 0.01));
+  vStep = float2(vStep.x * u.inputA11 + vStep.y * u.inputA12,
+                 vStep.x * u.inputA21 + vStep.y * u.inputA22);
+
+  float2 tPos0 = texPos + vStep;
+  float2 tPos1 = texPos - vStep;
+  for (int s = 1; s < samplesCount; ++s) {
+    pix += sourceTexture.sample(colorSampler, tPos0);
+    pix += sourceTexture.sample(colorSampler, tPos1);
+    tPos0 += vStep;
+    tPos1 -= vStep;
+  }
+
+  return pix / float(2 * samplesCount - 1);
 }
 
 struct SunflareUniforms {

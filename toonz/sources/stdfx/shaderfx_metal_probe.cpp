@@ -435,6 +435,10 @@ TRasterFxP makeProbeShaderFx(const Options& options, TFxP foregroundFx,
     if (!root->getInputPort(0) || !root->getInputPort(1)) return TRasterFxP();
     root->getInputPort(0)->setFx(foregroundFx.getPointer());
     root->getInputPort(1)->setFx(backgroundFx.getPointer());
+  } else if (options.shaderName == "SHADER_radialblurGPU") {
+    if (root->getInputPortCount() != 1) return TRasterFxP();
+    if (!root->getInputPort(0)) return TRasterFxP();
+    root->getInputPort(0)->setFx(foregroundFx.getPointer());
   }
   return root;
 }
@@ -638,6 +642,13 @@ TRaster32P renderExpectedMetalHelper(const Options& options, int width,
         makeHSLProbeRaster(width, height, tile.m_pos, false), outputToTexture,
         outputToTexture, true, true, false, 1.0, false);
   }
+  if (options.shaderName == "SHADER_radialblurGPU") {
+    const TAffine outputToTexture = TScale(1.0 / width, 1.0 / height);
+    const TAffine worldToOutput = TTranslation(-tile.m_pos) * settings.m_affine;
+    return TGraphics::renderRadialBlurWithMetalBackend(
+        width, height, makeHSLProbeRaster(width, height, tile.m_pos, true),
+        outputToTexture, worldToOutput, TPointD(0.0, 0.0), 3.0, 0.3);
+  }
   return TRaster32P();
 }
 
@@ -664,9 +675,11 @@ int main(int argc, char* argv[]) {
 
   TFxP foregroundFx;
   TFxP backgroundFx;
-  if (options.shaderName == "SHADER_HSLBlendGPU") {
+  if (options.shaderName == "SHADER_HSLBlendGPU" ||
+      options.shaderName == "SHADER_radialblurGPU") {
     foregroundFx = TFxP(new HSLProbeRasterFx(true));
-    backgroundFx = TFxP(new HSLProbeRasterFx(false));
+    if (options.shaderName == "SHADER_HSLBlendGPU")
+      backgroundFx = TFxP(new HSLProbeRasterFx(false));
   }
 
   const int width  = 96;
@@ -677,7 +690,8 @@ int main(int argc, char* argv[]) {
   settings.m_bpp = 32;
   settings.m_affine =
       TAffine::translation(4.0, -3.0) * TAffine::scale(1.25, 0.75);
-  if (options.shaderName == "SHADER_HSLBlendGPU")
+  if (options.shaderName == "SHADER_HSLBlendGPU" ||
+      options.shaderName == "SHADER_radialblurGPU")
     settings.m_affine = TAffine();
 
   bool rendered = false;
@@ -705,24 +719,33 @@ int main(int argc, char* argv[]) {
       rendered = true;
     }
   } else if (options.renderWithRenderer) {
-    if (options.shaderName == "SHADER_HSLBlendGPU" &&
+    if ((options.shaderName == "SHADER_HSLBlendGPU" ||
+         options.shaderName == "SHADER_radialblurGPU") &&
         TGraphics::activeBackendType() != TGraphics::BackendType::Metal)
-      return fail("SHADER_HSLBlendGPU probe requires the Metal backend") ? 0
-                                                                         : 1;
+      return fail("input-texture ShaderFx probe requires the Metal backend")
+                 ? 0
+                 : 1;
     TRaster32P renderedRaster = renderWithRendererForProbe(
         options, tile, 1.0, settings, foregroundFx, backgroundFx);
     if (renderedRaster) {
       tile.getRaster()->copy(renderedRaster);
       rendered = true;
     }
-  } else if (options.shaderName == "SHADER_HSLBlendGPU") {
+  } else if (options.shaderName == "SHADER_HSLBlendGPU" ||
+             options.shaderName == "SHADER_radialblurGPU") {
     if (TGraphics::activeBackendType() != TGraphics::BackendType::Metal)
-      return fail("SHADER_HSLBlendGPU probe requires the Metal backend") ? 0
-                                                                         : 1;
+      return fail("input-texture ShaderFx probe requires the Metal backend")
+                 ? 0
+                 : 1;
     ProbeRenderScope renderScope(1.0);
-    rendered = renderConnectedShaderFxForProbe(
-        options.shaderName.c_str(), foregroundFx.getPointer(),
-        backgroundFx.getPointer(), tile, 1.0, settings);
+    if (options.shaderName == "SHADER_HSLBlendGPU")
+      rendered = renderConnectedShaderFxForProbe(
+          options.shaderName.c_str(), foregroundFx.getPointer(),
+          backgroundFx.getPointer(), tile, 1.0, settings);
+    else
+      rendered = renderConnectedShaderFxForProbe(
+          options.shaderName.c_str(), foregroundFx.getPointer(), nullptr, tile,
+          1.0, settings);
   } else {
     rendered =
         renderShaderFxForProbe(options.shaderName.c_str(), tile, 1.0, settings);

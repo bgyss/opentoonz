@@ -58,6 +58,10 @@ TRaster32P renderNativeMetalHSLBlend(
     const TRaster32P& background, const TAffine& outputToForeground,
     const TAffine& outputToBackground, bool blendHue, bool blendSaturation,
     bool blendLuminosity, double blendAlpha, bool baseMask);
+TRaster32P renderNativeMetalRadialBlur(
+    int width, int height, const TRaster32P& source,
+    const TAffine& outputToInput, const TAffine& worldToOutput,
+    const TPointD& center, double radius, double blur);
 #endif
 
 namespace {
@@ -855,6 +859,26 @@ TRaster32P renderHSLBlendWithMetalBackend(
   (void)blendLuminosity;
   (void)blendAlpha;
   (void)baseMask;
+  return TRaster32P();
+#endif
+}
+
+TRaster32P renderRadialBlurWithMetalBackend(
+    int width, int height, const TRaster32P& source,
+    const TAffine& outputToInput, const TAffine& worldToOutput,
+    const TPointD& center, double radius, double blur) {
+#ifdef OPENTOONZ_WITH_GRAPHICS_METAL
+  return renderNativeMetalRadialBlur(width, height, source, outputToInput,
+                                     worldToOutput, center, radius, blur);
+#else
+  (void)width;
+  (void)height;
+  (void)source;
+  (void)outputToInput;
+  (void)worldToOutput;
+  (void)center;
+  (void)radius;
+  (void)blur;
   return TRaster32P();
 #endif
 }
