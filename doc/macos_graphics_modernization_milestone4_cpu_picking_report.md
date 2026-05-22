@@ -5,13 +5,14 @@ Status: partial Milestone 4 completed locally on 2026-05-22.
 ## Objective
 
 This checkpoint starts reducing runtime dependence on OpenGL selection mode by
-promoting an existing CPU picker from Metal-only use to normal Edit Tool use.
-The central legacy `SceneViewer::pick()` path remains available for tools that
-have not yet been migrated.
+promoting existing CPU pickers from Metal-only use to normal 2D tool use. The
+central legacy `SceneViewer::pick()` path remains available for tools and 3D
+viewer paths that have not yet been migrated.
 
 ## Files Changed
 
 - `toonz/sources/tnztools/edittool.cpp`
+- `toonz/sources/tnztools/skeletontool.cpp`
 
 ## Changes
 
@@ -19,6 +20,13 @@ have not yet been migrated.
 - Edit Tool handle and FX-gadget hover/down picking now uses existing CPU hit
   tests on both OpenGL and Metal backends.
 - Removed the now-unneeded `tgraphics.h` include from `edittool.cpp`.
+- Removed the Metal-backend gate from Skeleton Tool picking in non-3D views.
+- Skeleton Tool hover/down/up picking now uses existing CPU hit tests for 2D
+  Build Skeleton, Animate, and Inverse Kinematics workflows on both OpenGL and
+  Metal backends.
+- Preserved the legacy OpenGL selection fallback for Skeleton Tool 3D viewer
+  paths because the CPU picker intentionally declines 3D views.
+- Removed the now-unneeded `tgraphics.h` include from `skeletontool.cpp`.
 
 ## Inventory
 
@@ -51,6 +59,7 @@ Commands run:
 ```sh
 git diff --check
 bash scripts/graphics_inventory.sh
+rg -n "shouldUseMetalCpuSkeletonPicking|TGraphics::|tgraphics.h|pick\\(e\\.m_pos\\)" toonz/sources/tnztools/skeletontool.cpp
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tnztools OpenToonz --parallel 3
 nix develop path:. --command cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=ON
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tgraphics_metal_probe OpenToonz --parallel 3
@@ -58,12 +67,12 @@ nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_me
 nix develop path:. --command cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=OFF
 ```
 
-Result: passed. The fallback build recompiled `edittool.cpp`, linked
+Result: passed. The fallback build recompiled the changed tool sources, linked
 `tnztools`, and linked `OpenToonz.app`. The Metal-enabled build linked
 `OpenToonz.app`, copied the Metal shader source to Resources, and
 `tgraphics_metal_probe` reported `ok on Apple M1 Max`. The broader fallback and
 Metal rebuilds emitted existing unrelated warnings in image/trop/tool code, but
-the changed `edittool.cpp` compiled cleanly.
+the changed picking code compiled cleanly.
 
 ## Manual Smoke
 
@@ -74,13 +83,17 @@ exercised before merging this milestone:
 - Hover and drag center, rotation, scale, scale-XY, and shear handles.
 - Hover and drag visible FX gadget handles.
 - Verify auto-select still works when clicking away from handles.
+- Skeleton Tool in Build Skeleton mode: hover/select centers, hooks,
+  change-parent handles, and magic links.
+- Skeleton Tool in Animate mode: hover/drag center and translation handles, and
+  use the drawing-change buttons.
+- Skeleton Tool in Inverse Kinematics mode: hover/select lock-stage-object
+  centers and verify pin toggles.
 - Compare the same interactions with `OPENTOONZ_GRAPHICS_BACKEND=metal` and
   `OPENTOONZ_GRAPHICS_BACKEND=opengl`.
 
 ## Remaining Work
 
-- Promote or replace Skeleton Tool CPU picking beyond Metal-only use after
-  manual smoke confirms parity.
 - Continue migrating tools that still call `SceneViewer::pick()`.
 - Remove `glPushName(...)` draw markers only after no active picking path needs
   OpenGL selection names.

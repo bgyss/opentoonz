@@ -3,7 +3,6 @@
 // TnzCore includes
 #include "tstroke.h"
 #include "tgl.h"
-#include "tgraphics.h"
 
 // TnzBase includes
 #include "tenv.h"
@@ -76,11 +75,6 @@ static int nextPowerOfTwo(int value) {
   int result = 1;
   while (result < value) result <<= 1;
   return result;
-}
-
-static bool shouldUseMetalCpuSkeletonPicking() {
-  return TGraphics::requestedBackendType() == TGraphics::BackendType::Metal &&
-         TGraphics::isMetalBackendAvailable();
 }
 
 static double viewerDistance2(const TPointD &a, const TPointD &b) {
@@ -405,9 +399,9 @@ bool SkeletonTool::doesApply() const {
 //-------------------------------------------------------------------
 
 void SkeletonTool::mouseMove(const TPointD &, const TMouseEvent &e) {
-  const bool useMetalCpuPicking = shouldUseMetalCpuSkeletonPicking();
-  int selectedDevice = useMetalCpuPicking ? pickCpu(e.m_pos) : -1;
-  if (selectedDevice < 0 && !useMetalCpuPicking)
+  const bool useCpuPicking = !getViewer()->is3DView();
+  int selectedDevice       = useCpuPicking ? pickCpu(e.m_pos) : -1;
+  if (selectedDevice < 0 && !useCpuPicking)
     selectedDevice = pick(e.m_pos);
   if (selectedDevice != m_device) {
     m_device = selectedDevice;
@@ -435,9 +429,9 @@ void SkeletonTool::leftButtonDown(const TPointD &ppos, const TMouseEvent &e) {
   TXsheet *xsh            = app->getCurrentScene()->getScene()->getXsheet();
   TPointD pos             = ppos;
 
-  const bool useMetalCpuPicking = shouldUseMetalCpuSkeletonPicking();
-  int selectedDevice = useMetalCpuPicking ? pickCpu(e.m_pos) : -1;
-  if (selectedDevice < 0 && !useMetalCpuPicking)
+  const bool useCpuPicking = !getViewer()->is3DView();
+  int selectedDevice       = useCpuPicking ? pickCpu(e.m_pos) : -1;
+  if (selectedDevice < 0 && !useCpuPicking)
     selectedDevice = pick(e.m_pos);
 
   // change drawing
@@ -584,9 +578,9 @@ void SkeletonTool::leftButtonUp(const TPointD &pos, const TMouseEvent &e) {
   }
   if (m_device == TD_IncrementDrawing || m_device == TD_DecrementDrawing ||
       m_device == TD_ChangeDrawing) {
-    const bool useMetalCpuPicking = shouldUseMetalCpuSkeletonPicking();
-    m_device = useMetalCpuPicking ? pickCpu(e.m_pos) : -1;
-    if (m_device < 0 && !useMetalCpuPicking) m_device = pick(e.m_pos);
+    const bool useCpuPicking = !getViewer()->is3DView();
+    m_device                 = useCpuPicking ? pickCpu(e.m_pos) : -1;
+    if (m_device < 0 && !useCpuPicking) m_device = pick(e.m_pos);
   } else
     m_device = -1;
   invalidate();
