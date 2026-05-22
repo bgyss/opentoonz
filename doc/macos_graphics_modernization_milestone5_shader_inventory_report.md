@@ -71,10 +71,15 @@ missing saturated color-wheel pixels.
 The preview-swatch checkpoint moves `PlaneViewer::drawBackground()`, shared by
 export, vectorizer, and adjustment preview swatches, from hand-authored
 fixed-function OpenGL checkerboard quads to
-`TGraphics::makeCheckerboardBackgroundDrawList(...)`. The current widget path
-still presents through the OpenGL compatibility backend, but the same draw-list
-helper is now validated by `tgraphics_metal_probe` against both OpenGL and
-Metal offscreen targets with a shifted checker origin.
+`TGraphics::makeCheckerboardBackgroundDrawList(...)`. The follow-up raster
+presentation checkpoint also moves `PlaneViewer::flushRasterBuffer()` from a
+direct `tglDraw(...)` call to
+`TGraphics::makeRasterPresentationDrawList(...)`. The current widget path still
+presents through the OpenGL compatibility backend, but both draw-list helpers
+are now validated by `tgraphics_metal_probe` against OpenGL and Metal offscreen
+targets. The raster presentation probe intentionally covers full-size raster
+buffers, matching `PlaneViewer`'s CPU render-buffer contract; texture resampling
+parity remains covered separately by the existing texture cases.
 
 ## Files Changed
 
@@ -482,11 +487,12 @@ scene-render, saved-and-reloaded `.tnz` scene-render coverage, and CPU-side
 bbox/input geometry expansion. The style editor color wheel no longer requires
 a direct OpenGL widget/FBO path; it now uses QWidget/QImage rendering with
 software LUT application. Preview-swatch checker backgrounds now go through a
-shared `tgraphics` draw-list helper with OpenGL/Metal offscreen validation.
-Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
-effects and by moving the remaining preview/export and style-editor surfaces
-through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene
-parity is broader.
+shared `tgraphics` draw-list helper with OpenGL/Metal offscreen validation, and
+preview-swatch CPU raster-buffer presentation now goes through a matching
+`tgraphics` helper. Continue by broadening input-texture ShaderFx coverage
+beyond these hand-routed effects and by moving the remaining preview/export and
+style-editor surfaces through `tgraphics`. Keep OpenGL `ShaderFx` as the
+default until full scene parity is broader.
 
 ## Validation Run
 
@@ -527,6 +533,10 @@ nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/bu
 nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target toonzqt --parallel 3
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tgraphics_metal_probe toonzqt --parallel 3
+nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target toonzqt --parallel 3
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tgraphics_metal_probe toonzqt --parallel 3
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tgraphics_metal_probe --parallel 3
 nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=OFF'
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target OpenToonz --parallel 3
@@ -588,6 +598,7 @@ toonzqt/libtoonzqt.dylib linked after style editor color wheel migration
 styleeditor_colorwheel_probe: ok
 tofflinegl_probe: ok backend=opengl
 tofflinegl_probe: ok backend=metal
+tgraphics_metal_probe: ok on Apple M1 Max
 tgraphics_metal_probe: ok on Apple M1 Max
 tgraphics_metal_probe: ok on Apple M1 Max
 Checked 281 Mach-O files for arm64.

@@ -578,7 +578,10 @@ TRaster32P PlaneViewer::rasterBuffer() {
 void PlaneViewer::flushRasterBuffer() {
   assert(m_rasterBuffer);
 
-  tglDraw(TRectD(0, 0, width(), height()), m_rasterBuffer, false);
+  TGraphics::DrawList2D drawList =
+      TGraphics::makeRasterPresentationDrawList(m_rasterBuffer, width(),
+                                                height());
+  TGraphics::drawWithOpenGLBackend(drawList);
 }
 
 //=========================================================================================

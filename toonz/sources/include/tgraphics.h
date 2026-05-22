@@ -180,6 +180,8 @@ DVAPI TRaster32P renderDrawListWithActiveBackend(const DrawList2D& drawList,
 DVAPI DrawList2D makeCheckerboardBackgroundDrawList(
     const TRectD& rect, const TDimensionD& cellSize, const TPointD& origin,
     const TPixel32& color0, const TPixel32& color1);
+DVAPI DrawList2D makeRasterPresentationDrawList(const TRaster32P& raster,
+                                                int width, int height);
 DVAPI TRaster32P renderLegacyOfflineRasterPlacementWithActiveBackend(
     int width, int height, const TPixel32& clearColor,
     const TRectD& placement);

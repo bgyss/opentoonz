@@ -764,6 +764,13 @@ DrawList2D makeCheckerboardBackgroundDrawList(
   return drawList;
 }
 
+DrawList2D makeRasterPresentationDrawList(const TRaster32P& raster, int width,
+                                          int height) {
+  DrawList2D drawList;
+  if (raster) drawList.addTexture(TRectD(0, 0, width, height), raster, false);
+  return drawList;
+}
+
 TRaster32P renderLegacyOfflineRasterPlacementWithActiveBackend(
     int width, int height, const TPixel32& clearColor,
     const TRectD& placement) {

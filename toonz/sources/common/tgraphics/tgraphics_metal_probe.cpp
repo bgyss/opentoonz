@@ -764,6 +764,28 @@ int main(int argc, char* argv[]) {
   }
 
   {
+    TRaster32P presentation = makeGradientRaster(width, height);
+    TGraphics::DrawList2D drawList =
+        TGraphics::makeRasterPresentationDrawList(presentation, width, height);
+
+    TRaster32P readback = renderMetal(drawList, width, height);
+    if (!readback)
+      return fail("could not read back raster presentation Metal target");
+    if (!requireDimensions(readback, width, height)) {
+      return fail(
+          "raster presentation readback dimensions do not match render target");
+    }
+
+    TRaster32P openGLReadback = renderOpenGL(drawList, width, height);
+    if (!openGLReadback)
+      return fail("could not read back raster presentation OpenGL baseline");
+    if (!compareRasters(readback, openGLReadback, "raster presentation",
+                        artifactDir)) {
+      return EXIT_FAILURE;
+    }
+  }
+
+  {
     const int quadX0 = 1;
     const int quadY0 = 2;
     const int quadX1 = 7;
