@@ -127,14 +127,14 @@ struct DummyProxy : public TGLDisplayListsProxy {
 //-------------------------------------------------------------------------------
 
 void appendDashedLine(TGraphics::DrawList2D& drawList, const TPointD& p0,
-                      const TPointD& p1, const TPixel32& color) {
+                      const TPointD& p1, const TPixel32& color,
+                      double dashLength = 4.0, double gapLength = 4.0) {
   const double dx     = p1.x - p0.x;
   const double dy     = p1.y - p0.y;
   const double length = std::sqrt(dx * dx + dy * dy);
   if (length <= 1e-6) return;
+  if (dashLength <= 0.0 || gapLength < 0.0) return;
 
-  const double dashLength = 4.0;
-  const double gapLength  = 4.0;
   const TPointD unit(dx / length, dy / length);
 
   for (double start = 0.0; start < length; start += dashLength + gapLength) {
@@ -4098,26 +4098,27 @@ void drawSpline(const TAffine& viewMatrix, const TRect& clipRect, bool camera3d,
     aff = viewMatrix * tmp;
   }
 
-  if (TApp::instance()->getCurrentObject()->isSpline()) {
-    glColor3d(1.0, 0.5, 0);
-    glLineStipple(1, 0x18FF);
-  } else {
-    glLineStipple(1, 0xCCCC);
-    glColor3d(1, 0, 1);
-  }
-
-  glEnable(GL_LINE_STIPPLE);
+  const TPixel32 splineColor =
+      TApp::instance()->getCurrentObject()->isSpline() ? TPixel32(255, 128, 0)
+                                                       : TPixel32(255, 0, 255);
   tglMultMatrix(aff);
 
   double pixelSize    = std::max(0.1, pixelsize);
   double strokeLength = stroke->getLength();
   int n               = (int)(5 + (strokeLength / pixelSize) * 0.1);
 
-  glBegin(GL_LINE_STRIP);
-  for (int i = 0; i < n; i++)
-    tglVertex(stroke->getPoint((double)i / (double)(n - 1)));
-  glEnd();
-  glDisable(GL_LINE_STIPPLE);
+  TGraphics::DrawList2D drawList;
+  TPointD previous = stroke->getPoint(0.0);
+  const double dashLength = 6.0 * pixelSize;
+  const double gapLength  = 4.0 * pixelSize;
+  for (int i = 1; i < n; i++) {
+    TPointD current = stroke->getPoint((double)i / (double)(n - 1));
+    appendDashedLine(drawList, previous, current, splineColor, dashLength,
+                     gapLength);
+    previous = current;
+  }
+  TGraphics::drawWithOpenGLBackend(drawList);
+
   int cpCount = stroke->getControlPointCount();
   for (int i = 0; i * 4 < cpCount; i++) {
     double t    = stroke->getParameterAtControlPoint(i * 4);
