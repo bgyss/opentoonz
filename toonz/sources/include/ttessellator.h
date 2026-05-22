@@ -53,15 +53,7 @@ public:
     typedef GLvoid (*Callback)();
 #endif
 
-#ifdef GLU_VERSION_1_2
-    GLUtesselator *m_tess;
-#else
-#ifdef GLU_VERSION_1_1
-    GLUtriangulatorObj *m_tess;
-#else
     void *m_tess;
-#endif
-#endif
 
     GLTess();
     ~GLTess();

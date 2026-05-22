@@ -12,6 +12,14 @@
 
 //#include "tlevel_io.h"
 
+#ifdef _WIN32
+#include <GL/glu.h>
+#elif defined(MACOSX)
+#include <OpenGL/glu.h>
+#else
+#include <GL/glu.h>
+#endif
+
 #ifndef _WIN32
 #define CALLBACK
 #endif
@@ -25,6 +33,22 @@
 #endif
 #endif
 //==================================================================
+
+namespace {
+
+#ifdef GLU_VERSION_1_2
+using TessHandle = GLUtesselator;
+#else
+#ifdef GLU_VERSION_1_1
+using TessHandle = GLUtriangulatorObj;
+#else
+using TessHandle = void;
+#endif
+#endif
+
+TessHandle *asTess(void *tess) { return static_cast<TessHandle *>(tess); }
+
+}  // namespace
 
 #ifndef checkErrorsByGL
 #define checkErrorsByGL                                                        \
@@ -47,33 +71,34 @@ TglTessellator::GLTess::GLTess() {
 
 //------------------------------------------------------------------
 
-TglTessellator::GLTess::~GLTess() { gluDeleteTess(m_tess); }
+TglTessellator::GLTess::~GLTess() { gluDeleteTess(asTess(m_tess)); }
 
 //------------------------------------------------------------------
 
 void TglTessellator::GLTess::setBeginCallback(Callback callback) {
-  gluTessCallback(m_tess, GLU_TESS_BEGIN, callback);
+  gluTessCallback(asTess(m_tess), GLU_TESS_BEGIN, callback);
 }
 
 void TglTessellator::GLTess::setEndCallback(Callback callback) {
-  gluTessCallback(m_tess, GLU_TESS_END, callback);
+  gluTessCallback(asTess(m_tess), GLU_TESS_END, callback);
 }
 
 void TglTessellator::GLTess::setCombineCallback(Callback callback) {
-  gluTessCallback(m_tess, GLU_TESS_COMBINE, callback);
+  gluTessCallback(asTess(m_tess), GLU_TESS_COMBINE, callback);
 }
 
 void TglTessellator::GLTess::setVertexCallback(Callback callback) {
-  gluTessCallback(m_tess, GLU_TESS_VERTEX, callback);
+  gluTessCallback(asTess(m_tess), GLU_TESS_VERTEX, callback);
 }
 
 void TglTessellator::GLTess::beginPolygon() {
 #ifdef GLU_VERSION_1_2
-  gluTessBeginPolygon(m_tess, NULL);
-  gluTessProperty(m_tess, GLU_TESS_WINDING_RULE, GLU_TESS_WINDING_POSITIVE);
+  gluTessBeginPolygon(asTess(m_tess), NULL);
+  gluTessProperty(asTess(m_tess), GLU_TESS_WINDING_RULE,
+                  GLU_TESS_WINDING_POSITIVE);
 #else
 #ifdef GLU_VERSION_1_1
-  gluBeginPolygon(m_tess);
+  gluBeginPolygon(asTess(m_tess));
 #else
   assert(false);
 #endif
@@ -82,10 +107,10 @@ void TglTessellator::GLTess::beginPolygon() {
 
 void TglTessellator::GLTess::endPolygon() {
 #ifdef GLU_VERSION_1_2
-  gluTessEndPolygon(m_tess);
+  gluTessEndPolygon(asTess(m_tess));
 #else
 #ifdef GLU_VERSION_1_1
-  gluEndPolygon(m_tess);
+  gluEndPolygon(asTess(m_tess));
 #else
   assert(false);
 #endif
@@ -94,10 +119,10 @@ void TglTessellator::GLTess::endPolygon() {
 
 void TglTessellator::GLTess::beginContour(GLenum type) {
 #ifdef GLU_VERSION_1_2
-  gluTessBeginContour(m_tess);
+  gluTessBeginContour(asTess(m_tess));
 #else
 #ifdef GLU_VERSION_1_1
-  gluNextContour(m_tess, type);
+  gluNextContour(asTess(m_tess), type);
 #else
   assert(false);
 #endif
@@ -106,12 +131,12 @@ void TglTessellator::GLTess::beginContour(GLenum type) {
 
 void TglTessellator::GLTess::endContour() {
 #ifdef GLU_VERSION_1_2
-  gluTessEndContour(m_tess);
+  gluTessEndContour(asTess(m_tess));
 #endif
 }
 
 void TglTessellator::GLTess::addVertex(GLdouble *coords) {
-  gluTessVertex(m_tess, coords, coords);
+  gluTessVertex(asTess(m_tess), coords, coords);
 }
 
 //==================================================================
