@@ -135,6 +135,18 @@ void drawRectOutlineWithTGraphics(const TRectD &rect, const TPixel32 &color) {
   TGraphics::drawWithOpenGLBackend(drawList);
 }
 
+void drawClosedPolylineWithTGraphics(const std::vector<TPointD> &points,
+                                     const TPixel32 &color) {
+  if (points.size() < 2) return;
+
+  TGraphics::DrawList2D drawList;
+  for (size_t i = 0; i < points.size(); ++i) {
+    drawList.addColorLine(points[i], points[(i + 1) % points.size()], color,
+                          false);
+  }
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
+
 //-----------------------------------------------------------------------------
 class FullColorMyPaintGeometryUndo final
     : public ToolUtils::TFullColorRasterUndo {
@@ -3230,7 +3242,6 @@ void MultiArcPrimitive::onEnter() {
 void PolygonPrimitive::draw() {
   drawSnap();
   if (!m_isEditing && !m_isPrompting) return;
-  tglColor(m_isEditing ? m_color : TPixel32::Green);
 
   int edgeCount = m_param->m_edgeCount.getValue();
   if (edgeCount == 0) return;
@@ -3238,12 +3249,15 @@ void PolygonPrimitive::draw() {
   double angleDiff = M_2PI / edgeCount;
   double angle     = (3 * M_PI + angleDiff) * 0.5;
 
-  glBegin(GL_LINE_LOOP);
+  std::vector<TPointD> points;
+  points.reserve(edgeCount);
   for (int i = 0; i < edgeCount; i++) {
-    tglVertex(m_centre + TPointD(cos(angle) * m_radius, sin(angle) * m_radius));
+    points.push_back(m_centre +
+                     TPointD(cos(angle) * m_radius, sin(angle) * m_radius));
     angle += angleDiff;
   }
-  glEnd();
+  drawClosedPolylineWithTGraphics(points,
+                                  m_isEditing ? m_color : TPixel32::Green);
 }
 
 //-----------------------------------------------------------------------------

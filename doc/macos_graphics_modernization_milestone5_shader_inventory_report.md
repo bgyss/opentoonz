@@ -276,7 +276,7 @@ stipple semantics are represented in `tgraphics`.
 The geometric tool preview checkpoint moves the rectangle primitive selection
 outline and line primitive live preview from immediate-mode OpenGL
 line-loop/line-strip drawing to `DrawList2D` color-line commands. Circle,
-ellipse, arc, polygon, and snap preview drawing remain on legacy OpenGL until
+ellipse, arc, and snap preview drawing remain on legacy OpenGL until
 curve/circle primitives are represented in `tgraphics`.
 The geometric arc guide checkpoint moves the first-click arc guide segment and
 second-click dashed arc construction polyline from direct OpenGL segment,
@@ -284,6 +284,10 @@ second-click dashed arc construction polyline from direct OpenGL segment,
 commands. The generated curve centerline and circular join markers remain on
 legacy OpenGL until stroke centerline and disk primitives are represented in
 `tgraphics`.
+The geometric polygon checkpoint moves regular polygon preview outlines from
+direct `GL_LINE_LOOP` drawing to `DrawList2D` color-line commands. Circle,
+ellipse, snap, stroke centerline, and disk preview paths remain on legacy
+OpenGL until the corresponding primitives are represented in `tgraphics`.
 
 ## Files Changed
 
@@ -760,8 +764,8 @@ emit `tgraphics` color-line commands instead of immediate-mode `GL_LINES`.
 Shared plain tool rectangles, filled rectangles, and square outlines now also
 emit `tgraphics` color commands, and shared current-color tool point, cross,
 and line primitives now also emit `tgraphics` color commands. Geometric
-rectangle, line, and arc construction previews now also emit `tgraphics`
-color-line commands.
+rectangle, line, arc construction, and polygon outline previews now also emit
+`tgraphics` color-line commands.
 Edit-tool shear-handle visible outlines now also emit `tgraphics` color-line commands.
 Edit-tool camera and Z-translation icons now also emit `tgraphics` color-line
 commands. Scene-viewer FPS graph panels now emit `tgraphics` color commands
