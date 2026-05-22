@@ -220,10 +220,10 @@ before porting scene internals.
   the legacy OpenGL pick path until each shape gets its own CPU or ID-buffer
   picker.
 - Simple geometric FX gadgets now extend that Metal CPU picker to radius,
-  distance, angle, angle-range, diamond, size, rectangle, and polar handles.
-  Linear-range and rainbow-width handles are also covered. More complex
-  compass, ellipse, parallelogram, and other specialized gadget shapes still
-  fall back to legacy OpenGL picking.
+  distance, angle, angle-range, diamond, size, rectangle, polar, linear-range,
+  rainbow-width, quad, compass, ellipse, vertical-position, and parallelogram
+  handles. Remaining specialized gadget gaps are documented as follow-up
+  Metal picking work.
 - Skeleton Tool animate and inverse-kinematics modes now have a first CPU
   picker under Metal for center, translation, drawing-browser, and IK lock
   handles. Build Skeleton hook and magic-link picking still uses the legacy

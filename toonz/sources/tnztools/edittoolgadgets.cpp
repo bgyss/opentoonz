@@ -68,6 +68,27 @@ bool hitViewerSegment(FxGadgetController *controller, const TPointD &viewerPos,
   return viewerSegmentDistance2(viewerPos, va, vb) <= hitRadius * hitRadius;
 }
 
+bool hitViewerTransformedCircle(FxGadgetController *controller,
+                                const TPointD &viewerPos,
+                                const TPointD &center, double radius,
+                                const QTransform &transform,
+                                double radiusScale = 5.0) {
+  if (radius <= 0.0) return false;
+  const int samples = 64;
+  TPointD prev;
+  for (int i = 0; i <= samples; ++i) {
+    const double a = (2.0 * M_PI * i) / samples;
+    const QPointF p = transform.map(
+        QPointF(radius * std::cos(a), radius * std::sin(a)));
+    const TPointD current = center + TPointD(p.x(), p.y());
+    if (i > 0 && hitViewerSegment(controller, viewerPos, prev, current,
+                                  radiusScale))
+      return true;
+    prev = current;
+  }
+  return false;
+}
+
 }  // namespace
 
 GLdouble FxGadget::m_selectedColor[3] = {0.2, 0.8, 0.1};
@@ -1462,6 +1483,8 @@ public:
     addParam(bottomLeft->getY());
   }
 
+  int pickCpu(const TPointD &viewerPos) override;
+
   void draw(bool picking) override {
     int idBase = getId();
 
@@ -1543,6 +1566,45 @@ public:
   void leftButtonDrag(const TPointD &pos, const TMouseEvent &) override;
   void leftButtonUp() override;
 };
+
+//---------------------------------------------------------------------------
+
+int QuadFxGadget::pickCpu(const TPointD &viewerPos) {
+  const TPointD topLeft = getValue(m_TL);
+  const TPointD topRight = getValue(m_TR);
+  const TPointD bottomRight = getValue(m_BR);
+  const TPointD bottomLeft = getValue(m_BL);
+
+  if (hitViewerPoint(m_controller, viewerPos, topLeft, 8.0))
+    return static_cast<int>(getId() + TopLeft);
+  if (hitViewerPoint(m_controller, viewerPos, topRight, 8.0))
+    return static_cast<int>(getId() + TopRight);
+  if (hitViewerPoint(m_controller, viewerPos, bottomRight, 8.0))
+    return static_cast<int>(getId() + BottomRight);
+  if (hitViewerPoint(m_controller, viewerPos, bottomLeft, 8.0))
+    return static_cast<int>(getId() + BottomLeft);
+
+  const TPointD topEdge = (topLeft + topRight) * 0.5;
+  const TPointD rightEdge = (topRight + bottomRight) * 0.5;
+  const TPointD bottomEdge = (bottomRight + bottomLeft) * 0.5;
+  const TPointD leftEdge = (bottomLeft + topLeft) * 0.5;
+
+  if (hitViewerPoint(m_controller, viewerPos, topEdge, 8.0))
+    return static_cast<int>(getId() + TopEdge);
+  if (hitViewerPoint(m_controller, viewerPos, rightEdge, 8.0))
+    return static_cast<int>(getId() + RightEdge);
+  if (hitViewerPoint(m_controller, viewerPos, bottomEdge, 8.0))
+    return static_cast<int>(getId() + BottomEdge);
+  if (hitViewerPoint(m_controller, viewerPos, leftEdge, 8.0))
+    return static_cast<int>(getId() + LeftEdge);
+
+  if (hitViewerSegment(m_controller, viewerPos, topLeft, topRight, 5.0) ||
+      hitViewerSegment(m_controller, viewerPos, topRight, bottomRight, 5.0) ||
+      hitViewerSegment(m_controller, viewerPos, bottomRight, bottomLeft, 5.0) ||
+      hitViewerSegment(m_controller, viewerPos, bottomLeft, topLeft, 5.0))
+    return static_cast<int>(getId() + Body);
+  return -1;
+}
 
 //---------------------------------------------------------------------------
 
@@ -1909,6 +1971,7 @@ public:
                   const TDoubleParamP &twist                = TDoubleParamP());
 
   void draw(bool picking) override;
+  int pickCpu(const TPointD &viewerPos) override;
 
   void leftButtonDown(const TPointD &pos, const TMouseEvent &) override;
   void leftButtonDrag(const TPointD &pos, const TMouseEvent &) override;
@@ -2159,6 +2222,26 @@ void CompassFxGadget::draw(bool picking) {
 
 //---------------------------------------------------------------------------
 
+int CompassFxGadget::pickCpu(const TPointD &viewerPos) {
+  setPixelSize();
+  const double lineHalf = getPixelSize() * 100.0;
+  const TPointD center = getValue(m_center);
+  const double dCenter = norm(center);
+  if (dCenter <= lineHalf || dCenter <= 0.0) return -1;
+
+  const TPointD handleVec = normalize(center) * lineHalf;
+  if (hitViewerPoint(m_controller, viewerPos, handleVec, 8.0))
+    return static_cast<int>(getId() + Near);
+  if (hitViewerPoint(m_controller, viewerPos, handleVec * -1.0, 8.0))
+    return static_cast<int>(getId() + Far);
+  if (hitViewerSegment(m_controller, viewerPos, handleVec * 0.95,
+                       handleVec * -1.0 * 0.95, 5.0))
+    return static_cast<int>(getId() + Body);
+  return -1;
+}
+
+//---------------------------------------------------------------------------
+
 void CompassFxGadget::leftButtonDown(const TPointD &pos, const TMouseEvent &) {
   m_handle = (HANDLE)m_selected;
   if (m_handle == None) return;
@@ -2339,6 +2422,7 @@ public:
   TPointD getCenter() const;
 
   void draw(bool picking) override;
+  int pickCpu(const TPointD &viewerPos) override;
 
   void leftButtonDown(const TPointD &pos, const TMouseEvent &) override;
   void leftButtonDrag(const TPointD &pos, const TMouseEvent &) override;
@@ -2491,6 +2575,62 @@ void EllipseFxGadget::draw(bool picking) {
 
 //---------------------------------------------------------------------------
 
+int EllipseFxGadget::pickCpu(const TPointD &viewerPos) {
+  setPixelSize();
+  const TPointD center = getCenter();
+  const double aspectRatio = getValue(m_aspect_ratio);
+  const double angle = getValue(m_angle);
+  const double radius = getValue(m_radius);
+  double scale[2] = {1.0, 1.0};
+  if (!areAlmostEqual(aspectRatio, 1.0)) {
+    scale[0] = 2.0 * aspectRatio / (aspectRatio + 1.0);
+    scale[1] = scale[0] / aspectRatio;
+  }
+
+  const QTransform transform =
+      QTransform().rotate(angle).scale(scale[0], scale[1]);
+  const QPointF radiusHandle = transform.map(QPointF(0.0, radius));
+  const TPointD radiusPos =
+      center + TPointD(radiusHandle.x(), radiusHandle.y());
+
+  if (hitViewerPoint(m_controller, viewerPos, radiusPos, 8.0) ||
+      hitViewerTransformedCircle(m_controller, viewerPos, center, radius,
+                                 transform, 5.0))
+    return static_cast<int>(getId() + Radius);
+
+  if (m_twist) {
+    const TRectD cameraRect = m_controller->getCameraRect();
+    const double pivot = getPixelSize() * cameraRect.getLy() / 2.0;
+    const QPointF twistHandle = transform.map(QPointF(0.707, 0.707) * pivot);
+    const TPointD twistPos =
+        center + TPointD(twistHandle.x(), twistHandle.y());
+    if (hitViewerPoint(m_controller, viewerPos, twistPos, 8.0) ||
+        hitViewerTransformedCircle(m_controller, viewerPos, center, pivot,
+                                   transform, 5.0))
+      return static_cast<int>(getId() + Twist);
+  }
+
+  if (hitViewerPoint(m_controller, viewerPos, center, 8.0))
+    return static_cast<int>(getId() + Center);
+
+  const double unit = getPixelSize();
+  const double handleLength = unit * 100.0;
+  const double handleRadius = std::max(radius, unit * 10.0);
+  const QPointF handleRoot = transform.map(QPointF(handleRadius, 0.0));
+  const TPointD root = center + TPointD(handleRoot.x(), handleRoot.y());
+  const double angleRadian = angle * M_PI_180;
+  const TPointD handleEnd =
+      root + TPointD(std::cos(angleRadian), std::sin(angleRadian)) *
+                 handleLength;
+  if (hitViewerPoint(m_controller, viewerPos, handleEnd, 8.0) ||
+      hitViewerSegment(m_controller, viewerPos, root, handleEnd, 5.0))
+    return static_cast<int>(getId() + AngleAndAR);
+
+  return -1;
+}
+
+//---------------------------------------------------------------------------
+
 void EllipseFxGadget::leftButtonDown(const TPointD &pos, const TMouseEvent &) {
   m_handle = (HANDLE)m_selected;
   m_pos    = pos;
@@ -2594,6 +2734,7 @@ public:
   }
 
   void draw(bool picking) override;
+  int pickCpu(const TPointD &viewerPos) override;
 
   bool isVisible();
   void leftButtonDown(const TPointD &pos, const TMouseEvent &) override;
@@ -2637,6 +2778,23 @@ void VerticalPosFxGadget::draw(bool picking) {
 
   glPopMatrix();
   glPopName();
+}
+
+//---------------------------------------------------------------------------
+
+int VerticalPosFxGadget::pickCpu(const TPointD &viewerPos) {
+  if (!isVisible()) return -1;
+  setPixelSize();
+  const double vPos = getValue(m_yParam);
+  const double unit = getPixelSize();
+  const double r = unit * 3.0;
+  const double d = unit * 300.0;
+  if (hitViewerSegment(m_controller, viewerPos, TPointD(0.0, vPos - r),
+                       TPointD(0.0, vPos + r), 5.0) ||
+      hitViewerSegment(m_controller, viewerPos, TPointD(-d, vPos),
+                       TPointD(d, vPos), 5.0))
+    return static_cast<int>(getId());
+  return -1;
 }
 
 //---------------------------------------------------------------------------
@@ -2779,6 +2937,48 @@ public:
 
     m_hVecGadget->draw(picking);
     m_vVecGadget->draw(picking);
+  }
+
+  int pickCpu(const TPointD &viewerPos) override {
+    setPixelSize();
+    const double pixelSize = getPixelSize();
+    const double c = pixelSize * 4.0;
+    const TPointD pc = getValue(m_pcenter);
+    const TPointD ph = getValue(m_phoriz);
+    const TPointD pv = getValue(m_pvert);
+    const TPointD vecH = ph - pc;
+    const TPointD vecV = pv - pc;
+    if (norm2(vecH) <= 0.0001 || norm2(vecV) <= 0.0001) return -1;
+
+    const TPointD po = ph + vecV;
+    const TPointD unitH = vecH * (1.0 / std::sqrt(norm2(vecH)));
+    const TPointD unitV = vecV * (1.0 / std::sqrt(norm2(vecV)));
+
+    if (m_pcurve.getPointer()) {
+      const TPointD pcurve = getValue(m_pcurve);
+      const TPointD ppivot = pc + (pcurve.x + 0.5) * vecH +
+                             (pcurve.y + 0.5) * vecV;
+      if (hitViewerPoint(m_controller, viewerPos, ppivot, 8.0))
+        return static_cast<int>(getId() + CurveAnchor);
+    }
+
+    const TPointD diagonal = normalize(po - pc);
+    const TPointD side = rotate90(diagonal);
+    const double a = pixelSize * 10.0;
+    const double b = pixelSize * 3.0;
+    if (getHandleCount() > Rotation &&
+        (hitViewerSegment(m_controller, viewerPos, po + side * a,
+                          po - side * a, 5.0) ||
+         hitViewerSegment(m_controller, viewerPos, po + diagonal * b + side * a,
+                          po + diagonal * b - side * a, 5.0)))
+      return static_cast<int>(getId() + Rotation);
+
+    if (hitViewerSegment(m_controller, viewerPos, ph + unitV * c, po, 5.0) ||
+        hitViewerSegment(m_controller, viewerPos, pv + unitH * c, po, 5.0) ||
+        hitViewerSegment(m_controller, viewerPos, pc, ph, 5.0) ||
+        hitViewerSegment(m_controller, viewerPos, pc, pv, 5.0))
+      return static_cast<int>(getId() + Body);
+    return -1;
   }
 
   void leftButtonDown(const TPointD &pos, const TMouseEvent &) override {
