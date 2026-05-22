@@ -70,6 +70,7 @@
 #include "tpalette.h"
 #include "tropcm.h"
 #include "tgl.h"
+#include "tgraphics.h"
 #include "tofflinegl.h"
 #include "tstopwatch.h"
 #include "trop.h"
@@ -2201,8 +2202,11 @@ void SceneViewer::paintGL() {
     glPushMatrix();
     glLoadIdentity();
 
-    tglDraw(TRectD(0, 0, m_viewGrabImage->getLx(), m_viewGrabImage->getLy()),
-            m_viewGrabImage, false);
+    TGraphics::DrawList2D drawList;
+    drawList.addTexture(
+        TRectD(0, 0, m_viewGrabImage->getLx(), m_viewGrabImage->getLy()),
+        m_viewGrabImage, false);
+    TGraphics::drawWithOpenGLBackend(drawList);
 
     glPopMatrix();
 

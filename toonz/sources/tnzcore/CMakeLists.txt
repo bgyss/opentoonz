@@ -71,6 +71,7 @@ set(HEADERS ${MOC_HEADERS}
     ../include/tsweepboundary.h
     ../include/tvectorimage.h
     ../include/tgl.h
+    ../include/tgraphics.h
     ../include/tstencilcontrol.h
     ../include/tsop.h
     ../include/tsound.h
@@ -169,6 +170,7 @@ set(SOURCES
     ../common/tvectorimage/tsegmentadjuster.cpp
     ../common/tvectorimage/tsweepboundary.cpp
     ../common/tvectorimage/tvectorimage.cpp
+    ../common/tgraphics/tgraphics.cpp
     ../common/tgl/tgl.cpp
     ../common/tgl/tstencilcontrol.cpp
     ../common/tgl/tgldisplaylistsmanager.cpp
@@ -286,6 +288,7 @@ add_definitions(
     -DTSYSTEM_EXPORTS
     -DTVECTORIMAGE_EXPORTS
     -DTGL_EXPORTS
+    -DTGRAPHICS_EXPORTS
     -DTSOUND_EXPORTS
     -DTIMAGE_IO_EXPORTS
     -DTRASTERIMAGE_EXPORTS
