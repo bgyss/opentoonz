@@ -7,8 +7,11 @@
 #include "tthread.h"
 #include "ttile.h"
 
+#include <QCoreApplication>
+#include <QEventLoop>
 #include <QGuiApplication>
 #include <QObject>
+#include <QString>
 
 #include <algorithm>
 #include <cstdlib>
@@ -30,6 +33,7 @@ struct Options {
   std::string comparePamPath;
   std::string writeDiffPamPath;
   int tolerance = 0;
+  bool renderWithRenderer = false;
 };
 
 void printUsage() {
@@ -38,7 +42,7 @@ void printUsage() {
                "FILE]\n"
                "                            [--compare-pam FILE] "
                "[--write-diff-pam FILE]\n"
-               "                            [--tolerance N]\n";
+               "                            [--tolerance N] [--renderer]\n";
 }
 
 bool parseOptions(int argc, char* argv[], Options& options) {
@@ -56,6 +60,8 @@ bool parseOptions(int argc, char* argv[], Options& options) {
       options.writeDiffPamPath = argv[++i];
     } else if (arg == "--tolerance" && i + 1 < argc) {
       options.tolerance = std::atoi(argv[++i]);
+    } else if (arg == "--renderer") {
+      options.renderWithRenderer = true;
     } else if (arg == "--help" || arg == "-h") {
       printUsage();
       return false;
@@ -327,6 +333,92 @@ public:
   }
 };
 
+class ProbeRenderPort final : public TRenderPort {
+  TRasterP m_raster;
+  bool m_finished = false;
+  bool m_failed   = false;
+  std::string m_error;
+
+public:
+  bool isFinished() const { return m_finished; }
+  bool hasFailed() const { return m_failed; }
+  const std::string& error() const { return m_error; }
+  TRasterP raster() const { return m_raster; }
+
+  void onRenderRasterCompleted(const RenderData& renderData) override {
+    if (renderData.m_rasA) m_raster = renderData.m_rasA->clone();
+  }
+
+  void onRenderFailure(const RenderData&, TException& e) override {
+    m_failed = true;
+    m_error  = QString::fromStdWString(e.getMessage()).toStdString();
+  }
+
+  void onRenderFinished(bool isCanceled = false) override {
+    m_finished = true;
+    if (isCanceled) {
+      m_failed = true;
+      m_error  = "renderer canceled";
+    }
+  }
+};
+
+TRasterFxP makeProbeShaderFx(const Options& options, TFxP foregroundFx,
+                             TFxP backgroundFx) {
+  TFx* fx = TFx::create(options.shaderName.c_str());
+  TRasterFx* rasterFx = dynamic_cast<TRasterFx*>(fx);
+  if (!rasterFx) {
+    delete fx;
+    return TRasterFxP();
+  }
+
+  TRasterFxP root(rasterFx);
+  if (options.shaderName == "SHADER_HSLBlendGPU") {
+    if (root->getInputPortCount() != 2) return TRasterFxP();
+    if (!root->getInputPort(0) || !root->getInputPort(1)) return TRasterFxP();
+    root->getInputPort(0)->setFx(foregroundFx.getPointer());
+    root->getInputPort(1)->setFx(backgroundFx.getPointer());
+  }
+  return root;
+}
+
+TRaster32P renderWithRendererForProbe(const Options& options, const TTile& tile,
+                                      double frame,
+                                      const TRenderSettings& settings,
+                                      TFxP foregroundFx, TFxP backgroundFx) {
+  TRasterFxP root = makeProbeShaderFx(options, foregroundFx, backgroundFx);
+  if (!root) return TRaster32P();
+
+  TRenderer renderer(1);
+  renderer.enablePrecomputing(true);
+
+  ProbeRenderPort port;
+  port.setRenderArea(TRectD(tile.m_pos,
+                            TDimensionD(tile.getRaster()->getLx(),
+                                        tile.getRaster()->getLy())));
+  renderer.addPort(&port);
+
+  TFxPair fxPair;
+  fxPair.m_frameA = root;
+  unsigned long renderId = renderer.startRendering(frame, settings, fxPair);
+  if (renderId == (unsigned long)-1) {
+    renderer.removePort(&port);
+    return TRaster32P();
+  }
+
+  while (!port.isFinished()) {
+    QCoreApplication::processEvents(QEventLoop::AllEvents |
+                                    QEventLoop::WaitForMoreEvents);
+  }
+  renderer.removePort(&port);
+  if (port.hasFailed()) {
+    std::cerr << "shaderfx_metal_probe: renderer failed: " << port.error()
+              << std::endl;
+    return TRaster32P();
+  }
+  return TRaster32P(port.raster());
+}
+
 TRaster32P renderExpectedMetalHelper(const Options& options, int width,
                                      int height, const TTile& tile,
                                      const TRenderSettings& settings) {
@@ -405,7 +497,18 @@ int main(int argc, char* argv[]) {
     settings.m_affine = TAffine();
 
   bool rendered = false;
-  if (options.shaderName == "SHADER_HSLBlendGPU") {
+  if (options.renderWithRenderer) {
+    if (options.shaderName == "SHADER_HSLBlendGPU" &&
+        TGraphics::activeBackendType() != TGraphics::BackendType::Metal)
+      return fail("SHADER_HSLBlendGPU probe requires the Metal backend") ? 0
+                                                                         : 1;
+    TRaster32P renderedRaster = renderWithRendererForProbe(
+        options, tile, 1.0, settings, foregroundFx, backgroundFx);
+    if (renderedRaster) {
+      tile.getRaster()->copy(renderedRaster);
+      rendered = true;
+    }
+  } else if (options.shaderName == "SHADER_HSLBlendGPU") {
     if (TGraphics::activeBackendType() != TGraphics::BackendType::Metal)
       return fail("SHADER_HSLBlendGPU probe requires the Metal backend") ? 0
                                                                          : 1;

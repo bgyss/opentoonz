@@ -189,6 +189,7 @@ public:
   int getMemoryRequirement(const TRectD &rect, double frame,
                            const TRenderSettings &info) override;
 
+  void compute(TTile &tile, double frame, const TRenderSettings &ri) override;
   void doDryCompute(TRectD &rect, double frame,
                     const TRenderSettings &ri) override;
   void doCompute(TTile &tile, double frame, const TRenderSettings &ri) override;
@@ -1066,6 +1067,15 @@ bool renderProceduralShaderWithMetal(const ShaderInterface *shaderInterface,
   return true;
 }
 
+bool isProceduralShaderWithMetalPath(const ShaderInterface *shaderInterface) {
+  const QString &name = shaderInterface->mainShader().m_name;
+  return name == QStringLiteral("SHADER_sunflare") ||
+         name == QStringLiteral("SHADER_caustics") ||
+         name == QStringLiteral("SHADER_starsky") ||
+         name == QStringLiteral("SHADER_wavy") ||
+         name == QStringLiteral("SHADER_fireball");
+}
+
 bool renderHSLBlendShaderWithMetal(const ShaderInterface *shaderInterface,
                                    const std::vector<boost::any> &params,
                                    boost::ptr_vector<TRasterFxPort> &ports,
@@ -1355,8 +1365,34 @@ void ShaderFx::doCompute(TTile &tile, double frame,
 
 //-------------------------------------------------------------------
 
+void ShaderFx::compute(TTile &tile, double frame, const TRenderSettings &info) {
+  if (TGraphics::activeBackendType() == TGraphics::BackendType::Metal) {
+    if (m_inputPorts.empty() &&
+        isProceduralShaderWithMetalPath(m_shaderInterface)) {
+      doCompute(tile, frame, info);
+      return;
+    }
+    if (m_shaderInterface->mainShader().m_name ==
+            QStringLiteral("SHADER_HSLBlendGPU") &&
+        m_inputPorts.size() == 2 && m_inputPorts[0].isConnected() &&
+        m_inputPorts[1].isConnected() && TRaster32P(tile.getRaster()) &&
+        info.m_bpp == 32) {
+      doCompute(tile, frame, info);
+      return;
+    }
+  }
+
+  TStandardZeraryFx::compute(tile, frame, info);
+}
+
+//-------------------------------------------------------------------
+
 void ShaderFx::doDryCompute(TRectD &rect, double frame,
                             const TRenderSettings &info) {
+  if (TGraphics::activeBackendType() == TGraphics::BackendType::Metal &&
+      m_inputPorts.empty() && isProceduralShaderWithMetalPath(m_shaderInterface))
+    return;
+
   if (TGraphics::activeBackendType() == TGraphics::BackendType::Metal &&
       m_shaderInterface->mainShader().m_name ==
           QStringLiteral("SHADER_HSLBlendGPU") &&

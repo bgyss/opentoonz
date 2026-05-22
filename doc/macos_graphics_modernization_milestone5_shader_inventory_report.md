@@ -149,10 +149,17 @@ Production integration status:
   and affines directly from the output rect for the identity case.
 - `shaderfx_metal_probe` validates the `ShaderFx::doCompute(...)` Metal branch
   against the lower-level Metal helper for transformed 96x64 tiles.
+- `shaderfx_metal_probe --renderer` validates the same migrated Metal shader
+  subset through `TRenderer` with precomputing enabled. The migrated Metal
+  `ShaderFx` paths intentionally bypass the legacy `TRasterFx::compute(...)`
+  cache/resource wrapper while Metal is active, because that wrapper was built
+  around the OpenGL `ShadingContext` path and produced transparent renderer
+  output for the direct Metal helper routes.
 - `scripts/graphics_shaderfx_compare.sh` captures the same transformed
   production `ShaderFx` tiles through OpenGL and Metal, writes OpenGL/Metal/diff
   PAM artifacts for the migrated no-input procedural shaders, writes a Metal HSL
-  artifact for `SHADER_HSLBlendGPU`, and passes on Apple M1 Max.
+  artifact for `SHADER_HSLBlendGPU`, writes renderer-driven Metal artifacts for
+  the migrated shaders, and passes on Apple M1 Max.
 - OpenGL remains the default backend.
 - Non-32-bit tiles and every other `ShaderFx` still use the existing OpenGL
   path.
@@ -183,10 +190,12 @@ Input-texture Metal groundwork:
 - `shaderfx_metal_probe --shader SHADER_HSLBlendGPU` validates the direct
   connected `ShaderFx::doCompute(...)` Metal route against the lower-level HSL
   helper.
-- Full renderer-driven `SHADER_HSLBlendGPU` preview/export coverage still needs
-  a broader cache-aware validation pass. The current probe deliberately uses a
-  direct render scope so connected inputs can be validated without relying on
-  the renderer's OpenGL-era predictive cache prepasses.
+- `shaderfx_metal_probe --shader SHADER_HSLBlendGPU --renderer` validates the
+  connected HSL route through `TRenderer` with precomputing enabled, covering the
+  renderer status lifecycle used by preview/export jobs.
+- Full scene-level preview/export coverage still needs a broader validation
+  pass with real scene fixtures. The current renderer probe validates the
+  migrated `ShaderFx` graph in isolation, not a complete `ToonzScene` render.
 
 Blocked by OpenGL-specific transform feedback:
 
@@ -251,7 +260,9 @@ Artifacts:
 - `/private/tmp/opentoonz-shaderfx-compare/fireball-opengl.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/fireball-metal.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/fireball-diff.pam`
+- `/private/tmp/opentoonz-shaderfx-compare/fireball-metal-renderer.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/HSLBlendGPU-metal.pam`
+- `/private/tmp/opentoonz-shaderfx-compare/HSLBlendGPU-metal-renderer.pam`
 
 The default tolerance is 2 channel values. `fireball` uses
 `SHADERFX_FIREBALL_COMPARE_TOLERANCE=32` by default because its procedural noise
@@ -262,13 +273,13 @@ alpha, or coordinate mismatches.
 
 ## Next Effects Recommendation
 
-The direct no-input procedural shader subset is now covered. Continue with
-cache-aware renderer validation for the first input-texture route
-(`HSLBlendGPU`), then continue with backend-neutral input texture binding for
-the remaining shared shader-generation candidates (`glitter`, `radialblurGPU`,
-and `spinblurGPU`) or with packaged Metal shader-library loading before
-widening preview/export coverage. Keep OpenGL `ShaderFx` as the default until
-preview/export parity is broader.
+The direct no-input procedural shader subset and the first direct
+input-texture route (`HSLBlendGPU`) now have both direct and renderer-driven
+probe coverage. Continue with scene-level preview/export fixtures for the
+migrated shader subset, then continue with backend-neutral input texture binding
+for the remaining shared shader-generation candidates (`glitter`,
+`radialblurGPU`, and `spinblurGPU`) before widening preview/export coverage.
+Keep OpenGL `ShaderFx` as the default until full scene parity is broader.
 
 ## Validation Run
 
@@ -282,6 +293,7 @@ test -f toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app/Contents/Resources/tg
 nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
 nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_fireball'
 nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_HSLBlendGPU'
+nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_HSLBlendGPU --renderer'
 nix develop path:. --command bash scripts/graphics_shaderfx_compare.sh /private/tmp/opentoonz-shaderfx-compare-packaged-source
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=OFF'
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target OpenToonz --parallel 3
@@ -300,6 +312,7 @@ resource present: toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app/Contents/Re
 tgraphics_metal_probe: ok on Apple M1 Max
 shaderfx_metal_probe: ok shader=SHADER_fireball backend=metal device=Apple M1 Max
 shaderfx_metal_probe: ok shader=SHADER_HSLBlendGPU backend=metal device=Apple M1 Max
+shaderfx_metal_probe: ok shader=SHADER_HSLBlendGPU backend=metal device=Apple M1 Max
 shaderfx_metal_probe: ok shader=SHADER_sunflare backend=metal device=Apple M1 Max
 shaderfx_metal_probe: ok shader=SHADER_sunflare backend=opengl
 shaderfx_metal_probe: ok shader=SHADER_caustics backend=opengl
@@ -311,6 +324,7 @@ shaderfx_metal_probe: ok shader=SHADER_wavy backend=metal device=Apple M1 Max
 shaderfx_metal_probe: ok shader=SHADER_fireball backend=opengl
 shaderfx_metal_probe: ok shader=SHADER_fireball backend=metal device=Apple M1 Max
 shaderfx_metal_probe: ok shader=SHADER_HSLBlendGPU backend=metal device=Apple M1 Max
+shaderfx_metal_probe: ok shader=SHADER_HSLBlendGPU backend=metal device=Apple M1 Max
 graphics_shaderfx_compare: ok
 Checked 281 Mach-O files for arm64.
 WITH_GRAPHICS_METAL:BOOL=OFF
@@ -319,17 +333,17 @@ WITH_GRAPHICS_METAL:BOOL=OFF
 The final ShaderFx artifact directory for this checkpoint was:
 
 ```text
-/private/tmp/opentoonz-shaderfx-compare-hsl
+/private/tmp/opentoonz-shaderfx-compare-renderer
 ```
 
 Known validation gap: this checkpoint verifies that the production effect graph
 can compile and route to the Metal `sunflare`, `caustics`, `starsky`, `wavy`,
-`fireball`, and direct connected `HSLBlendGPU` paths, that
-`ShaderFx::doCompute(...)` matches the lower-level Metal helpers for the
-migrated direct paths, that the sunflare Metal helper matches a CPU formula
-reference, and that the production OpenGL and Metal `ShaderFx` outputs match
-within tolerance for all five no-input migrated shaders. It does not yet cover
-renderer-driven input-texture preview/export for `HSLBlendGPU`, the remaining
-input-texture shader effects, transform-feedback bbox/ports shaders beyond the
-identity HSL bypass, an actual generated `.metallib` artifact, or full
-preview/export scene renders.
+`fireball`, and direct connected `HSLBlendGPU` paths, that direct and
+renderer-driven `ShaderFx` execution both match the lower-level Metal helpers
+for the migrated Metal paths, that the sunflare Metal helper matches a CPU
+formula reference, and that the production OpenGL and Metal `ShaderFx` outputs
+match within tolerance for all five no-input migrated shaders. It does not yet
+cover complete scene-level preview/export fixtures, the remaining input-texture
+shader effects, transform-feedback bbox/ports shaders beyond the identity HSL
+bypass, an actual generated `.metallib` artifact, or full preview/export scene
+renders.
