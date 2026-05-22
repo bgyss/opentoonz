@@ -59,8 +59,9 @@ Qt viewer hierarchy.
   - drawable presentation
 - Added `MetalTextureRenderTarget` for offscreen render/readback validation.
 - Added the `tgraphics_metal_probe` executable when `WITH_GRAPHICS_METAL=ON` on
-  macOS. It renders an opaque solid `DrawList2D` texture through the Metal
-  offscreen target, reads it back, and fails on any pixel mismatch.
+  macOS. It renders an inset opaque gradient `DrawList2D` texture through the
+  Metal offscreen target, verifies that untouched pixels remain transparent,
+  reads the target back, and fails on any pixel mismatch.
 - Added `tgraphics_metal_shaders.metal` to keep the minimal vertex/fragment
   shader source visible in the build tree.
 - Linked `tnzcore` against `Metal.framework` only when
@@ -113,7 +114,7 @@ Metal-enabled build compiles `tgraphics_metal.mm`, includes the shader source in
 the CMake target metadata, links `tnzcore` against Metal and QuartzCore, builds
 `tgraphics_metal_probe`, and links `OpenToonz.app`.
 
-Probe output:
+Probe output after validating the inset gradient and transparent clear pixels:
 
 ```text
 tgraphics_metal_probe: ok on Apple M1 Max
@@ -136,7 +137,7 @@ OpenGL even if `OPENTOONZ_GRAPHICS_BACKEND=metal` is requested.
 
 - Integrate the CAMetalLayer render target with a narrow Qt viewer/native-view
   path.
-- Expand the offscreen probe into an image-diff harness with gradient/alpha
-  cases and an OpenGL baseline comparison.
+- Expand the offscreen probe into an image-diff harness with alpha cases and an
+  OpenGL baseline comparison.
 - Route only a narrow scene-viewer path to the Metal command encoder once
   drawable lifecycle and fallback behavior are stable.
