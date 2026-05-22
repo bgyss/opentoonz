@@ -3069,10 +3069,11 @@ void SceneViewer::drawScene() {
     }
     if (shouldPresentWithMetal()) {
       TGraphics::DrawList2D drawList;
-      painter.appendDirectRasterTextureQuads(
+      const bool directRasterCoverage = painter.appendDirectRasterTextureQuads(
           drawList, std::max(1, height() * getDevPixRatio()));
-      if (!drawList.empty() && presentDrawListWithMetal(drawList))
-        m_metalPresentedDirectContent = true;
+      if (!drawList.empty() && presentDrawListWithMetal(drawList)) {
+        m_metalPresentedDirectContent = directRasterCoverage;
+      }
     }
     painter.flushRasterImages();
 

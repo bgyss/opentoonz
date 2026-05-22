@@ -290,7 +290,7 @@ public:
   TRasterP getRaster(int index, QTransform &matrix);
 
   void flushRasterImages();
-  void appendDirectRasterTextureQuads(TGraphics::DrawList2D &drawList,
+  bool appendDirectRasterTextureQuads(TGraphics::DrawList2D &drawList,
                                       int targetHeight) const;
   void drawRasterImages(QPainter &p, QPolygon cameraRect);
 

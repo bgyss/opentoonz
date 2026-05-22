@@ -256,6 +256,14 @@ before porting scene internals.
   OpenGL framebuffer upload so simple eligible raster frames/previews can be
   inspected through direct Metal content. Unsupported frames still keep the
   compatibility snapshot.
+- The normal scene-raster bridge now reports whether every pending raster node
+  was represented in the direct Metal draw list. Partial direct raster emission
+  no longer marks the frame as direct-content-complete, so the direct-only smoke
+  mode keeps the OpenGL compatibility snapshot for frames that still contain
+  unsupported raster state such as active visual checks, channel masks, onion
+  skin coloring, filter colors, premultiply/white-transparent conversion,
+  ignored alpha, darken-blended raster view mode, non-32-bit rasters, or
+  bounding box overlays.
 - Linked `tnzcore` against `Metal.framework` only when
   `WITH_GRAPHICS_METAL=ON`.
 - Linked `tnzcore` against `QuartzCore.framework` only when
@@ -313,6 +321,21 @@ The default OpenGL build does not compile `tgraphics_metal.mm`. The
 Metal-enabled build compiles `tgraphics_metal.mm`, includes the shader source in
 the CMake target metadata, links `tnzcore` against AppKit, Metal, and
 QuartzCore, builds `tgraphics_metal_probe`, and links `OpenToonz.app`.
+
+Direct-raster coverage follow-up validation on 2026-05-22:
+
+```sh
+git diff --check
+bash scripts/graphics_inventory.sh
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target toonzlib OpenToonz --parallel 3
+nix develop path:. --command cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=ON
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tgraphics_metal_probe OpenToonz --parallel 3
+nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
+```
+
+Result: passed. The broader rebuild emitted existing unrelated warnings in
+image/trop/tool/viewer code, but the changed `stagevisitor.cpp` and
+`sceneviewer.cpp` compiled cleanly.
 
 Probe output after validating direct solid clear/background pixels, transparent
 clear pixels, solid-color rectangle drawing, solid-color rectangle alpha
