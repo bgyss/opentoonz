@@ -327,6 +327,11 @@ The skeleton drawing-selector picking checkpoint moves the change-drawing
 rectangle and increment/decrement triangle pick fills from `glRectd(...)` and
 immediate `GL_POLYGON` drawing to `DrawList2D` color-rect/color-triangle
 commands while preserving the OpenGL name stack around each picking shape.
+The skeleton bone-fill checkpoint moves regular skeleton bone triangle fills
+and IK-bone quad fills from immediate `GL_POLYGON` drawing to `DrawList2D`
+color-triangle/color-quad commands. Bone and IK-bone outlines were already on
+`tgraphics`; circular joint markers remain on legacy OpenGL until disk/circle
+primitives are represented.
 
 ## Files Changed
 
@@ -813,6 +818,8 @@ Edit-tool main transform scale and shear picking fills now also emit
 `tgraphics` color-rect/color-quad commands.
 Skeleton drawing-selector picking fills now also emit `tgraphics`
 color-rect/color-triangle commands.
+Skeleton bone and IK-bone fills now also emit `tgraphics`
+color-triangle/color-quad commands.
 Geometric multiline Bezier speed-handle connector segments now also emit
 `tgraphics` color-line commands.
 Edit-tool shear-handle visible outlines now also emit `tgraphics` color-line commands.

@@ -95,9 +95,18 @@ void fillRectWithTGraphics(const TRectD &rect, const TPixel32 &color) {
 }
 
 void fillTriangleWithTGraphics(const TPointD &p0, const TPointD &p1,
-                               const TPointD &p2, const TPixel32 &color) {
+                               const TPointD &p2, const TPixel32 &color,
+                               bool blending = false) {
   TGraphics::DrawList2D drawList;
-  drawList.addColorTriangle(p0, p1, p2, color, false);
+  drawList.addColorTriangle(p0, p1, p2, color, blending);
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
+
+void fillQuadWithTGraphics(const TPointD &p00, const TPointD &p10,
+                           const TPointD &p11, const TPointD &p01,
+                           const TPixel32 &color, bool blending = false) {
+  TGraphics::DrawList2D drawList;
+  drawList.addColorQuad(p00, p10, p11, p01, color, blending);
   TGraphics::drawWithOpenGLBackend(drawList);
 }
 
@@ -1105,15 +1114,12 @@ void SkeletonTool::drawBone(const TPointD &a, const TPointD &b, bool selected) {
   TPointD delta = b - a;
   if (norm2(delta) < 0.001) return;
   TPointD u = getPixelSize() * 2.5 * normalize(rotate90(delta));
-  if (selected)
-    glColor4d(0.9 * alpha, 0.9 * alpha, 0.9 * alpha, alpha);
-  else
-    glColor4d(0.58 * alpha, 0.58 * alpha, 0.58 * alpha, alpha);
-  glBegin(GL_POLYGON);
-  tglVertex(a + u);
-  tglVertex(b);
-  tglVertex(a - u);
-  glEnd();
+  const int matte = static_cast<int>(std::round(alpha * 255.0));
+  const int tone =
+      selected ? static_cast<int>(std::round(0.9 * alpha * 255.0))
+               : static_cast<int>(std::round(0.58 * alpha * 255.0));
+  fillTriangleWithTGraphics(a + u, b, a - u, TPixel32(tone, tone, tone, matte),
+                            true);
   drawSkeletonBoneOutlineWithTGraphics(a, b, u);
 }
 
@@ -1124,13 +1130,8 @@ void SkeletonTool::drawIKBone(const TPointD &a, const TPointD &b) {
   TPointD delta = b - a;
   if (norm2(delta) < 0.001) return;
   TPointD u = getPixelSize() * 2.5 * normalize(rotate90(delta));
-  glColor3d(0.58, 0.58, 0.58);
-  glBegin(GL_POLYGON);
-  tglVertex(a + u);
-  tglVertex(b + u);
-  tglVertex(b - u);
-  tglVertex(a - u);
-  glEnd();
+  fillQuadWithTGraphics(a + u, b + u, b - u, a - u,
+                        TPixel32(148, 148, 148, 255));
   drawSkeletonIKBoneOutlineWithTGraphics(a, b, u);
 }
 
