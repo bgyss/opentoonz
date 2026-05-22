@@ -45,6 +45,7 @@ returning through Metal.
 - `toonz/sources/common/tgraphics/tgraphics_metal.mm`
 - `toonz/sources/common/tgraphics/tgraphics_metal_shaders.metal`
 - `toonz/sources/common/tgraphics/tgraphics_metal_probe.cpp`
+- `toonz/sources/toonz/CMakeLists.txt`
 - `toonz/sources/include/stdfx/shaderfx.h`
 - `toonz/sources/stdfx/CMakeLists.txt`
 - `toonz/sources/stdfx/shaderfx.cpp`
@@ -174,11 +175,26 @@ Current Metal shader source:
 
 - `toonz/sources/common/tgraphics/tgraphics_metal_shaders.metal`
 
-The current `tgraphics` Metal backend still compiles equivalent shader source
-from an Objective-C++ string in `tgraphics_metal.mm`; the `.metal` file is
-tracked in the target as source evidence, not yet packaged as a runtime
-library. The runtime string and tracked `.metal` source both include the
-sunflare, caustics, starsky, wavy, and fireball fragment entry points.
+The current `tgraphics` Metal backend first tries to load
+`tgraphics_metal_shaders.metallib` from the main app bundle resources and falls
+back to compiling equivalent shader source from an Objective-C++ string in
+`tgraphics_metal.mm` when the packaged library is absent or fails to load. The
+runtime string and tracked `.metal` source both include the sunflare, caustics,
+starsky, wavy, and fireball fragment entry points.
+
+When `WITH_GRAPHICS_METAL=ON`, the macOS app build copies the tracked Metal
+shader source into `OpenToonz.app/Contents/Resources/tgraphics_metal_shaders.metal`.
+This gives the bundle a concrete Metal shader resource today while preserving
+the source-string fallback for local builds and command-line probes.
+
+Known shader packaging gap: the local Xcode installation can locate `metal` at
+`/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/metal`,
+but invoking it currently fails with `error: cannot execute tool 'metal' due to
+missing Metal Toolchain; use: xcodebuild -downloadComponent MetalToolchain`.
+`xcrun --find metallib` also fails. Enable an actual CMake `.metal` to
+`.metallib` build step after that component is installed, then copy the
+generated `tgraphics_metal_shaders.metallib` into app resources so the runtime
+uses the packaged library path by default.
 
 ## ShaderFx Image-Diff Command
 
@@ -225,40 +241,45 @@ broader.
 ```sh
 bash scripts/graphics_shader_inventory.sh
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=ON'
-nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tnzstdfx tgraphics_metal_probe shaderfx_metal_probe --parallel 3
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tgraphics_metal_probe shaderfx_metal_probe OpenToonz --parallel 3
+test -f toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app/Contents/Resources/tgraphics_metal_shaders.metal
 nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
 nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_fireball'
-nix develop path:. --command bash scripts/graphics_shaderfx_compare.sh /private/tmp/opentoonz-shaderfx-compare-fireball
-nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target OpenToonz --parallel 3
+nix develop path:. --command bash scripts/graphics_shaderfx_compare.sh /private/tmp/opentoonz-shaderfx-compare-packaged-source
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=OFF'
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target OpenToonz --parallel 3
 nix develop path:. --command bash scripts/macos/assert-arm64-bundle.sh
+bash scripts/graphics_inventory.sh
+bash scripts/graphics_shader_inventory.sh
+git diff --check
+rg -n "^WITH_GRAPHICS_METAL:BOOL=" toonz/build/nix-relwithdebinfo/CMakeCache.txt
 ```
 
-Metal probe output:
+Validation evidence:
 
 ```text
+resource present: toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app/Contents/Resources/tgraphics_metal_shaders.metal
 tgraphics_metal_probe: ok on Apple M1 Max
-shaderfx_metal_probe: ok shader=SHADER_starsky backend=metal device=Apple M1 Max
-shaderfx_metal_probe: ok shader=SHADER_sunflare backend=opengl
+shaderfx_metal_probe: ok shader=SHADER_fireball backend=metal device=Apple M1 Max
 shaderfx_metal_probe: ok shader=SHADER_sunflare backend=metal device=Apple M1 Max
+shaderfx_metal_probe: ok shader=SHADER_sunflare backend=opengl
 shaderfx_metal_probe: ok shader=SHADER_caustics backend=opengl
 shaderfx_metal_probe: ok shader=SHADER_caustics backend=metal device=Apple M1 Max
 shaderfx_metal_probe: ok shader=SHADER_starsky backend=opengl
 shaderfx_metal_probe: ok shader=SHADER_starsky backend=metal device=Apple M1 Max
-shaderfx_metal_probe: ok shader=SHADER_wavy backend=metal device=Apple M1 Max
 shaderfx_metal_probe: ok shader=SHADER_wavy backend=opengl
 shaderfx_metal_probe: ok shader=SHADER_wavy backend=metal device=Apple M1 Max
-shaderfx_metal_probe: ok shader=SHADER_fireball backend=metal device=Apple M1 Max
 shaderfx_metal_probe: ok shader=SHADER_fireball backend=opengl
 shaderfx_metal_probe: ok shader=SHADER_fireball backend=metal device=Apple M1 Max
 graphics_shaderfx_compare: ok
+Checked 281 Mach-O files for arm64.
+WITH_GRAPHICS_METAL:BOOL=OFF
 ```
 
 The final OpenGL-vs-Metal ShaderFx artifact directory for this checkpoint was:
 
 ```text
-/private/tmp/opentoonz-shaderfx-compare-fireball
+/private/tmp/opentoonz-shaderfx-compare-packaged-source
 ```
 
 Known validation gap: this checkpoint verifies that the production effect graph
@@ -267,5 +288,5 @@ and `fireball` paths, that `ShaderFx::doCompute(...)` matches the lower-level
 Metal helpers, that the sunflare Metal helper matches a CPU formula reference,
 and that the production OpenGL and Metal `ShaderFx` outputs match within
 tolerance for all five migrated shaders. It does not yet cover input-texture
-shader effects, transform-feedback bbox/ports shaders, packaged Metal
-shader-library loading, or preview/export scene renders.
+shader effects, transform-feedback bbox/ports shaders, an actual generated
+`.metallib` artifact, or preview/export scene renders.

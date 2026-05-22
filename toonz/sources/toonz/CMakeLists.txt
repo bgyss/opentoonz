@@ -667,6 +667,13 @@ if(BUILD_ENV_APPLE)
         COMMENT "Copying SystemVar.ini to Resources"
     )
 
+    if(WITH_GRAPHICS_METAL)
+        add_custom_command(TARGET OpenToonz POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_SOURCE_DIR}/common/tgraphics/tgraphics_metal_shaders.metal ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../Resources/tgraphics_metal_shaders.metal
+            COMMENT "Copying Metal shader source to Resources"
+        )
+    endif()
+
     add_custom_command(TARGET OpenToonz POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../../../qss
         COMMENT "Creating qss directory"

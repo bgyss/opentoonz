@@ -287,6 +287,24 @@ NSString *shaderSource() {
           "}\n";
 }
 
+NSURL *packagedShaderLibraryURL() {
+  return [[NSBundle mainBundle] URLForResource:@"tgraphics_metal_shaders"
+                                 withExtension:@"metallib"];
+}
+
+id<MTLLibrary> newShaderLibrary(MetalState &state, NSError **error) {
+  if (NSURL *url = packagedShaderLibraryURL()) {
+    NSError *loadError      = nil;
+    id<MTLLibrary> library = [state.m_device newLibraryWithURL:url error:&loadError];
+    if (library) return library;
+
+    logMetalError(@"load packaged shader library", loadError);
+  }
+
+  if (error) *error = nil;
+  return [state.m_device newLibraryWithSource:shaderSource() options:nil error:error];
+}
+
 class MetalLayerRenderTarget final : public RenderTarget {
   CAMetalLayer *m_layer = nil;
   int m_width           = 0;
@@ -434,9 +452,7 @@ id<MTLRenderPipelineState> proceduralShaderPipelineState(id<MTLRenderPipelineSta
 
   MetalState &state      = metalState();
   NSError *error         = nil;
-  id<MTLLibrary> library = [state.m_device newLibraryWithSource:shaderSource()
-                                                        options:nil
-                                                          error:&error];
+  id<MTLLibrary> library = newShaderLibrary(state, &error);
   if (!library) {
     logMetalError(@"compile shader library", error);
     return nil;
@@ -646,9 +662,7 @@ private:
 
     MetalState &state      = metalState();
     NSError *error         = nil;
-    id<MTLLibrary> library = [state.m_device newLibraryWithSource:shaderSource()
-                                                          options:nil
-                                                            error:&error];
+    id<MTLLibrary> library = newShaderLibrary(state, &error);
     if (!library) {
       logMetalError(@"compile shader library", error);
       return nil;
@@ -697,9 +711,7 @@ private:
 
     MetalState &state      = metalState();
     NSError *error         = nil;
-    id<MTLLibrary> library = [state.m_device newLibraryWithSource:shaderSource()
-                                                          options:nil
-                                                            error:&error];
+    id<MTLLibrary> library = newShaderLibrary(state, &error);
     if (!library) {
       logMetalError(@"compile shader library", error);
       return nil;
