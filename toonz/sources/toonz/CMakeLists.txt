@@ -672,6 +672,14 @@ if(BUILD_ENV_APPLE)
             COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_SOURCE_DIR}/common/tgraphics/tgraphics_metal_shaders.metal ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../Resources/tgraphics_metal_shaders.metal
             COMMENT "Copying Metal shader source to Resources"
         )
+        get_property(TGRAPHICS_METAL_LIBRARY GLOBAL PROPERTY OPENTOONZ_TGRAPHICS_METALLIB)
+        if(TGRAPHICS_METAL_LIBRARY)
+            add_dependencies(OpenToonz tgraphics_metal_shaders_metallib)
+            add_custom_command(TARGET OpenToonz POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different ${TGRAPHICS_METAL_LIBRARY} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../Resources/tgraphics_metal_shaders.metallib
+                COMMENT "Copying Metal shader library to Resources"
+            )
+        endif()
     endif()
 
     add_custom_command(TARGET OpenToonz POST_BUILD

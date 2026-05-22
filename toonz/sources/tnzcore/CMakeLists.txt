@@ -269,6 +269,50 @@ elseif(BUILD_TARGET_APPLE)
             ../common/tgraphics/tgraphics_metal_shaders.metal
             PROPERTIES HEADER_FILE_ONLY TRUE
         )
+
+        execute_process(
+            COMMAND xcrun --find metal
+            OUTPUT_VARIABLE TGRAPHICS_METAL_COMPILER
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+            RESULT_VARIABLE TGRAPHICS_METAL_COMPILER_RESULT
+        )
+        execute_process(
+            COMMAND xcrun --find metallib
+            OUTPUT_VARIABLE TGRAPHICS_METALLIB_COMPILER
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+            RESULT_VARIABLE TGRAPHICS_METALLIB_COMPILER_RESULT
+        )
+        set(TGRAPHICS_METAL_TOOLCHAIN_RESULT 1)
+        if(TGRAPHICS_METAL_COMPILER_RESULT EQUAL 0)
+            execute_process(
+                COMMAND "${TGRAPHICS_METAL_COMPILER}" -v
+                OUTPUT_QUIET
+                ERROR_QUIET
+                RESULT_VARIABLE TGRAPHICS_METAL_TOOLCHAIN_RESULT
+            )
+        endif()
+
+        if(TGRAPHICS_METAL_COMPILER_RESULT EQUAL 0 AND TGRAPHICS_METALLIB_COMPILER_RESULT EQUAL 0 AND TGRAPHICS_METAL_TOOLCHAIN_RESULT EQUAL 0)
+            set(TGRAPHICS_METAL_SHADER_SOURCE "${CMAKE_SOURCE_DIR}/common/tgraphics/tgraphics_metal_shaders.metal")
+            set(TGRAPHICS_METAL_AIR "${CMAKE_CURRENT_BINARY_DIR}/tgraphics_metal_shaders.air")
+            set(TGRAPHICS_METAL_LIBRARY "${CMAKE_CURRENT_BINARY_DIR}/tgraphics_metal_shaders.metallib")
+            add_custom_command(
+                OUTPUT "${TGRAPHICS_METAL_LIBRARY}"
+                COMMAND "${TGRAPHICS_METAL_COMPILER}" -c "${TGRAPHICS_METAL_SHADER_SOURCE}" -o "${TGRAPHICS_METAL_AIR}"
+                COMMAND "${TGRAPHICS_METALLIB_COMPILER}" "${TGRAPHICS_METAL_AIR}" -o "${TGRAPHICS_METAL_LIBRARY}"
+                DEPENDS "${TGRAPHICS_METAL_SHADER_SOURCE}"
+                COMMENT "Compiling tgraphics Metal shader library"
+                VERBATIM
+            )
+            add_custom_target(tgraphics_metal_shaders_metallib
+                DEPENDS "${TGRAPHICS_METAL_LIBRARY}"
+            )
+            set_property(GLOBAL PROPERTY OPENTOONZ_TGRAPHICS_METALLIB "${TGRAPHICS_METAL_LIBRARY}")
+        else()
+            message(WARNING "Metal shader library tools were not found; OpenToonz will package the Metal source and use runtime shader compilation as a fallback.")
+        endif()
     endif()
 elseif(BUILD_TARGET_UNIX)
     set(SOURCES ${SOURCES}

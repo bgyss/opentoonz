@@ -114,7 +114,7 @@ jobs:
       - name: Verify Metal shader resources
         if: ${{ matrix.run_metal_smoke == '1' }}
         run: |
-          test -f "$OPENTOONZ_APP/Contents/Resources/tgraphics_metal_shaders.metal"
+          bash scripts/macos/verify-metal-resources.sh "$OPENTOONZ_APP"
           test -x toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
           test -x toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe
 

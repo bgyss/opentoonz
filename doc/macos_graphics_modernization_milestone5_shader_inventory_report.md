@@ -307,17 +307,22 @@ starsky, wavy, and fireball fragment entry points.
 
 When `WITH_GRAPHICS_METAL=ON`, the macOS app build copies the tracked Metal
 shader source into `OpenToonz.app/Contents/Resources/tgraphics_metal_shaders.metal`.
-This gives the bundle a concrete Metal shader resource today while preserving
-the source-string fallback for local builds and command-line probes.
+If `xcrun --find metal`, `xcrun --find metallib`, and `xcrun metal -v` are
+available, the CMake build also compiles
+`tgraphics_metal_shaders.metallib` and copies it into the same app resources
+directory. `scripts/macos/verify-metal-resources.sh` verifies the source
+resource in every Metal-enabled package and requires the compiled `.metallib`
+when the local Xcode Metal toolchain is usable. The runtime still falls back to
+the embedded Objective-C++ shader string if the packaged library is absent or
+fails to load, which keeps stripped-down local Xcode installations usable.
 
-Known shader packaging gap: the local Xcode installation can locate `metal` at
+Current local shader packaging limitation: the local Xcode installation can
+locate `metal` at
 `/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/metal`,
 but invoking it currently fails with `error: cannot execute tool 'metal' due to
 missing Metal Toolchain; use: xcodebuild -downloadComponent MetalToolchain`.
-`xcrun --find metallib` also fails. Enable an actual CMake `.metal` to
-`.metallib` build step after that component is installed, then copy the
-generated `tgraphics_metal_shaders.metallib` into app resources so the runtime
-uses the packaged library path by default.
+`xcrun --find metallib` also fails, so local validation can only prove the
+source-resource fallback path until the Metal Toolchain component is installed.
 
 ## ShaderFx Image-Diff Command
 
@@ -428,7 +433,7 @@ nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwi
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tgraphics_metal_probe --parallel 3
 nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tgraphics_metal_probe shaderfx_metal_probe OpenToonz --parallel 3
-test -f toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app/Contents/Resources/tgraphics_metal_shaders.metal
+bash scripts/macos/verify-metal-resources.sh toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app
 nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
 nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_fireball'
 nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_HSLBlendGPU'

@@ -50,7 +50,10 @@ saved-scene input ShaderFx, and broader offscreen parity gaps remain open.
   - `tgraphics_metal_probe`
   - `scripts/graphics_shaderfx_compare.sh`
 - Added Metal app-bundle resource checks for:
-  - `Contents/Resources/tgraphics_metal_shaders.metal`
+  - `scripts/macos/verify-metal-resources.sh`, which requires
+    `Contents/Resources/tgraphics_metal_shaders.metal` and requires
+    `Contents/Resources/tgraphics_metal_shaders.metallib` when the Xcode Metal
+    toolchain is usable
   - `tnzcore/tgraphics_metal_probe`
   - `stdfx/shaderfx_metal_probe`
 - Added upload of per-leg CI build-summary artifacts.
@@ -175,8 +178,9 @@ gh auth status
 
 - The Metal-enabled CI leg proves the build and command-line probes, not full
   GUI parity.
-- The Metal shader source is currently packaged as a runtime resource; the
-  shader inventory report still tracks the later `.metallib` packaging path.
+- Compiled `.metallib` packaging is now wired into CMake when `metal` and
+  `metallib` are available, but this local checkout still cannot prove that
+  path because the installed Xcode is missing the Metal Toolchain component.
 - Saved/reloaded input-texture ShaderFx fixtures for `HSLBlendGPU` and
   `radialblurGPU` are explicitly guarded because the current render-worker path
   is unstable.
