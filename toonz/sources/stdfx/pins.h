@@ -13,11 +13,6 @@
 //#include "tparamset.h"
 #include "tgl.h"
 
-#ifdef _WIN32
-#include <GL/gl.h>
-#include <GL/glu.h>
-#endif
-
 //#ifdef MACOSX
 //#include <GLUT/glut.h>
 //#define GLUT_NO_LIB_PRAGMA

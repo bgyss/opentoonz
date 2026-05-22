@@ -31,8 +31,6 @@
 
 namespace {
 
-// GLUquadric*  localDisk=0;
-
 /*
   Find the number of slices in function of radius size.
   \par radius of circle

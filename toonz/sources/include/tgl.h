@@ -11,7 +11,6 @@
 #include <cstdlib>
 
 #include <GL/gl.h>
-#include <GL/glu.h>
 #include <GL/glut.h>
 #endif
 
@@ -23,7 +22,6 @@
 
 #if defined(LINUX) || defined(FREEBSD) || defined(HAIKU)
 #include <GL/gl.h>
-#include <GL/glu.h>
 #include <GL/glut.h>
 #endif
 

@@ -10,7 +10,9 @@ OpenGL backend. It also isolates the `ttessellator` GLU tessellation API behind
 `TglTessellator::GLTess` methods so the rendering loops no longer call GLU's
 polygon and contour API directly. A later checkpoint hides the GLU tessellator
 handle type from the public `ttessellator.h` header, keeping the GLU-specific
-types and include in `ttessellator.cpp`.
+types and include in `ttessellator.cpp`. A follow-up cleanup removes unused GLU
+includes from public GL utility headers so ordinary drawing users do not inherit
+GLU declarations through `tgl.h`, `tvectorgl.h`, or `stdfx/pins.h`.
 
 ## Files Changed
 
@@ -21,12 +23,15 @@ types and include in `ttessellator.cpp`.
 - `toonz/sources/toonzqt/planeviewer.cpp`
 - `toonz/sources/common/tvrender/ttessellator.cpp`
 - `toonz/sources/include/ttessellator.h`
+- `toonz/sources/include/tgl.h`
+- `toonz/sources/include/tvectorgl.h`
 - `toonz/sources/toonzlib/imagebuilders.cpp`
 - `toonz/sources/toonzlib/plasticdeformerfx.cpp`
 - `toonz/sources/toonzlib/stylemanager.cpp`
 - `toonz/sources/toonzlib/toonzscene.cpp`
 - `toonz/sources/stdfx/iwa_flowpaintbrushfx.cpp`
 - `toonz/sources/stdfx/shadingcontext.cpp`
+- `toonz/sources/stdfx/pins.h`
 
 ## Changes
 
@@ -44,6 +49,11 @@ types and include in `ttessellator.cpp`.
 - Replaced the public `GLUtesselator` / `GLUtriangulatorObj` member in
   `TglTessellator::GLTess` with an opaque handle so downstream headers no
   longer need GLU tessellator type definitions.
+- Removed stale GLU includes from `tgl.h`, `tvectorgl.h`, and `stdfx/pins.h`.
+  This narrows public header exposure to GL and GLUT only for those utility
+  headers; the remaining GLU declarations are now limited to the tessellation
+  and `tcg` triangulation implementation paths.
+- Removed a dead `GLUquadric` comment from `tgl.cpp`.
 
 ## Inventory Before and After
 
@@ -89,6 +99,11 @@ Remaining GLU usage is concentrated in tessellation adapters and the separate
 Direct `ttessellator.h` GLU type exposure is removed; the remaining
 `ttessellator` GLU calls are local to `ttessellator.cpp`.
 
+The aggregate `GLU` inventory remains at 4 files / 54 matches after the public
+header cleanup because the coarse pattern also catches `GLUT` tokens. Targeted
+search confirms the removed headers no longer include `GL/glu.h` or
+`OpenGL/glu.h`.
+
 ## Validation Run
 
 Commands run:
@@ -98,7 +113,9 @@ bash scripts/graphics_inventory.sh
 git diff --check
 rg -n "glu(Project|UnProject|Ortho2D|PickMatrix|Disk|ScaleImage)" toonz/sources
 rg -n "GLUtesselator|GLUtriangulator|GLU_VERSION|glu[A-Za-z]|GLU_" toonz/sources/include/ttessellator.h toonz/sources/common/tvrender/ttessellator.cpp
+rg -n "#include <GL/glu\\.h>|#include <OpenGL/glu\\.h>|GLUquadric|GLUtesselator|GLUtriangulator|glu[A-Za-z]|GLU_" toonz/sources/include/tgl.h toonz/sources/include/tvectorgl.h toonz/sources/stdfx/pins.h toonz/sources/common/tgl/tgl.cpp toonz/sources/common/tvrender/ttessellator.cpp toonz/sources/include/tcg/triangulate.h toonz/sources/include/tcg/hpp/triangulate.hpp toonz/sources/tnzext/meshbuilder.cpp
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tnzcore OpenToonz --parallel 3
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tnzcore tnztools OpenToonz --parallel 3
 nix develop path:. --command cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=ON
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tgraphics_metal_probe OpenToonz --parallel 3
 nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
@@ -108,11 +125,13 @@ nix develop path:. --command cmake -S toonz/sources --preset nix-relwithdebinfo 
 Result: passed.
 
 The latest fallback build recompiled `ttessellator.cpp`, linked `tnzcore`, and
-linked `OpenToonz.app`. The Metal-enabled build linked `OpenToonz.app`, copied
-the Metal shader source to Resources, and `tgraphics_metal_probe` reported
-`ok on Apple M1 Max`. The broader fallback and Metal rebuilds emitted existing
-unrelated warnings in image/trop/tool code, but the changed tessellator code
-compiled cleanly.
+linked `OpenToonz.app`. A later fallback build recompiled `tgl.cpp` and
+`pins.cpp`, linked `tnzcore`, `tnztools`, and `OpenToonz.app`. The
+Metal-enabled build linked `OpenToonz.app`, copied the Metal shader source to
+Resources, and `tgraphics_metal_probe` reported `ok on Apple M1 Max`. The
+broader fallback and Metal rebuilds emitted existing unrelated warnings in
+image/trop/tool code and Qt/GLEW include ordering, but the changed GLU cleanup
+code compiled cleanly.
 
 ## Manual Smoke
 
