@@ -98,6 +98,9 @@ class DVAPI DrawList2D final {
 public:
   void setClearColor(const TPixel32& color);
   void addColorRect(const TRectD& rect, const TPixel32& color, bool blending);
+  void addCheckerboard(const TRectD& rect, const TDimensionD& cellSize,
+                       const TPointD& origin, const TPixel32& color0,
+                       const TPixel32& color1);
   void addColorLine(const TPointD& p0, const TPointD& p1, const TPixel32& color,
                     bool blending);
   void addTexture(const TRectD& rect, const TRaster32P& raster, bool blending);

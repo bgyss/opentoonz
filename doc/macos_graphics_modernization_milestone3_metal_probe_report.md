@@ -4,8 +4,9 @@ Status: initial Milestone 3 build/probe, render-target, textured-draw,
 offscreen-readback, replace/blend pipeline, OpenGL baseline comparison, first
 native-view Metal presentation slice, first direct Metal viewer-background
 command, and first direct Metal camera color-card command completed locally on
-2026-05-22. Direct axis-aligned camera outline line commands are now also
-validated through the Metal/OpenGL probe.
+2026-05-22. Direct axis-aligned camera outline line commands and direct
+checkerboard background commands are now also validated through the
+Metal/OpenGL probe.
 
 ## Objective
 
@@ -23,15 +24,16 @@ native `CAMetalLayer` child widget when `OPENTOONZ_GRAPHICS_BACKEND=metal` is
 requested, plus a first direct Metal viewer command that clears the Metal layer
 to the active viewer background color before the compatibility snapshot is
 presented. It now also emits a direct solid-color camera color-card rectangle
-and a direct camera outline for the narrow non-3D viewer path.
+and a direct camera outline for the narrow non-3D viewer path, plus a direct
+checkerboard background when the viewer Transparency Check is enabled.
 
 This is not yet a full native Metal scene renderer. Scene composition still
 comes from the existing OpenGL viewer path, then the captured viewer framebuffer
 is uploaded to Metal and presented through `DrawList2D`. The direct Metal
-background/color-card/outline work is intentionally narrow and is immediately
-followed by that compatibility snapshot. This is a deliberate transitional
-slice to validate Qt/native-view ownership, drawable lifecycle, direct command
-encoding, and Metal presentation before porting scene internals.
+background/checkerboard/color-card/outline work is intentionally narrow and is
+immediately followed by that compatibility snapshot. This is a deliberate
+transitional slice to validate Qt/native-view ownership, drawable lifecycle,
+direct command encoding, and Metal presentation before porting scene internals.
 
 ## Files Changed
 
@@ -88,6 +90,9 @@ encoding, and Metal presentation before porting scene internals.
 - Added `DrawList2D::addColorRect(...)` and `ColorRect` so viewer components
   such as camera background/color-card fills can move to Metal without first
   rasterizing synthetic textures.
+- Added `DrawList2D::addCheckerboard(...)`, currently implemented by expanding
+  clipped checker cells into `ColorRect` commands so both the Metal and OpenGL
+  probe paths can share the existing solid-rectangle encoder.
 - Added `DrawList2D::addColorLine(...)` and `ColorLine` for simple overlay
   strokes. Axis-aligned lines are rendered as deterministic one-pixel
   rectangles in both backends to avoid backend-specific line endpoint
@@ -140,6 +145,9 @@ encoding, and Metal presentation before porting scene internals.
   color toggle is enabled.
 - That draw list now also adds four direct Metal `ColorLine` commands for the
   camera outline in the same narrow path.
+- The direct Metal viewer background path now adds a checkerboard using
+  `Preferences::getChessboardColors(...)` when `ToonzCheck::eTransparency` is
+  active.
 - Linked `tnzcore` against `Metal.framework` only when
   `WITH_GRAPHICS_METAL=ON`.
 - Linked `tnzcore` against `QuartzCore.framework` only when
@@ -196,9 +204,10 @@ QuartzCore, builds `tgraphics_metal_probe`, and links `OpenToonz.app`.
 
 Probe output after validating direct solid clear/background pixels, transparent
 clear pixels, solid-color rectangle drawing, solid-color rectangle alpha
-blending, deterministic axis-aligned color line drawing, opaque textured
-replace drawing, OpenGL-compatible texture alpha blending over both solid and
-gradient destinations, and Metal/OpenGL readback parity:
+blending, checkerboard background drawing, deterministic axis-aligned color
+line drawing, opaque textured replace drawing, OpenGL-compatible texture alpha
+blending over both solid and gradient destinations, and Metal/OpenGL readback
+parity:
 
 ```text
 tgraphics_metal_probe: ok on Apple M1 Max
@@ -217,9 +226,12 @@ inside the full UI.
 
 - Qt native-view integration exists only for presenting a captured viewer
   framebuffer through Metal.
-- The direct Metal viewer background clear, camera color-card rectangle, and
-  camera outline lines are currently superseded by the compatibility OpenGL
-  framebuffer snapshot in the same paint pass.
+- The direct Metal viewer background clear, checkerboard, camera color-card
+  rectangle, and camera outline lines are currently superseded by the
+  compatibility OpenGL framebuffer snapshot in the same paint pass.
+- The checkerboard helper expands into many solid rectangles. This is adequate
+  for the current 50-device-pixel viewer checker cells and probe coverage, but
+  a backend-native tiled/pattern path would be better before broad use.
 - Direct camera outline lines are limited to deterministic axis-aligned
   one-pixel strokes; arbitrary anti-aliased or stippled overlay lines still need
   a richer stroke pipeline.
@@ -235,8 +247,8 @@ inside the full UI.
 ## Next Milestone 3 Work
 
 - Replace the compatibility OpenGL framebuffer snapshot with direct Metal
-  drawing for more scene components: checker/background modes, raster image
-  textures, vector image textures, and additional overlays.
+  drawing for more scene components: raster image textures, vector image
+  textures, and additional overlays.
 - Expand the offscreen probe from synthetic quads into baseline scene fixtures.
 - Route only a narrow scene-viewer path to the Metal command encoder once
   drawable lifecycle and fallback behavior are stable.

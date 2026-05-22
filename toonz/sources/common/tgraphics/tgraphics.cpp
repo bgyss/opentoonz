@@ -95,6 +95,35 @@ void DrawList2D::addColorRect(const TRectD& rect, const TPixel32& color,
   m_colorRects.push_back(colorRect);
 }
 
+void DrawList2D::addCheckerboard(const TRectD& rect,
+                                 const TDimensionD& cellSize,
+                                 const TPointD& origin, const TPixel32& color0,
+                                 const TPixel32& color1) {
+  if (rect.isEmpty() || cellSize.lx <= 0.0 || cellSize.ly <= 0.0) return;
+
+  const int ix0 =
+      static_cast<int>(std::floor((rect.x0 - origin.x) / cellSize.lx));
+  const int ix1 =
+      static_cast<int>(std::ceil((rect.x1 - origin.x) / cellSize.lx));
+  const int iy0 =
+      static_cast<int>(std::floor((rect.y0 - origin.y) / cellSize.ly));
+  const int iy1 =
+      static_cast<int>(std::ceil((rect.y1 - origin.y) / cellSize.ly));
+
+  for (int iy = iy0; iy < iy1; ++iy) {
+    for (int ix = ix0; ix < ix1; ++ix) {
+      const double x0 = std::max(rect.x0, origin.x + ix * cellSize.lx);
+      const double x1 = std::min(rect.x1, origin.x + (ix + 1) * cellSize.lx);
+      const double y0 = std::max(rect.y0, origin.y + iy * cellSize.ly);
+      const double y1 = std::min(rect.y1, origin.y + (iy + 1) * cellSize.ly);
+      if (x1 <= x0 || y1 <= y0) continue;
+
+      const TPixel32 color = ((ix + iy) & 1) ? color1 : color0;
+      addColorRect(TRectD(x0, y0, x1, y1), color, false);
+    }
+  }
+}
+
 void DrawList2D::addColorLine(const TPointD& p0, const TPointD& p1,
                               const TPixel32& color, bool blending) {
   ColorLine colorLine;

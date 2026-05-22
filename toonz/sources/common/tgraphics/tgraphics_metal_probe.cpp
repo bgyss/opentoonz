@@ -164,6 +164,31 @@ bool validateColorRects(const TRaster32P& readback, int width, int height,
   return true;
 }
 
+bool validateCheckerboard(const TRaster32P& readback, int width, int height,
+                          int cellWidth, int cellHeight, const TPixel32& color0,
+                          const TPixel32& color1) {
+  readback->lock();
+  for (int y = 0; y < height; ++y) {
+    const TPixel32* line = readback->pixels(y);
+    for (int x = 0; x < width; ++x) {
+      const TPixel32 expected =
+          (((x / cellWidth) + (y / cellHeight)) & 1) ? color1 : color0;
+      if (!samePixel(line[x], expected)) {
+        readback->unlock();
+        std::cerr << "tgraphics_metal_probe: checker pixel mismatch at " << x
+                  << "," << y << " expected ";
+        printPixel(expected);
+        std::cerr << " actual ";
+        printPixel(line[x]);
+        std::cerr << std::endl;
+        return false;
+      }
+    }
+  }
+  readback->unlock();
+  return true;
+}
+
 bool compareRasters(const TRaster32P& metal, const TRaster32P& opengl,
                     const char* caseName) {
   if (!metal || !opengl) return false;
@@ -322,6 +347,35 @@ int main(int argc, char* argv[]) {
     if (!openGLReadback)
       return fail("could not read back color rect OpenGL baseline");
     if (!compareRasters(readback, openGLReadback, "color rect")) {
+      return EXIT_FAILURE;
+    }
+  }
+
+  {
+    const TPixel32 checkerColor0(180, 180, 180, 255);
+    const TPixel32 checkerColor1(230, 230, 230, 255);
+    const int cellWidth  = 2;
+    const int cellHeight = 2;
+    TGraphics::DrawList2D drawList;
+    drawList.setClearColor(TPixel32(0, 0, 0, 255));
+    drawList.addCheckerboard(TRectD(0, 0, width, height),
+                             TDimensionD(cellWidth, cellHeight), TPointD(),
+                             checkerColor0, checkerColor1);
+
+    TRaster32P readback = renderMetal(drawList, width, height);
+    if (!readback) return fail("could not read back checker Metal target");
+    if (!requireDimensions(readback, width, height)) {
+      return fail("checker readback dimensions do not match render target");
+    }
+    if (!validateCheckerboard(readback, width, height, cellWidth, cellHeight,
+                              checkerColor0, checkerColor1)) {
+      return EXIT_FAILURE;
+    }
+
+    TRaster32P openGLReadback = renderOpenGL(drawList, width, height);
+    if (!openGLReadback)
+      return fail("could not read back checker OpenGL baseline");
+    if (!compareRasters(readback, openGLReadback, "checker")) {
       return EXIT_FAILURE;
     }
   }

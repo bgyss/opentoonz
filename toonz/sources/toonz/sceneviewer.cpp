@@ -1096,6 +1096,16 @@ bool SceneViewer::presentBackgroundWithMetal() {
   TGraphics::DrawList2D drawList;
   drawList.setClearColor(bgColor);
 
+  if (ToonzCheck::instance()->getChecks() & ToonzCheck::eTransparency) {
+    TPixel32 chessColor0;
+    TPixel32 chessColor1;
+    Preferences::instance()->getChessboardColors(chessColor0, chessColor1);
+    const double chessSize = 50.0 * getDevPixRatio();
+    drawList.addCheckerboard(TRectD(0, 0, width, height),
+                             TDimensionD(chessSize, chessSize), TPointD(),
+                             chessColor0, chessColor1);
+  }
+
   if (m_previewMode != FULL_PREVIEW && !m_draw3DMode &&
       m_visualSettings.m_blankColor == TPixel::Transparent &&
       m_drawEditingLevel == false && viewClcToggle.getStatus() &&
