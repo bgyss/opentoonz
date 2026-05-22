@@ -58,22 +58,29 @@ TRaster32P renderNativeMetalHSLBlend(
     const TRaster32P& background, const TAffine& outputToForeground,
     const TAffine& outputToBackground, bool blendHue, bool blendSaturation,
     bool blendLuminosity, double blendAlpha, bool baseMask);
-TRaster32P renderNativeMetalRadialBlur(
-    int width, int height, const TRaster32P& source,
-    const TAffine& outputToInput, const TAffine& worldToOutput,
-    const TPointD& center, double radius, double blur);
-TRaster32P renderNativeMetalSpinBlur(
-    int width, int height, const TRaster32P& source,
-    const TAffine& outputToInput, const TAffine& worldToOutput,
-    const TPointD& center, double radius, double blur);
-TRaster32P renderNativeMetalGlitter(
-    int width, int height, const TRaster32P& source,
-    const TAffine& outputToInput, const TAffine& worldToOutput,
-    double threshold, double brightness, double radius, double angle,
-    double halo);
+TRaster32P renderNativeMetalRadialBlur(int width, int height,
+                                       const TRaster32P& source,
+                                       const TAffine& outputToInput,
+                                       const TAffine& worldToOutput,
+                                       const TPointD& center, double radius,
+                                       double blur);
+TRaster32P renderNativeMetalSpinBlur(int width, int height,
+                                     const TRaster32P& source,
+                                     const TAffine& outputToInput,
+                                     const TAffine& worldToOutput,
+                                     const TPointD& center, double radius,
+                                     double blur);
+TRaster32P renderNativeMetalGlitter(int width, int height,
+                                    const TRaster32P& source,
+                                    const TAffine& outputToInput,
+                                    const TAffine& worldToOutput,
+                                    double threshold, double brightness,
+                                    double radius, double angle, double halo);
 #endif
 
 namespace {
+
+constexpr double kTwoPi = 6.28318530717958647692;
 
 bool makeStrokedLineQuad(const ColorLine& line,
                          std::array<TPointD, 4>& points) {
@@ -226,6 +233,20 @@ void DrawList2D::addColorLine(const TPointD& p0, const TPointD& p1,
   m_colorLines.push_back(colorLine);
 }
 
+void DrawList2D::addColorCircle(const TPointD& center, double radius,
+                                const TPixel32& color, bool filled,
+                                bool blending) {
+  if (radius <= 0.0) return;
+
+  ColorCircle colorCircle;
+  colorCircle.m_center   = center;
+  colorCircle.m_radius   = radius;
+  colorCircle.m_color    = color;
+  colorCircle.m_filled   = filled;
+  colorCircle.m_blending = blending;
+  m_colorCircles.push_back(colorCircle);
+}
+
 void DrawList2D::addTexture(const TRectD& rect, const TRaster32P& raster,
                             bool blending) {
   TextureQuad quad;
@@ -287,6 +308,10 @@ const std::vector<ColorLine>& DrawList2D::colorLines() const {
   return m_colorLines;
 }
 
+const std::vector<ColorCircle>& DrawList2D::colorCircles() const {
+  return m_colorCircles;
+}
+
 const std::vector<TextureQuad>& DrawList2D::textureQuads() const {
   return m_textureQuads;
 }
@@ -294,7 +319,7 @@ const std::vector<TextureQuad>& DrawList2D::textureQuads() const {
 bool DrawList2D::empty() const {
   return !m_hasClearColor && m_colorRects.empty() && m_colorQuads.empty() &&
          m_colorTriangles.empty() && m_colorLines.empty() &&
-         m_textureQuads.empty();
+         m_colorCircles.empty() && m_textureQuads.empty();
 }
 
 class OpenGLImageRenderTarget final : public RenderTarget {
@@ -371,6 +396,10 @@ public:
 
     for (const ColorLine& line : drawList.colorLines()) {
       drawColorLine(line);
+    }
+
+    for (const ColorCircle& circle : drawList.colorCircles()) {
+      drawColorCircle(circle);
     }
 
     for (const TextureQuad& quad : drawList.textureQuads()) {
@@ -467,12 +496,54 @@ private:
         tglFillRect(TRectD(line.m_p0.x, y0, line.m_p0.x + 1.0, y1 + 1.0));
       } else {
         const double halfWidth = line.m_width * 0.5;
-        tglFillRect(TRectD(line.m_p0.x - halfWidth, y0,
-                           line.m_p0.x + halfWidth, y1 + 1.0));
+        tglFillRect(TRectD(line.m_p0.x - halfWidth, y0, line.m_p0.x + halfWidth,
+                           y1 + 1.0));
       }
     } else {
       std::array<TPointD, 4> points;
       if (makeStrokedLineQuad(line, points)) {
+        glBegin(GL_POLYGON);
+        for (const TPointD& point : points) tglVertex(point);
+        glEnd();
+      }
+    }
+    glDisable(GL_BLEND);
+  }
+
+  void drawColorCircle(const ColorCircle& circle) {
+    if (circle.m_blending) {
+      glEnable(GL_BLEND);
+      glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    } else {
+      glDisable(GL_BLEND);
+    }
+
+    tglColor(circle.m_color);
+    const int slices = 60;
+    if (circle.m_filled) {
+      glBegin(GL_TRIANGLE_FAN);
+      tglVertex(circle.m_center);
+      for (int i = 0; i <= slices; ++i) {
+        const double angle = kTwoPi * i / static_cast<double>(slices);
+        tglVertex(
+            TPointD(circle.m_center.x + circle.m_radius * std::cos(angle),
+                    circle.m_center.y + circle.m_radius * std::sin(angle)));
+      }
+      glEnd();
+    } else {
+      for (int i = 0; i < slices; ++i) {
+        const double angle0 = kTwoPi * i / static_cast<double>(slices);
+        const double angle1 = kTwoPi * (i + 1) / static_cast<double>(slices);
+        ColorLine segment;
+        segment.m_p0 =
+            TPointD(circle.m_center.x + circle.m_radius * std::cos(angle0),
+                    circle.m_center.y + circle.m_radius * std::sin(angle0));
+        segment.m_p1 =
+            TPointD(circle.m_center.x + circle.m_radius * std::cos(angle1),
+                    circle.m_center.y + circle.m_radius * std::sin(angle1));
+        segment.m_width = 1.0;
+        std::array<TPointD, 4> points;
+        if (!makeStrokedLineQuad(segment, points)) continue;
         glBegin(GL_POLYGON);
         for (const TPointD& point : points) tglVertex(point);
         glEnd();
@@ -810,9 +881,11 @@ TRaster32P renderDrawListWithActiveBackend(const DrawList2D& drawList,
   return renderDrawListWithOpenGLBackend(drawList, width, height);
 }
 
-DrawList2D makeCheckerboardBackgroundDrawList(
-    const TRectD& rect, const TDimensionD& cellSize, const TPointD& origin,
-    const TPixel32& color0, const TPixel32& color1) {
+DrawList2D makeCheckerboardBackgroundDrawList(const TRectD& rect,
+                                              const TDimensionD& cellSize,
+                                              const TPointD& origin,
+                                              const TPixel32& color0,
+                                              const TPixel32& color1) {
   DrawList2D drawList;
   drawList.setClearColor(color0);
   if (color0 != color1) {
@@ -961,10 +1034,12 @@ TRaster32P renderHSLBlendWithMetalBackend(
 #endif
 }
 
-TRaster32P renderRadialBlurWithMetalBackend(
-    int width, int height, const TRaster32P& source,
-    const TAffine& outputToInput, const TAffine& worldToOutput,
-    const TPointD& center, double radius, double blur) {
+TRaster32P renderRadialBlurWithMetalBackend(int width, int height,
+                                            const TRaster32P& source,
+                                            const TAffine& outputToInput,
+                                            const TAffine& worldToOutput,
+                                            const TPointD& center,
+                                            double radius, double blur) {
 #ifdef OPENTOONZ_WITH_GRAPHICS_METAL
   return renderNativeMetalRadialBlur(width, height, source, outputToInput,
                                      worldToOutput, center, radius, blur);
@@ -981,10 +1056,12 @@ TRaster32P renderRadialBlurWithMetalBackend(
 #endif
 }
 
-TRaster32P renderSpinBlurWithMetalBackend(
-    int width, int height, const TRaster32P& source,
-    const TAffine& outputToInput, const TAffine& worldToOutput,
-    const TPointD& center, double radius, double blur) {
+TRaster32P renderSpinBlurWithMetalBackend(int width, int height,
+                                          const TRaster32P& source,
+                                          const TAffine& outputToInput,
+                                          const TAffine& worldToOutput,
+                                          const TPointD& center, double radius,
+                                          double blur) {
 #ifdef OPENTOONZ_WITH_GRAPHICS_METAL
   return renderNativeMetalSpinBlur(width, height, source, outputToInput,
                                    worldToOutput, center, radius, blur);
@@ -1001,11 +1078,13 @@ TRaster32P renderSpinBlurWithMetalBackend(
 #endif
 }
 
-TRaster32P renderGlitterWithMetalBackend(
-    int width, int height, const TRaster32P& source,
-    const TAffine& outputToInput, const TAffine& worldToOutput,
-    double threshold, double brightness, double radius, double angle,
-    double halo) {
+TRaster32P renderGlitterWithMetalBackend(int width, int height,
+                                         const TRaster32P& source,
+                                         const TAffine& outputToInput,
+                                         const TAffine& worldToOutput,
+                                         double threshold, double brightness,
+                                         double radius, double angle,
+                                         double halo) {
 #ifdef OPENTOONZ_WITH_GRAPHICS_METAL
   return renderNativeMetalGlitter(width, height, source, outputToInput,
                                   worldToOutput, threshold, brightness, radius,

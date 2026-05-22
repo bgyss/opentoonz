@@ -104,11 +104,20 @@ struct DVAPI ColorLine final {
   bool m_blending = false;
 };
 
+struct DVAPI ColorCircle final {
+  TPointD m_center;
+  double m_radius = 0.0;
+  TPixel32 m_color;
+  bool m_filled   = false;
+  bool m_blending = false;
+};
+
 class DVAPI DrawList2D final {
   std::vector<ColorRect> m_colorRects;
   std::vector<ColorQuad> m_colorQuads;
   std::vector<ColorTriangle> m_colorTriangles;
   std::vector<ColorLine> m_colorLines;
+  std::vector<ColorCircle> m_colorCircles;
   std::vector<TextureQuad> m_textureQuads;
   TPixel32 m_clearColor;
   bool m_hasClearColor = false;
@@ -118,9 +127,8 @@ public:
   void addColorRect(const TRectD& rect, const TPixel32& color, bool blending);
   void addColorQuad(const TPointD& p00, const TPointD& p10, const TPointD& p11,
                     const TPointD& p01, const TPixel32& color, bool blending);
-  void addColorTriangle(const TPointD& p0, const TPointD& p1,
-                        const TPointD& p2, const TPixel32& color,
-                        bool blending);
+  void addColorTriangle(const TPointD& p0, const TPointD& p1, const TPointD& p2,
+                        const TPixel32& color, bool blending);
   void addCheckerboard(const TRectD& rect, const TDimensionD& cellSize,
                        const TPointD& origin, const TPixel32& color0,
                        const TPixel32& color1);
@@ -128,6 +136,8 @@ public:
                     bool blending);
   void addColorLine(const TPointD& p0, const TPointD& p1, const TPixel32& color,
                     bool blending, double width);
+  void addColorCircle(const TPointD& center, double radius,
+                      const TPixel32& color, bool filled, bool blending);
   void addTexture(const TRectD& rect, const TRaster32P& raster, bool blending);
   void addTextureQuad(const TPointD& p00, const TPointD& p10,
                       const TPointD& p11, const TPointD& p01,
@@ -143,6 +153,7 @@ public:
   const std::vector<ColorQuad>& colorQuads() const;
   const std::vector<ColorTriangle>& colorTriangles() const;
   const std::vector<ColorLine>& colorLines() const;
+  const std::vector<ColorCircle>& colorCircles() const;
   const std::vector<TextureQuad>& textureQuads() const;
   bool empty() const;
 };
@@ -191,16 +202,17 @@ DVAPI TRaster32P renderDrawListWithMetalBackend(const DrawList2D& drawList,
                                                 int width, int height);
 DVAPI TRaster32P renderDrawListWithActiveBackend(const DrawList2D& drawList,
                                                  int width, int height);
-DVAPI DrawList2D makeCheckerboardBackgroundDrawList(
-    const TRectD& rect, const TDimensionD& cellSize, const TPointD& origin,
-    const TPixel32& color0, const TPixel32& color1);
+DVAPI DrawList2D makeCheckerboardBackgroundDrawList(const TRectD& rect,
+                                                    const TDimensionD& cellSize,
+                                                    const TPointD& origin,
+                                                    const TPixel32& color0,
+                                                    const TPixel32& color1);
 DVAPI DrawList2D makeRasterPresentationDrawList(const TRaster32P& raster,
                                                 int width, int height);
 DVAPI DrawList2D makeRasterRectDrawList(const TRaster32P& raster,
                                         const TRectD& rect, bool blending);
 DVAPI TRaster32P renderLegacyOfflineRasterPlacementWithActiveBackend(
-    int width, int height, const TPixel32& clearColor,
-    const TRectD& placement);
+    int width, int height, const TPixel32& clearColor, const TRectD& placement);
 DVAPI TRaster32P renderSunflareWithMetalBackend(
     int width, int height, const TAffine& outputToWorld, const TPixel32& color,
     int blades, double intensity, double angle, double bias, double sharpness);
@@ -227,19 +239,25 @@ DVAPI TRaster32P renderHSLBlendWithMetalBackend(
     const TRaster32P& background, const TAffine& outputToForeground,
     const TAffine& outputToBackground, bool blendHue, bool blendSaturation,
     bool blendLuminosity, double blendAlpha, bool baseMask);
-DVAPI TRaster32P renderRadialBlurWithMetalBackend(
-    int width, int height, const TRaster32P& source,
-    const TAffine& outputToInput, const TAffine& worldToOutput,
-    const TPointD& center, double radius, double blur);
-DVAPI TRaster32P renderSpinBlurWithMetalBackend(
-    int width, int height, const TRaster32P& source,
-    const TAffine& outputToInput, const TAffine& worldToOutput,
-    const TPointD& center, double radius, double blur);
-DVAPI TRaster32P renderGlitterWithMetalBackend(
-    int width, int height, const TRaster32P& source,
-    const TAffine& outputToInput, const TAffine& worldToOutput,
-    double threshold, double brightness, double radius, double angle,
-    double halo);
+DVAPI TRaster32P renderRadialBlurWithMetalBackend(int width, int height,
+                                                  const TRaster32P& source,
+                                                  const TAffine& outputToInput,
+                                                  const TAffine& worldToOutput,
+                                                  const TPointD& center,
+                                                  double radius, double blur);
+DVAPI TRaster32P renderSpinBlurWithMetalBackend(int width, int height,
+                                                const TRaster32P& source,
+                                                const TAffine& outputToInput,
+                                                const TAffine& worldToOutput,
+                                                const TPointD& center,
+                                                double radius, double blur);
+DVAPI TRaster32P renderGlitterWithMetalBackend(int width, int height,
+                                               const TRaster32P& source,
+                                               const TAffine& outputToInput,
+                                               const TAffine& worldToOutput,
+                                               double threshold,
+                                               double brightness, double radius,
+                                               double angle, double halo);
 
 }  // namespace TGraphics
 

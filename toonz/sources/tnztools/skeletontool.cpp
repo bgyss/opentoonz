@@ -57,21 +57,21 @@ using namespace SkeletonSubtools;
 
 namespace {
 
-TRectD makePointRect(const TPointD &point, double radius) {
+TRectD makePointRect(const TPointD& point, double radius) {
   return TRectD(point.x - radius, point.y - radius, point.x + radius,
                 point.y + radius);
 }
 
-void appendRectOutline(TGraphics::DrawList2D &drawList, const TRectD &rect,
-                       const TPixel32 &color) {
+void appendRectOutline(TGraphics::DrawList2D& drawList, const TRectD& rect,
+                       const TPixel32& color) {
   drawList.addColorLine(rect.getP00(), rect.getP10(), color, false);
   drawList.addColorLine(rect.getP10(), rect.getP11(), color, false);
   drawList.addColorLine(rect.getP11(), rect.getP01(), color, false);
   drawList.addColorLine(rect.getP01(), rect.getP00(), color, false);
 }
 
-void drawSkeletonBoneOutlineWithTGraphics(const TPointD &a, const TPointD &b,
-                                          const TPointD &u) {
+void drawSkeletonBoneOutlineWithTGraphics(const TPointD& a, const TPointD& b,
+                                          const TPointD& u) {
   TGraphics::DrawList2D drawList;
   const TPixel32 outlineColor(51, 77, 89);
   drawList.addColorLine(a + u, b, outlineColor, false);
@@ -79,8 +79,8 @@ void drawSkeletonBoneOutlineWithTGraphics(const TPointD &a, const TPointD &b,
   TGraphics::drawWithOpenGLBackend(drawList);
 }
 
-void drawSkeletonIKBoneOutlineWithTGraphics(const TPointD &a, const TPointD &b,
-                                            const TPointD &u) {
+void drawSkeletonIKBoneOutlineWithTGraphics(const TPointD& a, const TPointD& b,
+                                            const TPointD& u) {
   TGraphics::DrawList2D drawList;
   const TPixel32 outlineColor(51, 77, 89);
   drawList.addColorLine(a + u, b + u, outlineColor, false);
@@ -88,25 +88,33 @@ void drawSkeletonIKBoneOutlineWithTGraphics(const TPointD &a, const TPointD &b,
   TGraphics::drawWithOpenGLBackend(drawList);
 }
 
-void fillRectWithTGraphics(const TRectD &rect, const TPixel32 &color) {
+void fillRectWithTGraphics(const TRectD& rect, const TPixel32& color) {
   TGraphics::DrawList2D drawList;
   drawList.addColorRect(rect, color, false);
   TGraphics::drawWithOpenGLBackend(drawList);
 }
 
-void fillTriangleWithTGraphics(const TPointD &p0, const TPointD &p1,
-                               const TPointD &p2, const TPixel32 &color,
+void fillTriangleWithTGraphics(const TPointD& p0, const TPointD& p1,
+                               const TPointD& p2, const TPixel32& color,
                                bool blending = false) {
   TGraphics::DrawList2D drawList;
   drawList.addColorTriangle(p0, p1, p2, color, blending);
   TGraphics::drawWithOpenGLBackend(drawList);
 }
 
-void fillQuadWithTGraphics(const TPointD &p00, const TPointD &p10,
-                           const TPointD &p11, const TPointD &p01,
-                           const TPixel32 &color, bool blending = false) {
+void fillQuadWithTGraphics(const TPointD& p00, const TPointD& p10,
+                           const TPointD& p11, const TPointD& p01,
+                           const TPixel32& color, bool blending = false) {
   TGraphics::DrawList2D drawList;
   drawList.addColorQuad(p00, p10, p11, p01, color, blending);
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
+
+void drawCircleWithTGraphics(const TPointD& center, double radius,
+                             const TPixel32& color, bool filled,
+                             bool blending = false) {
+  TGraphics::DrawList2D drawList;
+  drawList.addColorCircle(center, radius, color, filled, blending);
   TGraphics::drawWithOpenGLBackend(drawList);
 }
 
@@ -125,7 +133,7 @@ using SkeletonSubtools::HookData;
 
 //============================================================
 
-static QImage convertToGLDrawPixelsFormat(const QImage &image) {
+static QImage convertToGLDrawPixelsFormat(const QImage& image) {
   return image.convertToFormat(QImage::Format_RGBA8888).mirrored();
 }
 
@@ -135,14 +143,14 @@ static int nextPowerOfTwo(int value) {
   return result;
 }
 
-static double viewerDistance2(const TPointD &a, const TPointD &b) {
+static double viewerDistance2(const TPointD& a, const TPointD& b) {
   const TPointD d = a - b;
   return d.x * d.x + d.y * d.y;
 }
 
-static bool viewerRectContains(const TPointD &p, const TPointD &a,
-                               const TPointD &b, const TPointD &c,
-                               const TPointD &d) {
+static bool viewerRectContains(const TPointD& p, const TPointD& a,
+                               const TPointD& b, const TPointD& c,
+                               const TPointD& d) {
   const double x0 = std::min({a.x, b.x, c.x, d.x});
   const double x1 = std::max({a.x, b.x, c.x, d.x});
   const double y0 = std::min({a.y, b.y, c.y, d.y});
@@ -150,13 +158,13 @@ static bool viewerRectContains(const TPointD &p, const TPointD &a,
   return x0 <= p.x && p.x <= x1 && y0 <= p.y && p.y <= y1;
 }
 
-static void drawImageTexture(const QImage &source, const TPointD &pos,
+static void drawImageTexture(const QImage& source, const TPointD& pos,
                              double xOffsetPx, double yOffsetPx) {
-  QImage texture = convertToGLDrawPixelsFormat(source);
-  const int texWidth = nextPowerOfTwo(texture.width());
+  QImage texture      = convertToGLDrawPixelsFormat(source);
+  const int texWidth  = nextPowerOfTwo(texture.width());
   const int texHeight = nextPowerOfTwo(texture.height());
-  double u = 1.0;
-  double v = 1.0;
+  double u            = 1.0;
+  double v            = 1.0;
 
   if (texWidth != texture.width() || texHeight != texture.height()) {
     QImage padded(texWidth, texHeight, QImage::Format_RGBA8888);
@@ -165,8 +173,8 @@ static void drawImageTexture(const QImage &source, const TPointD &pos,
     painter.drawImage(0, 0, texture);
     painter.end();
     texture = padded;
-    u = source.width() / (double)texWidth;
-    v = source.height() / (double)texHeight;
+    u       = source.width() / (double)texWidth;
+    v       = source.height() / (double)texHeight;
   }
 
   const double pixelSize = std::sqrt(tglGetPixelSize2());
@@ -227,7 +235,7 @@ inline std::string removeTrailingH(std::string handle) {
 static bool isAncestorOf(int ancestorIndex, int descendentIndex) {
   TStageObjectId ancestorId   = TStageObjectId::ColumnId(ancestorIndex);
   TStageObjectId descendentId = TStageObjectId::ColumnId(descendentIndex);
-  TXsheet *xsh = TTool::getApplication()->getCurrentXsheet()->getXsheet();
+  TXsheet* xsh = TTool::getApplication()->getCurrentXsheet()->getXsheet();
   while (descendentId != ancestorId && descendentId.isColumn())
     descendentId = xsh->getStageObjectParent(descendentId);
   return descendentId == ancestorId;
@@ -235,7 +243,7 @@ static bool isAncestorOf(int ancestorIndex, int descendentIndex) {
 
 //------------------------------------------------------------
 
-static void getHooks(std::vector<HookData> &hooks, TXsheet *xsh, int row,
+static void getHooks(std::vector<HookData>& hooks, TXsheet* xsh, int row,
                      int col, TPointD dpiScale) {
   // note. hook position is in the coordinate system of the parent object.
   // a inch is Stage::inch
@@ -267,10 +275,10 @@ static void getHooks(std::vector<HookData> &hooks, TXsheet *xsh, int row,
   hooks.push_back(HookData(xsh, col, 0, aff * TScale(Stage::inch) * center));
 
   // add the regular hooks
-  HookSet *hookSet = cell.m_level->getHookSet();
+  HookSet* hookSet = cell.m_level->getHookSet();
   if (hookSet && hookSet->getHookCount() > 0) {
     for (int j = 0; j < hookSet->getHookCount(); j++) {
-      Hook *hook = hookSet->getHook(j);
+      Hook* hook = hookSet->getHook(j);
       if (hook && !hook->isEmpty()) {
         TPointD pos = hook->getAPos(cell.m_frameId);
         pos         = aff * imageDpiAff * pos;
@@ -282,7 +290,7 @@ static void getHooks(std::vector<HookData> &hooks, TXsheet *xsh, int row,
 
 //-------------------------------------------------------------------
 
-static void getConnectedColumns(std::set<int> &connectedColumns, TXsheet *xsh,
+static void getConnectedColumns(std::set<int>& connectedColumns, TXsheet* xsh,
                                 int col) {
   TStageObjectId id;
   // insert col and all column ancestors
@@ -309,7 +317,7 @@ static void getConnectedColumns(std::set<int> &connectedColumns, TXsheet *xsh,
   }
 }
 
-static bool canShowBone(Skeleton::Bone *bone, TXsheet *xsh, int row) {
+static bool canShowBone(Skeleton::Bone* bone, TXsheet* xsh, int row) {
   TStageObjectId id = bone->getStageObject()->getId();
   if (!xsh->getCell(row, id.getIndex()).isEmpty() &&
       xsh->getColumn(id.getIndex())->isCamstandVisible())
@@ -323,8 +331,8 @@ static bool canShowBone(Skeleton::Bone *bone, TXsheet *xsh, int row) {
 
 //============================================================
 
-HookData::HookData(TXsheet *xsh, int columnIndex, int hookId,
-                   const TPointD &pos)
+HookData::HookData(TXsheet* xsh, int columnIndex, int hookId,
+                   const TPointD& pos)
     : m_columnIndex(columnIndex)
     , m_hookId(hookId)
     , m_pos(pos)
@@ -443,12 +451,12 @@ void SkeletonTool::updateTranslation() {
 //-------------------------------------------------------------------
 
 bool SkeletonTool::doesApply() const {
-  TTool::Application *app = TTool::getApplication();
-  TXsheet *xsh            = app->getCurrentXsheet()->getXsheet();
+  TTool::Application* app = TTool::getApplication();
+  TXsheet* xsh            = app->getCurrentXsheet()->getXsheet();
   assert(xsh);
   TStageObjectId objId = app->getCurrentObject()->getObjectId();
   if (objId.isColumn()) {
-    TXshColumn *column = xsh->getColumn(objId.getIndex());
+    TXshColumn* column = xsh->getColumn(objId.getIndex());
     if (column && column->getSoundColumn()) return false;
   }
   return true;
@@ -456,11 +464,10 @@ bool SkeletonTool::doesApply() const {
 
 //-------------------------------------------------------------------
 
-void SkeletonTool::mouseMove(const TPointD &, const TMouseEvent &e) {
+void SkeletonTool::mouseMove(const TPointD&, const TMouseEvent& e) {
   const bool useCpuPicking = !getViewer()->is3DView();
   int selectedDevice       = useCpuPicking ? pickCpu(e.m_pos) : -1;
-  if (selectedDevice < 0 && !useCpuPicking)
-    selectedDevice = pick(e.m_pos);
+  if (selectedDevice < 0 && !useCpuPicking) selectedDevice = pick(e.m_pos);
   if (selectedDevice != m_device) {
     m_device = selectedDevice;
     invalidate();
@@ -469,7 +476,7 @@ void SkeletonTool::mouseMove(const TPointD &, const TMouseEvent &e) {
 
 //-------------------------------------------------------------------
 
-void SkeletonTool::leftButtonDown(const TPointD &ppos, const TMouseEvent &e) {
+void SkeletonTool::leftButtonDown(const TPointD& ppos, const TMouseEvent& e) {
   m_otherColumn        = -1;
   m_otherColumnBBox    = TRectD();
   m_otherColumnBBoxAff = TAffine();
@@ -482,15 +489,14 @@ void SkeletonTool::leftButtonDown(const TPointD &ppos, const TMouseEvent &e) {
   assert(m_dragTool == 0);
   m_dragTool = 0;
 
-  TTool::Application *app = TTool::getApplication();
+  TTool::Application* app = TTool::getApplication();
   int currentColumnIndex  = app->getCurrentColumn()->getColumnIndex();
-  TXsheet *xsh            = app->getCurrentScene()->getScene()->getXsheet();
+  TXsheet* xsh            = app->getCurrentScene()->getScene()->getXsheet();
   TPointD pos             = ppos;
 
   const bool useCpuPicking = !getViewer()->is3DView();
   int selectedDevice       = useCpuPicking ? pickCpu(e.m_pos) : -1;
-  if (selectedDevice < 0 && !useCpuPicking)
-    selectedDevice = pick(e.m_pos);
+  if (selectedDevice < 0 && !useCpuPicking) selectedDevice = pick(e.m_pos);
 
   // change drawing
   if (selectedDevice == TD_ChangeDrawing ||
@@ -508,7 +514,7 @@ void SkeletonTool::leftButtonDown(const TPointD &ppos, const TMouseEvent &e) {
 
   // click on a hook: attach the current column via that hook
   if (TD_Hook <= selectedDevice && selectedDevice < TD_Hook + 50) {
-    TXsheet *xsh         = app->getCurrentXsheet()->getXsheet();
+    TXsheet* xsh         = app->getCurrentXsheet()->getXsheet();
     TStageObjectId objId = TStageObjectId::ColumnId(currentColumnIndex);
     TPointD p0           = getCurrentColumnMatrix() * TPointD(0, 0);
     HookData hook(xsh, currentColumnIndex, selectedDevice - TD_Hook, p0);
@@ -573,7 +579,7 @@ void SkeletonTool::leftButtonDown(const TPointD &ppos, const TMouseEvent &e) {
       m_dragTool = 0;
       return;
     }
-    Skeleton *skeleton = new Skeleton();
+    Skeleton* skeleton = new Skeleton();
     buildSkeleton(*skeleton, currentColumnIndex);
     if (skeleton->getBoneByColumnIndex(columnIndex) ==
         skeleton->getRootBone()) {
@@ -597,7 +603,7 @@ void SkeletonTool::leftButtonDown(const TPointD &ppos, const TMouseEvent &e) {
     m_dragTool = new ParentChangeTool(this, getViewer());
     break;
   case TD_InverseKinematics: {
-    Skeleton *skeleton = new Skeleton();
+    Skeleton* skeleton = new Skeleton();
     buildSkeleton(*skeleton, currentColumnIndex);
     m_dragTool = new IKTool(this, getViewer(), skeleton, currentColumnIndex);
     break;
@@ -612,7 +618,7 @@ void SkeletonTool::leftButtonDown(const TPointD &ppos, const TMouseEvent &e) {
 
 //-------------------------------------------------------------------
 
-void SkeletonTool::leftButtonDrag(const TPointD &pos, const TMouseEvent &e) {
+void SkeletonTool::leftButtonDrag(const TPointD& pos, const TMouseEvent& e) {
   if (m_dragTool) {
     m_dragTool->leftButtonDrag(pos, e);
     invalidate();
@@ -621,7 +627,7 @@ void SkeletonTool::leftButtonDrag(const TPointD &pos, const TMouseEvent &e) {
 
 //-------------------------------------------------------------------
 
-void SkeletonTool::leftButtonUp(const TPointD &pos, const TMouseEvent &e) {
+void SkeletonTool::leftButtonUp(const TPointD& pos, const TMouseEvent& e) {
   m_label    = "";
   m_labelPos = TPointD(0, 0);
 
@@ -647,7 +653,7 @@ void SkeletonTool::leftButtonUp(const TPointD &pos, const TMouseEvent &e) {
 
 //-------------------------------------------------------------------
 
-bool SkeletonTool::keyDown(QKeyEvent *event) {
+bool SkeletonTool::keyDown(QKeyEvent* event) {
   ChangeDrawingTool tool(this, 0);
   switch (event->key()) {
   case Qt::Key_Up:
@@ -667,7 +673,7 @@ bool SkeletonTool::keyDown(QKeyEvent *event) {
 //-------------------------------------------------------------------
 
 class TogglePinnedStatusUndo final : public TUndo {
-  SkeletonTool *m_tool;
+  SkeletonTool* m_tool;
   std::set<int> m_oldTemp, m_newTemp;
   int m_columnIndex, m_oldColumnIndex;
   std::pair<int, int> m_newRange, m_oldRange;
@@ -676,7 +682,7 @@ class TogglePinnedStatusUndo final : public TUndo {
   int m_frame;
 
 public:
-  TogglePinnedStatusUndo(SkeletonTool *tool, int frame)
+  TogglePinnedStatusUndo(SkeletonTool* tool, int frame)
       : m_tool(tool)
       , m_oldTemp()
       , m_newTemp()
@@ -686,8 +692,8 @@ public:
       , m_oldRange(0, -1)
       , m_frame(frame) {}
 
-  void addBoneId(const TStageObjectId &id) {
-    TStageObject *stageObject = getXsheet()->getStageObject(id);
+  void addBoneId(const TStageObjectId& id) {
+    TStageObject* stageObject = getXsheet()->getStageObject(id);
     if (stageObject) {
       TStageObject::Keyframe k = stageObject->getKeyframe(m_frame);
       m_keyframes.push_back(std::make_pair(id, k));
@@ -695,38 +701,38 @@ public:
   }
 
   void setOldRange(int columnIndex, int first, int second,
-                   const TAffine &placement) {
+                   const TAffine& placement) {
     m_oldColumnIndex = columnIndex;
     m_oldRange       = std::make_pair(first, second);
     m_oldPlacement   = placement;
   }
   void setNewRange(int columnIndex, int first, int second,
-                   const TAffine &placement) {
+                   const TAffine& placement) {
     m_columnIndex  = columnIndex;
     m_newRange     = std::make_pair(first, second);
     m_newPlacement = placement;
   }
-  void setOldTemp(const std::set<int> &oldTemp) { m_oldTemp = oldTemp; }
-  void setNewTemp(const std::set<int> &newTemp) { m_newTemp = newTemp; }
+  void setOldTemp(const std::set<int>& oldTemp) { m_oldTemp = oldTemp; }
+  void setNewTemp(const std::set<int>& newTemp) { m_newTemp = newTemp; }
 
-  TStageObject *getStageObject(int columnIndex) const {
+  TStageObject* getStageObject(int columnIndex) const {
     return TTool::getApplication()
         ->getCurrentXsheet()
         ->getXsheet()
         ->getStageObject(TStageObjectId::ColumnId(columnIndex));
   }
 
-  TPinnedRangeSet *getRangeSet(int columnIndex) const {
+  TPinnedRangeSet* getRangeSet(int columnIndex) const {
     return getStageObject(columnIndex)->getPinnedRangeSet();
   }
 
-  TXsheet *getXsheet() const {
+  TXsheet* getXsheet() const {
     return TTool::getApplication()->getCurrentXsheet()->getXsheet();
   }
 
   void notify() const {
     m_tool->invalidate();
-    TXsheet *xsh = getXsheet();
+    TXsheet* xsh = getXsheet();
     int index    = m_columnIndex;
     if (index < 0) index = m_oldColumnIndex;
     if (index >= 0) {
@@ -747,13 +753,13 @@ public:
       getRangeSet(m_columnIndex)
           ->removeRange(m_newRange.first, m_newRange.second);
     if (m_oldColumnIndex >= 0) {
-      TPinnedRangeSet *rangeSet = getRangeSet(m_oldColumnIndex);
+      TPinnedRangeSet* rangeSet = getRangeSet(m_oldColumnIndex);
       rangeSet->setRange(m_oldRange.first, m_oldRange.second);
       rangeSet->setPlacement(m_oldPlacement);
     }
-    TXsheet *xsh = getXsheet();
+    TXsheet* xsh = getXsheet();
     for (int i = 0; i < (int)m_keyframes.size(); i++) {
-      TStageObject *stageObject =
+      TStageObject* stageObject =
           getXsheet()->getStageObject(m_keyframes[i].first);
       if (!stageObject) continue;
       stageObject->removeKeyframeWithoutUndo(m_frame);
@@ -765,9 +771,9 @@ public:
   }
 
   void redo() const override {
-    TXsheet *xsh = getXsheet();
+    TXsheet* xsh = getXsheet();
     for (int i = 0; i < (int)m_keyframes.size(); i++) {
-      TStageObject *stageObject =
+      TStageObject* stageObject =
           getXsheet()->getStageObject(m_keyframes[i].first);
       if (stageObject) stageObject->setKeyframeWithoutUndo(m_frame);
     }
@@ -777,7 +783,7 @@ public:
       getRangeSet(m_oldColumnIndex)
           ->removeRange(m_oldRange.first, m_oldRange.second);
     if (m_columnIndex >= 0) {
-      TPinnedRangeSet *rangeSet = getRangeSet(m_columnIndex);
+      TPinnedRangeSet* rangeSet = getRangeSet(m_columnIndex);
       rangeSet->setRange(m_newRange.first, m_newRange.second);
       rangeSet->setPlacement(m_newPlacement);
     }
@@ -794,13 +800,13 @@ void SkeletonTool::togglePinnedStatus(int columnIndex, int frame,
   buildSkeleton(skeleton, columnIndex);
   if (!skeleton.getRootBone() || !skeleton.getRootBone()->getStageObject())
     return;
-  Skeleton::Bone *bone = skeleton.getBoneByColumnIndex(columnIndex);
+  Skeleton::Bone* bone = skeleton.getBoneByColumnIndex(columnIndex);
   assert(bone);
   if (!bone) return;
 
-  TogglePinnedStatusUndo *undo = new TogglePinnedStatusUndo(this, frame);
+  TogglePinnedStatusUndo* undo = new TogglePinnedStatusUndo(this, frame);
   for (int i = 0; i < skeleton.getBoneCount(); i++) {
-    TStageObject *obj = skeleton.getBone(i)->getStageObject();
+    TStageObject* obj = skeleton.getBone(i)->getStageObject();
     if (obj) {
       undo->addBoneId(obj->getId());
       obj->setKeyframeWithoutUndo(frame);
@@ -818,7 +824,7 @@ void SkeletonTool::togglePinnedStatus(int columnIndex, int frame,
     else
       m_temporaryPinnedColumns.insert(columnIndex);
   } else {
-    TXsheet *xsh = TTool::getApplication()->getCurrentXsheet()->getXsheet();
+    TXsheet* xsh = TTool::getApplication()->getCurrentXsheet()->getXsheet();
     TAffine placement =
         xsh->getPlacement(bone->getStageObject()->getId(), frame);
 
@@ -829,7 +835,7 @@ void SkeletonTool::togglePinnedStatus(int columnIndex, int frame,
     if (pinnedStatus != Skeleton::Bone::PINNED) {
       int oldPinned = -1;
       for (int i = 0; i < skeleton.getBoneCount(); i++) {
-        TStageObject *obj = skeleton.getBone(i)->getStageObject();
+        TStageObject* obj = skeleton.getBone(i)->getStageObject();
         if (obj->getPinnedRangeSet()->isPinned(frame)) {
           oldPinned = i;
           break;
@@ -839,20 +845,20 @@ void SkeletonTool::togglePinnedStatus(int columnIndex, int frame,
       int lastFrame = 1000000;
       if (oldPinned >= 0) {
         assert(skeleton.getBone(oldPinned) != bone);
-        TStageObject *obj = skeleton.getBone(oldPinned)->getStageObject();
-        const TPinnedRangeSet::Range *range =
+        TStageObject* obj = skeleton.getBone(oldPinned)->getStageObject();
+        const TPinnedRangeSet::Range* range =
             obj->getPinnedRangeSet()->getRange(frame);
         assert(range && range->first <= frame && frame <= range->second);
         lastFrame                 = range->second;
-        TPinnedRangeSet *rangeSet = obj->getPinnedRangeSet();
+        TPinnedRangeSet* rangeSet = obj->getPinnedRangeSet();
         rangeSet->removeRange(frame, range->second);
         obj->invalidate();
         undo->setOldRange(oldPinned, frame, range->second,
                           rangeSet->getPlacement());
       } else {
         for (int i = 0; i < skeleton.getBoneCount(); i++) {
-          TStageObject *obj = skeleton.getBone(i)->getStageObject();
-          const TPinnedRangeSet::Range *range =
+          TStageObject* obj = skeleton.getBone(i)->getStageObject();
+          const TPinnedRangeSet::Range* range =
               obj->getPinnedRangeSet()->getNextRange(frame);
           if (range) {
             assert(range->first > frame);
@@ -861,14 +867,14 @@ void SkeletonTool::togglePinnedStatus(int columnIndex, int frame,
         }
       }
 
-      TStageObject *obj         = bone->getStageObject();
-      TPinnedRangeSet *rangeSet = obj->getPinnedRangeSet();
+      TStageObject* obj         = bone->getStageObject();
+      TPinnedRangeSet* rangeSet = obj->getPinnedRangeSet();
       rangeSet->setRange(frame, lastFrame);
       if (frame == 0) {
         // this code should be moved elsewhere, possibly in the stageobject
         // implementation
         // the idea is to remove the normal
-        TStageObject *rootObj = skeleton.getRootBone()->getStageObject();
+        TStageObject* rootObj = skeleton.getRootBone()->getStageObject();
         rootObj->setStatus(TStageObject::XY);
         placement = rootObj->getPlacement(0).inv() * placement;
         rootObj->setStatus(TStageObject::IK);
@@ -885,28 +891,28 @@ void SkeletonTool::togglePinnedStatus(int columnIndex, int frame,
 
 //-------------------------------------------------------------------
 
-void SkeletonTool::drawSkeleton(const Skeleton &skeleton, int row) {
+void SkeletonTool::drawSkeleton(const Skeleton& skeleton, int row) {
   bool buildingSkeleton = m_mode.getValue() == BUILD_SKELETON;
   bool ikEnabled        = m_mode.getValue() == INVERSE_KINEMATICS;
 
-  TXsheet *xsh = getXsheet();
+  TXsheet* xsh = getXsheet();
   std::vector<int> showBoneIndex;
   int i;
   for (i = 0; i < skeleton.getBoneCount(); i++) {
-    Skeleton::Bone *bone = skeleton.getBone(i);
+    Skeleton::Bone* bone = skeleton.getBone(i);
     TStageObjectId id    = bone->getStageObject()->getId();
     bool canShow         = canShowBone(bone, xsh, row);
     if (!canShow) continue;
     showBoneIndex.push_back(i);
   }
 
-  bool changingParent = dynamic_cast<ParentChangeTool *>(m_dragTool) != 0;
+  bool changingParent = dynamic_cast<ParentChangeTool*>(m_dragTool) != 0;
   TStageObjectId currentObjectId =
       TTool::getApplication()->getCurrentObject()->getObjectId();
   std::string currentHandle = xsh->getStageObject(currentObjectId)->getHandle();
 
   for (i = 0; i < (int)showBoneIndex.size(); i++) {
-    Skeleton::Bone *bone = skeleton.getBone(showBoneIndex[i]);
+    Skeleton::Bone* bone = skeleton.getBone(showBoneIndex[i]);
     TStageObjectId id    = bone->getStageObject()->getId();
     bool isCurrent       = id == currentObjectId;
     if (isCurrent && buildingSkeleton && m_parentProbeEnabled) {
@@ -944,7 +950,7 @@ void SkeletonTool::drawSkeleton(const Skeleton &skeleton, int row) {
           // int code = TD_ResetParent +
           // bone->getStageObject()->getId().getIndex();
           glPushName(TD_ChangeParent);
-          tglDrawDisk(pm, r);
+          drawCircleWithTGraphics(pm, r, TPixel32::Red, true);
           glPopName();
         } else {
           const bool highlighted = m_device == TD_ChangeParent;
@@ -964,7 +970,7 @@ void SkeletonTool::drawSkeleton(const Skeleton &skeleton, int row) {
     }
   }
   for (i = 0; i < (int)showBoneIndex.size(); i++) {
-    Skeleton::Bone *bone = skeleton.getBone(showBoneIndex[i]);
+    Skeleton::Bone* bone = skeleton.getBone(showBoneIndex[i]);
     if (!m_showOnlyActiveSkeleton.getValue() || bone->isSelected())
       drawJoint(bone->getCenter(),
                 currentObjectId == bone->getStageObject()->getId() &&
@@ -974,7 +980,7 @@ void SkeletonTool::drawSkeleton(const Skeleton &skeleton, int row) {
 
 //-------------------------------------------------------------------
 
-void SkeletonTool::getImageBoundingBox(TRectD &bbox, TAffine &aff, int frame,
+void SkeletonTool::getImageBoundingBox(TRectD& bbox, TAffine& aff, int frame,
                                        int columnIndex) {
   TAffine columnAff =
       getXsheet()->getPlacement(TStageObjectId::ColumnId(columnIndex), frame);
@@ -1029,7 +1035,7 @@ void SkeletonTool::drawLevelBoundingBox(int frame, int columnIndex) {
 
 //-------------------------------------------------------------------
 
-void SkeletonTool::drawIKJoint(const Skeleton::Bone *bone) {
+void SkeletonTool::drawIKJoint(const Skeleton::Bone* bone) {
   TPointD pos     = bone->getCenter();
   const double r0 = 6 * getPixelSize(), r1 = r0 / 3;
   int code = TD_LockStageObject + bone->getColumnIndex();
@@ -1039,7 +1045,7 @@ void SkeletonTool::drawIKJoint(const Skeleton::Bone *bone) {
     TGraphics::DrawList2D drawList;
     const TPixel32 outlineColor(51, 26, 13, 255);
     if (bone->getPinnedStatus() == Skeleton::Bone::TEMP_PINNED) {
-      double r1 = r0 * 0.60;
+      double r1        = r0 * 0.60;
       TRectD outerRect = makePointRect(pos, r0);
       TRectD innerRect = makePointRect(pos, r1);
       drawList.addColorRect(outerRect, TPixel32(60, 250, 255, 255), false);
@@ -1057,9 +1063,12 @@ void SkeletonTool::drawIKJoint(const Skeleton::Bone *bone) {
       glColor3d(1, 0.78, 0.19);
     else
       glColor3d(0.78, 0.62, 0);
-    tglDrawDisk(pos, r0);
+    drawCircleWithTGraphics(pos, r0,
+                            bone->isSelected() ? TPixel32(255, 199, 48, 255)
+                                               : TPixel32(199, 158, 0, 255),
+                            true);
     glColor3d(0.2, 0.1, 0.05);
-    tglDrawCircle(pos, r0);
+    drawCircleWithTGraphics(pos, r0, TPixel32(51, 26, 13, 255), false);
   }
 
   if (m_device == code) {
@@ -1070,14 +1079,14 @@ void SkeletonTool::drawIKJoint(const Skeleton::Bone *bone) {
   } else {
     glColor3d(0.2, 0.1, 0.05);
     const double r3 = 2 * getPixelSize();
-    tglDrawCircle(pos, r3);
+    drawCircleWithTGraphics(pos, r3, TPixel32(51, 26, 13, 255), false);
   }
   glPopName();
 }
 
 //-------------------------------------------------------------------
 
-void SkeletonTool::drawJoint(const TPointD &pos, bool current) {
+void SkeletonTool::drawJoint(const TPointD& pos, bool current) {
   const double alpha = 0.8, ialpha = 1 - alpha;
   double r0 = 4 * getPixelSize();
   if (current) {
@@ -1090,9 +1099,13 @@ void SkeletonTool::drawJoint(const TPointD &pos, bool current) {
                 ((200.0 / 255.0) - ialpha) / alpha,
                 ((48.0 / 255.0) - ialpha) / alpha, alpha);
     }
-    tglDrawDisk(pos, r0);
+    drawCircleWithTGraphics(pos, r0,
+                            m_device == TD_Center
+                                ? TPixel32(184, 163, 41, tround(alpha * 255))
+                                : TPixel32(255, 186, 0, tround(alpha * 255)),
+                            true, alpha < 1.0);
     glColor3d(0.2, 0.1, 0.05);
-    tglDrawCircle(pos, r0);
+    drawCircleWithTGraphics(pos, r0, TPixel32(51, 26, 13, 255), false);
     glPopName();
   } else {
     // in build skeleton center is clickable, but only the current one
@@ -1100,24 +1113,28 @@ void SkeletonTool::drawJoint(const TPointD &pos, bool current) {
       glColor4d(0.60 * alpha, 0.60 * alpha, 0.60 * alpha, alpha);
     else
       glColor4d(0.78 * alpha, 0.62 * alpha, 0 * alpha, alpha);
-    tglDrawDisk(pos, r0);
+    drawCircleWithTGraphics(pos, r0,
+                            m_mode.getValue() == BUILD_SKELETON
+                                ? TPixel32(122, 122, 122, tround(alpha * 255))
+                                : TPixel32(159, 126, 0, tround(alpha * 255)),
+                            true, alpha < 1.0);
     glColor3d(0.2, 0.1, 0.05);
-    tglDrawCircle(pos, r0);
+    drawCircleWithTGraphics(pos, r0, TPixel32(51, 26, 13, 255), false);
   }
 }
 
 //-------------------------------------------------------------------
 
-void SkeletonTool::drawBone(const TPointD &a, const TPointD &b, bool selected) {
+void SkeletonTool::drawBone(const TPointD& a, const TPointD& b, bool selected) {
   const double alpha = 0.8;
   // se sono troppo vicini niente da fare
   TPointD delta = b - a;
   if (norm2(delta) < 0.001) return;
-  TPointD u = getPixelSize() * 2.5 * normalize(rotate90(delta));
+  TPointD u       = getPixelSize() * 2.5 * normalize(rotate90(delta));
   const int matte = static_cast<int>(std::round(alpha * 255.0));
-  const int tone =
-      selected ? static_cast<int>(std::round(0.9 * alpha * 255.0))
-               : static_cast<int>(std::round(0.58 * alpha * 255.0));
+  const int tone  = selected
+                        ? static_cast<int>(std::round(0.9 * alpha * 255.0))
+                        : static_cast<int>(std::round(0.58 * alpha * 255.0));
   fillTriangleWithTGraphics(a + u, b, a - u, TPixel32(tone, tone, tone, matte),
                             true);
   drawSkeletonBoneOutlineWithTGraphics(a, b, u);
@@ -1125,7 +1142,7 @@ void SkeletonTool::drawBone(const TPointD &a, const TPointD &b, bool selected) {
 
 //-------------------------------------------------------------------
 
-void SkeletonTool::drawIKBone(const TPointD &a, const TPointD &b) {
+void SkeletonTool::drawIKBone(const TPointD& a, const TPointD& b) {
   // se sono troppo vicini niente da fare
   TPointD delta = b - a;
   if (norm2(delta) < 0.001) return;
@@ -1157,8 +1174,8 @@ void SkeletonTool::drawHooks() {
   m_magicLinks.clear();
   computeMagicLinks();
 
-  TTool::Application *app = TTool::getApplication();
-  TXsheet *xsh            = app->getCurrentXsheet()->getXsheet();
+  TTool::Application* app = TTool::getApplication();
+  TXsheet* xsh            = app->getCurrentXsheet()->getXsheet();
   int row                 = app->getCurrentFrame()->getFrame();
   int col                 = app->getCurrentColumn()->getColumnIndex();
   TPointD dpiScale        = getViewer()->getDpiScale();
@@ -1241,7 +1258,7 @@ qDebug("
 
   // draw current column hooks
   for (int i = 0; i < (int)currentColumnHooks.size(); i++) {
-    const HookData &hook = currentColumnHooks[i];
+    const HookData& hook = currentColumnHooks[i];
     if (hook.m_name == "") continue;  // should not happen
     int code    = TD_Hook + hook.m_hookId;
     TPointD pos = hook.m_pos;
@@ -1372,8 +1389,8 @@ glPopMatrix();
   // visualize all the magic links
 
   for (int i = 0; i < (int)m_magicLinks.size(); i++) {
-    const MagicLink &magicLink = m_magicLinks[i];
-    const HookData &h1         = magicLink.m_h1;
+    const MagicLink& magicLink = m_magicLinks[i];
+    const HookData& h1         = magicLink.m_h1;
     std::string name;
     name = (m_parentProbeEnabled ? "Linking " : "Link ") +
            removeTrailingH(magicLink.m_h0.getHandle()) + " to Col " +
@@ -1392,8 +1409,8 @@ glPopMatrix();
 
 //-------------------------------------------------------------------
 
-void SkeletonTool::drawDrawingBrowser(const TXshCell &cell,
-                                      const TPointD &center) {
+void SkeletonTool::drawDrawingBrowser(const TXshCell& cell,
+                                      const TPointD& center) {
   if (!cell.m_level || cell.m_level->getFrameCount() <= 1) return;
   double pixelSize = getPixelSize();
 
@@ -1492,11 +1509,11 @@ void SkeletonTool::drawDrawingBrowser(const TXshCell &cell,
 
 //-------------------------------------------------------------------
 
-int SkeletonTool::pickCpu(const TPointD &viewerPos) {
-  TTool::Application *app = TTool::getApplication();
+int SkeletonTool::pickCpu(const TPointD& viewerPos) {
+  TTool::Application* app = TTool::getApplication();
   if (!app || !doesApply() || getViewer()->is3DView()) return TD_None;
 
-  TXsheet *xsh = getXsheet();
+  TXsheet* xsh = getXsheet();
   if (!xsh) return TD_None;
 
   TStageObjectId objId = app->getCurrentObject()->getObjectId();
@@ -1505,7 +1522,7 @@ int SkeletonTool::pickCpu(const TPointD &viewerPos) {
   TAffine aff = getMatrix();
   if (fabs(aff.det()) < 0.00001) return TD_None;
   const TAffine skeletonToWorld = aff.inv();
-  auto toViewer = [&](const TPointD &p) {
+  auto toViewer                 = [&](const TPointD& p) {
     return getViewer()->worldToPos(skeletonToWorld * p);
   };
 
@@ -1514,30 +1531,30 @@ int SkeletonTool::pickCpu(const TPointD &viewerPos) {
   Skeleton skeleton;
   buildSkeleton(skeleton, col);
 
-  const double pixelSize = getPixelSize();
-  const double hitRadius = 12.0;
-  const double hit2      = hitRadius * hitRadius;
-  const bool ikEnabled   = m_mode.getValue() == INVERSE_KINEMATICS;
-  const bool buildMode   = m_mode.getValue() == BUILD_SKELETON;
+  const double pixelSize    = getPixelSize();
+  const double hitRadius    = 12.0;
+  const double hit2         = hitRadius * hitRadius;
+  const bool ikEnabled      = m_mode.getValue() == INVERSE_KINEMATICS;
+  const bool buildMode      = m_mode.getValue() == BUILD_SKELETON;
   std::string currentHandle = xsh->getStageObject(objId)->getHandle();
 
   if (buildMode) {
     std::vector<int> showBoneIndex;
     for (int i = 0; i < skeleton.getBoneCount(); ++i) {
-      Skeleton::Bone *bone = skeleton.getBone(i);
+      Skeleton::Bone* bone = skeleton.getBone(i);
       if (!bone || !canShowBone(bone, xsh, frame)) continue;
       showBoneIndex.push_back(i);
     }
 
     for (int i = (int)showBoneIndex.size() - 1; i >= 0; --i) {
-      Skeleton::Bone *bone = skeleton.getBone(showBoneIndex[i]);
+      Skeleton::Bone* bone = skeleton.getBone(showBoneIndex[i]);
       if (!bone || bone->getStageObject()->getId() != objId) continue;
 
       const TPointD a = bone->getCenter();
       TPointD pm;
       if (bone->getParent()) {
         const TPointD b = bone->getParent()->getCenter();
-        pm = (a + b) * 0.5;
+        pm              = (a + b) * 0.5;
       } else {
         pm = a + TPointD(0, 60) * pixelSize;
       }
@@ -1558,7 +1575,7 @@ int SkeletonTool::pickCpu(const TPointD &viewerPos) {
       std::vector<HookData> otherColumnsHooks;
       getHooks(currentColumnHooks, xsh, frame, col, TPointD(1, 1));
       for (int i = 0; i < xsh->getColumnCount(); ++i) {
-        TXshColumn *column = xsh->getColumn(i);
+        TXshColumn* column = xsh->getColumn(i);
         if (column && column->isCamstandVisible() &&
             connectedColumns.count(i) == 0) {
           getHooks(otherColumnsHooks, xsh, frame, i, TPointD(1, 1));
@@ -1567,8 +1584,8 @@ int SkeletonTool::pickCpu(const TPointD &viewerPos) {
 
       m_magicLinks.clear();
       const double snapRadius2bis = 100.0;
-      for (const HookData &currentHook : currentColumnHooks) {
-        for (const HookData &otherHook : otherColumnsHooks) {
+      for (const HookData& currentHook : currentColumnHooks) {
+        for (const HookData& otherHook : otherColumnsHooks) {
           if (currentHook.m_hookId == 0 || otherHook.m_hookId == 0) continue;
           const double dist2 = norm2(currentHook.m_pos - otherHook.m_pos);
           if (dist2 < snapRadius2bis)
@@ -1583,7 +1600,7 @@ int SkeletonTool::pickCpu(const TPointD &viewerPos) {
       }
 
       for (int i = (int)currentColumnHooks.size() - 1; i >= 0; --i) {
-        const HookData &hook = currentColumnHooks[i];
+        const HookData& hook = currentColumnHooks[i];
         if (hook.m_name == "") continue;
         if (viewerDistance2(viewerPos, toViewer(hook.m_pos)) <= hit2)
           return TD_Hook + hook.m_hookId;
@@ -1595,7 +1612,7 @@ int SkeletonTool::pickCpu(const TPointD &viewerPos) {
 
   if (ikEnabled) {
     for (int i = skeleton.getBoneCount() - 1; i >= 0; --i) {
-      Skeleton::Bone *bone = skeleton.getBone(i);
+      Skeleton::Bone* bone = skeleton.getBone(i);
       if (!bone || !canShowBone(bone, xsh, frame)) continue;
       if (viewerDistance2(viewerPos, toViewer(bone->getCenter())) <= hit2)
         return TD_LockStageObject + bone->getColumnIndex();
@@ -1604,7 +1621,7 @@ int SkeletonTool::pickCpu(const TPointD &viewerPos) {
   }
 
   for (int i = skeleton.getBoneCount() - 1; i >= 0; --i) {
-    Skeleton::Bone *bone = skeleton.getBone(i);
+    Skeleton::Bone* bone = skeleton.getBone(i);
     if (!bone || bone->getStageObject()->getId() != objId) continue;
 
     const TPointD center = bone->getCenter();
@@ -1615,9 +1632,9 @@ int SkeletonTool::pickCpu(const TPointD &viewerPos) {
     if (m_mode.getValue() == ANIMATE) {
       TXshCell cell = xsh->getCell(frame, col);
       if (cell.m_level && cell.m_level->getFrameCount() > 1) {
-        QString text = QString::fromStdString(
-            ::to_string(cell.m_level->getName()) + "." +
-            std::to_string(cell.m_frameId.getNumber()));
+        QString text =
+            QString::fromStdString(::to_string(cell.m_level->getName()) + "." +
+                                   std::to_string(cell.m_frameId.getNumber()));
         QFontMetrics fm(QFont("Arial", 10));
         QSize textSize   = fm.boundingRect(text).size();
         int arrowHeight  = 10;
@@ -1635,10 +1652,9 @@ int SkeletonTool::pickCpu(const TPointD &viewerPos) {
         double x  = (x0 + x1) * 0.5;
         double d  = arrowHeight * pixelSize;
 
-        if (viewerRectContains(viewerPos, toViewer(TPointD(x0, y1)),
-                               toViewer(TPointD(x1, y1)),
-                               toViewer(TPointD(x1, y2)),
-                               toViewer(TPointD(x0, y2))))
+        if (viewerRectContains(
+                viewerPos, toViewer(TPointD(x0, y1)), toViewer(TPointD(x1, y1)),
+                toViewer(TPointD(x1, y2)), toViewer(TPointD(x0, y2))))
           return TD_ChangeDrawing;
         if (viewerRectContains(viewerPos, toViewer(TPointD(x - d, y0)),
                                toViewer(TPointD(x + d, y0)),
@@ -1652,9 +1668,9 @@ int SkeletonTool::pickCpu(const TPointD &viewerPos) {
           return TD_DecrementDrawing;
       }
 
-      double r               = 10.0 * pixelSize;
-      const TPointD movePos  = center + TPointD(r * 1.1, -r * 1.1);
-      const double moveHit2  = 14.0 * 14.0;
+      double r              = 10.0 * pixelSize;
+      const TPointD movePos = center + TPointD(r * 1.1, -r * 1.1);
+      const double moveHit2 = 14.0 * 14.0;
       if (viewerDistance2(viewerPos, toViewer(movePos)) <= moveHit2)
         return TD_Translation;
     }
@@ -1666,7 +1682,7 @@ int SkeletonTool::pickCpu(const TPointD &viewerPos) {
 
 //-------------------------------------------------------------------
 
-void SkeletonTool::drawMainGadget(const TPointD &center) {
+void SkeletonTool::drawMainGadget(const TPointD& center) {
   assert(glGetError() == GL_NO_ERROR);
 
   double r  = 10 * getPixelSize();
@@ -1677,7 +1693,8 @@ void SkeletonTool::drawMainGadget(const TPointD &center) {
 
   if (isPicking()) {
     glPushName(TD_Translation);
-    tglDrawDisk(TPointD(cx, cy), getPixelSize() * 9);
+    drawCircleWithTGraphics(TPointD(cx, cy), getPixelSize() * 9, TPixel32::Red,
+                            true);
     glPopName();
     return;
   }
@@ -1733,14 +1750,14 @@ void SkeletonTool::draw() {
   assert(glGetError() == GL_NO_ERROR);
 
   // l'xsheet, oggetto (e relativo placement), frame corrente
-  TTool::Application *app = TTool::getApplication();
-  TXsheet *xsh            = getXsheet();
+  TTool::Application* app = TTool::getApplication();
+  TXsheet* xsh            = getXsheet();
   assert(xsh);
   TStageObjectId objId = app->getCurrentObject()->getObjectId();
   // se l'oggetto corrente non e' una colonna non disegno nulla
   if (!objId.isColumn()) return;
 
-  TStageObject *pegbar = xsh->getStageObject(objId);
+  TStageObject* pegbar = xsh->getStageObject(objId);
   int col              = objId.getIndex();
 
   int frame = app->getCurrentFrame()->getFrame();
@@ -1761,7 +1778,7 @@ void SkeletonTool::draw() {
   // glColor3d(0,1,0);
   // tglDrawRect(0,0,100,100);
 
-  bool changingParent = dynamic_cast<ParentChangeTool *>(m_dragTool) != 0;
+  bool changingParent = dynamic_cast<ParentChangeTool*>(m_dragTool) != 0;
 
   // !changingParent &&
   if (m_mode.getValue() == BUILD_SKELETON &&
@@ -1778,9 +1795,9 @@ void SkeletonTool::draw() {
   glDisable(GL_BLEND);
 
   TXshCell cell            = xsh->getCell(frame, objId.getIndex());
-  Skeleton::Bone *rootBone = skeleton.getRootBone();
+  Skeleton::Bone* rootBone = skeleton.getRootBone();
   for (int i = 0; i < skeleton.getBoneCount(); i++) {
-    Skeleton::Bone *bone     = skeleton.getBone(i);
+    Skeleton::Bone* bone     = skeleton.getBone(i);
     TStageObjectId currentId = bone->getStageObject()->getId();
     bool isCurrent           = (currentId == objId);
     TPointD pos              = bone->getCenter();
@@ -1809,7 +1826,7 @@ void SkeletonTool::draw() {
 //===================================================================
 
 void SkeletonTool::onActivate() {
-  TTool::Application *app = TTool::getApplication();
+  TTool::Application* app = TTool::getApplication();
   if (m_firstTime) {
     m_globalKeyframes.setValue(SkeletonGlobalKeyFrame ? 1 : 0);
     m_mode.setValue(BUILD_SKELETON);
@@ -1844,11 +1861,11 @@ void SkeletonTool::magicLink(int index) {
   if (index < 0 || index >= (int)m_magicLinks.size()) return;
   HookData h0             = m_magicLinks[index].m_h0;
   HookData h1             = m_magicLinks[index].m_h1;
-  TTool::Application *app = TTool::getApplication();
-  TXsheet *xsh            = app->getCurrentXsheet()->getXsheet();
+  TTool::Application* app = TTool::getApplication();
+  TXsheet* xsh            = app->getCurrentXsheet()->getXsheet();
   int columnIndex         = app->getCurrentColumn()->getColumnIndex();
   TStageObjectId id       = TStageObjectId::ColumnId(columnIndex);
-  TStageObject *obj       = xsh->getStageObject(id);
+  TStageObject* obj       = xsh->getStageObject(id);
 
   int parentColumnIndex    = h1.m_columnIndex;
   TStageObjectId parentId  = TStageObjectId::ColumnId(parentColumnIndex);
@@ -1890,17 +1907,17 @@ int SkeletonTool::getCursorId() const {
 
 //-------------------------------------------------------------------
 
-void SkeletonTool::addContextMenuItems(QMenu *menu) {
+void SkeletonTool::addContextMenuItems(QMenu* menu) {
   bool ikEnabled = m_mode.getValue() == INVERSE_KINEMATICS;
 
   if (ikEnabled) {
-    Skeleton *skeleton = new Skeleton();
+    Skeleton* skeleton = new Skeleton();
     buildSkeleton(
         *skeleton,
         TTool::getApplication()->getCurrentColumn()->getColumnIndex());
     if (skeleton->hasPinnedRanges() || skeleton->isIKEnabled()) {
       m_commandHandler->setSkeleton(skeleton);
-      QAction *rp = menu->addAction(tr("Reset Pinned Center"));
+      QAction* rp = menu->addAction(tr("Reset Pinned Center"));
       menu->addSeparator();
       bool ret = QObject::connect(rp, SIGNAL(triggered()), m_commandHandler,
                                   SLOT(clearPinnedRanges()));
@@ -1912,7 +1929,7 @@ void SkeletonTool::addContextMenuItems(QMenu *menu) {
 
 //-------------------------------------------------------------------
 
-void SkeletonTool::buildSkeleton(Skeleton &skeleton, int columnIndex) {
+void SkeletonTool::buildSkeleton(Skeleton& skeleton, int columnIndex) {
   int frame = TTool::getApplication()->getCurrentFrame()->getFrame();
   skeleton.build(getXsheet(), frame, columnIndex, m_temporaryPinnedColumns);
 }

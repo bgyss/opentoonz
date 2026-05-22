@@ -332,6 +332,15 @@ and IK-bone quad fills from immediate `GL_POLYGON` drawing to `DrawList2D`
 color-triangle/color-quad commands. Bone and IK-bone outlines were already on
 `tgraphics`; circular joint markers remain on legacy OpenGL until disk/circle
 primitives are represented.
+The skeleton circle-primitive checkpoint adds filled and outline color-circle
+commands to `DrawList2D`, implements them in the OpenGL and Metal backends,
+extends `tgraphics_metal_probe` coverage for filled and outline circles, and
+routes skeleton change-parent picking disks, free IK joint disks/outlines,
+regular skeleton joint disks/outlines, and the translation picking disk through
+the new command. This removes the remaining legacy `tglDrawDisk`/`tglDrawCircle`
+calls from `skeletontool.cpp`; matrix setup, blending setup, texture-backed
+drawing-browser icons, and a few legacy selection names still remain in the
+tool until those paths are migrated.
 
 ## Files Changed
 
@@ -820,6 +829,8 @@ Skeleton drawing-selector picking fills now also emit `tgraphics`
 color-rect/color-triangle commands.
 Skeleton bone and IK-bone fills now also emit `tgraphics`
 color-triangle/color-quad commands.
+Skeleton circular joint markers now also emit `tgraphics` color-circle commands
+with Metal probe coverage.
 Geometric multiline Bezier speed-handle connector segments now also emit
 `tgraphics` color-line commands.
 Edit-tool shear-handle visible outlines now also emit `tgraphics` color-line commands.

@@ -795,6 +795,55 @@ int main(int argc, char* argv[]) {
   }
 
   {
+    const TPixel32 circleClearColor(13, 23, 37, 255);
+    const TPixel32 circleColor(46, 197, 121, 255);
+    TGraphics::DrawList2D drawList;
+    drawList.setClearColor(circleClearColor);
+    drawList.addColorCircle(TPointD(4, 4), 3.0, circleColor, true, false);
+
+    TRaster32P readback = renderMetal(drawList, width, height);
+    if (!readback)
+      return fail("could not read back filled color circle Metal target");
+    if (!requireDimensions(readback, width, height)) {
+      return fail(
+          "filled color circle readback dimensions do not match render target");
+    }
+
+    TRaster32P openGLReadback = renderOpenGL(drawList, width, height);
+    if (!openGLReadback)
+      return fail("could not read back filled color circle OpenGL baseline");
+    if (!compareRasters(readback, openGLReadback, "filled color circle",
+                        artifactDir)) {
+      return EXIT_FAILURE;
+    }
+  }
+
+  {
+    const TPixel32 circleClearColor(29, 31, 37, 255);
+    const TPixel32 circleColor(229, 80, 57, 255);
+    TGraphics::DrawList2D drawList;
+    drawList.setClearColor(circleClearColor);
+    drawList.addColorCircle(TPointD(4, 4), 3.0, circleColor, false, false);
+
+    TRaster32P readback = renderMetal(drawList, width, height);
+    if (!readback)
+      return fail("could not read back outline color circle Metal target");
+    if (!requireDimensions(readback, width, height)) {
+      return fail(
+          "outline color circle readback dimensions do not match render "
+          "target");
+    }
+
+    TRaster32P openGLReadback = renderOpenGL(drawList, width, height);
+    if (!openGLReadback)
+      return fail("could not read back outline color circle OpenGL baseline");
+    if (!compareRasters(readback, openGLReadback, "outline color circle",
+                        artifactDir)) {
+      return EXIT_FAILURE;
+    }
+  }
+
+  {
     TGraphics::DrawList2D drawList;
     drawList.setClearColor(clearColor);
     drawList.addTexture(
@@ -951,18 +1000,17 @@ int main(int argc, char* argv[]) {
 
   {
     const TPixel32 overlayColor(231, 123, 29, 192);
-    const int overlayX0 = 2;
-    const int overlayY0 = 1;
-    const int overlayX1 = 6;
-    const int overlayY1 = 5;
+    const int overlayX0            = 2;
+    const int overlayY0            = 1;
+    const int overlayX1            = 6;
+    const int overlayY1            = 5;
     TGraphics::DrawList2D drawList = TGraphics::makeRasterRectDrawList(
         makeSolidRaster(overlayX1 - overlayX0, overlayY1 - overlayY0,
                         overlayColor),
         TRectD(overlayX0, overlayY0, overlayX1, overlayY1), true);
 
     TRaster32P readback = renderMetal(drawList, width, height);
-    if (!readback)
-      return fail("could not read back raster rect Metal target");
+    if (!readback) return fail("could not read back raster rect Metal target");
     if (!requireDimensions(readback, width, height)) {
       return fail("raster rect readback dimensions do not match render target");
     }

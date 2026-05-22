@@ -15,6 +15,8 @@
 namespace TGraphics {
 namespace {
 
+constexpr double kTwoPi = 6.28318530717958647692;
+
 bool makeStrokedLineQuad(const ColorLine &line, std::array<TPointD, 4> &points) {
   const double dx     = line.m_p1.x - line.m_p0.x;
   const double dy     = line.m_p1.y - line.m_p0.y;
@@ -996,6 +998,23 @@ public:
       }
     }
 
+    for (const ColorCircle &circle : drawList.colorCircles()) {
+      id<MTLRenderPipelineState> pipeline = colorPipelineState(circle.m_blending);
+      if (!pipeline) continue;
+
+      std::vector<MetalVertex> vertices = makeVertices(circle);
+      if (vertices.empty()) continue;
+
+      const float color[4] = {circle.m_color.r / 255.0f, circle.m_color.g / 255.0f,
+                              circle.m_color.b / 255.0f, circle.m_color.m / 255.0f};
+      [encoder setRenderPipelineState:pipeline];
+      [encoder setVertexBytes:vertices.data()
+                       length:vertices.size() * sizeof(MetalVertex)
+                      atIndex:0];
+      [encoder setFragmentBytes:color length:sizeof(color) atIndex:0];
+      [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:vertices.size()];
+    }
+
     id<MTLSamplerState> sampler = samplerState();
     if (sampler) [encoder setFragmentSamplerState:sampler atIndex:0];
 
@@ -1188,20 +1207,16 @@ private:
     if (std::abs(line.m_p0.y - line.m_p1.y) <= epsilon) {
       const double x0 = std::min(line.m_p0.x, line.m_p1.x);
       const double x1 = std::max(line.m_p0.x, line.m_p1.x);
-      if (line.m_width <= 1.0)
-        return TRectD(x0, line.m_p0.y, x1 + 1.0, line.m_p0.y + 1.0);
+      if (line.m_width <= 1.0) return TRectD(x0, line.m_p0.y, x1 + 1.0, line.m_p0.y + 1.0);
       const double halfWidth = line.m_width * 0.5;
-      return TRectD(x0, line.m_p0.y - halfWidth, x1 + 1.0,
-                    line.m_p0.y + halfWidth);
+      return TRectD(x0, line.m_p0.y - halfWidth, x1 + 1.0, line.m_p0.y + halfWidth);
     }
     if (std::abs(line.m_p0.x - line.m_p1.x) <= epsilon) {
       const double y0 = std::min(line.m_p0.y, line.m_p1.y);
       const double y1 = std::max(line.m_p0.y, line.m_p1.y);
-      if (line.m_width <= 1.0)
-        return TRectD(line.m_p0.x, y0, line.m_p0.x + 1.0, y1 + 1.0);
+      if (line.m_width <= 1.0) return TRectD(line.m_p0.x, y0, line.m_p0.x + 1.0, y1 + 1.0);
       const double halfWidth = line.m_width * 0.5;
-      return TRectD(line.m_p0.x - halfWidth, y0, line.m_p0.x + halfWidth,
-                    y1 + 1.0);
+      return TRectD(line.m_p0.x - halfWidth, y0, line.m_p0.x + halfWidth, y1 + 1.0);
     }
     return std::nullopt;
   }
@@ -1218,6 +1233,51 @@ private:
              {pixelToClipX(p10.x), pixelToClipY(p10.y), 1.0f, 0.0f},
              {pixelToClipX(p11.x), pixelToClipY(p11.y), 1.0f, 1.0f},
              {pixelToClipX(p01.x), pixelToClipY(p01.y), 0.0f, 1.0f}}};
+  }
+
+  std::vector<MetalVertex> makeVertices(const ColorCircle &circle) const {
+    if (circle.m_radius <= 0.0) return {};
+
+    const int slices = 60;
+    std::vector<MetalVertex> vertices;
+    if (circle.m_filled) {
+      vertices.reserve(slices * 3);
+      for (int i = 0; i < slices; ++i) {
+        vertices.push_back(makeVertex(circle.m_center));
+        vertices.push_back(makeCircleVertex(circle, i));
+        vertices.push_back(makeCircleVertex(circle, i + 1));
+      }
+    } else {
+      vertices.reserve(slices * 6);
+      const double width = 1.0;
+      for (int i = 0; i < slices; ++i) {
+        const TPointD p0 = circlePoint(circle, i);
+        const TPointD p1 = circlePoint(circle, i + 1);
+        ColorLine segment;
+        segment.m_p0    = p0;
+        segment.m_p1    = p1;
+        segment.m_width = width;
+        std::array<TPointD, 4> points;
+        if (!makeStrokedLineQuad(segment, points)) continue;
+        std::array<MetalVertex, 6> quadVertices = makeVertices(points);
+        vertices.insert(vertices.end(), quadVertices.begin(), quadVertices.end());
+      }
+    }
+    return vertices;
+  }
+
+  MetalVertex makeVertex(const TPointD &point) const {
+    return {pixelToClipX(point.x), pixelToClipY(point.y), 0.0f, 0.0f};
+  }
+
+  MetalVertex makeCircleVertex(const ColorCircle &circle, int index) const {
+    return makeVertex(circlePoint(circle, index));
+  }
+
+  TPointD circlePoint(const ColorCircle &circle, int index) const {
+    const double angle = kTwoPi * index / 60.0;
+    return TPointD(circle.m_center.x + circle.m_radius * std::cos(angle),
+                   circle.m_center.y + circle.m_radius * std::sin(angle));
   }
 
   float pixelToClipX(double x) const { return static_cast<float>((2.0 * x / targetWidth()) - 1.0); }
@@ -1687,8 +1747,7 @@ TRaster32P renderNativeMetalHSLBlend(int width, int height, const TRaster32P &fo
 }
 
 TRaster32P renderNativeMetalRadialBlur(int width, int height, const TRaster32P &source,
-                                       const TAffine &outputToInput,
-                                       const TAffine &worldToOutput,
+                                       const TAffine &outputToInput, const TAffine &worldToOutput,
                                        const TPointD &center, double radius, double blur) {
   if (!probeMetalDevice() || width <= 0 || height <= 0 || !source) return TRaster32P();
 
@@ -1753,8 +1812,7 @@ TRaster32P renderNativeMetalRadialBlur(int width, int height, const TRaster32P &
 }
 
 TRaster32P renderNativeMetalSpinBlur(int width, int height, const TRaster32P &source,
-                                     const TAffine &outputToInput,
-                                     const TAffine &worldToOutput,
+                                     const TAffine &outputToInput, const TAffine &worldToOutput,
                                      const TPointD &center, double radius, double blur) {
   if (!probeMetalDevice() || width <= 0 || height <= 0 || !source) return TRaster32P();
 
@@ -1819,10 +1877,9 @@ TRaster32P renderNativeMetalSpinBlur(int width, int height, const TRaster32P &so
 }
 
 TRaster32P renderNativeMetalGlitter(int width, int height, const TRaster32P &source,
-                                    const TAffine &outputToInput,
-                                    const TAffine &worldToOutput,
-                                    double threshold, double brightness,
-                                    double radius, double angle, double halo) {
+                                    const TAffine &outputToInput, const TAffine &worldToOutput,
+                                    double threshold, double brightness, double radius,
+                                    double angle, double halo) {
   if (!probeMetalDevice() || width <= 0 || height <= 0 || !source) return TRaster32P();
 
   MetalTextureRenderTarget target(width, height);
