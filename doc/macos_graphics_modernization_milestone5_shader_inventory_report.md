@@ -164,6 +164,11 @@ The viewer safe-area checkpoint moves `ViewerDraw::drawSafeArea()` from OpenGL
 line stipple plus direct `tglDrawRect(...)` calls to explicit dashed
 `DrawList2D` color-line commands in camera space.
 
+The selection-tool checkpoint moves the polyline selection preview from a direct
+`GL_LINE_STRIP` to `DrawList2D` color-line commands. The start-point circle and
+contrast-blended rectangular selection frame remain on the existing drawing path
+until `tgraphics` has a contrast-blend line mode.
+
 ## Files Changed
 
 - `scripts/graphics_shader_inventory.sh`
@@ -178,6 +183,7 @@ line stipple plus direct `tglDrawRect(...)` calls to explicit dashed
 - `toonz/sources/tnzcore/CMakeLists.txt`
 - `toonz/sources/tnztools/edittool.cpp`
 - `toonz/sources/tnztools/hooktool.cpp`
+- `toonz/sources/tnztools/selectiontool.cpp`
 - `toonz/sources/tnztools/setsaveboxtool.cpp`
 - `toonz/sources/tnztools/trackertool.cpp`
 - `toonz/sources/toonz/CMakeLists.txt`
@@ -611,6 +617,8 @@ visible scale-handle outlines and non-active camera guides now also emit
 `tgraphics` color-line commands instead of direct rectangle/stipple drawing.
 Viewer safe-area guides now emit explicit dashed `tgraphics` color-line
 commands instead of OpenGL line stipple and direct `tglDrawRect(...)` calls.
+Polyline selection previews now emit `tgraphics` color-line commands instead of
+a direct `GL_LINE_STRIP`.
 Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
 effects and by moving the remaining preview/export and style-editor surfaces
 through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene

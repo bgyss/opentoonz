@@ -10,6 +10,7 @@
 #include "tools/cursors.h"
 #include "toonz/stage2.h"
 #include "toonz/tobjecthandle.h"
+#include "tgraphics.h"
 
 #include <QKeyEvent>
 
@@ -1193,15 +1194,17 @@ int SelectionTool::getCursorId() const {
 
 void SelectionTool::drawPolylineSelection() {
   if (m_polyline.empty()) return;
-  TPixel color = ToonzCheck::instance()->getChecks() & ToonzCheck::eBlackBg
-                     ? TPixel32::White
-                     : TPixel32::Red;
+  TPixel32 color = ToonzCheck::instance()->getChecks() & ToonzCheck::eBlackBg
+                       ? TPixel32::White
+                       : TPixel32::Red;
   tglColor(color);
   tglDrawCircle(m_polyline[0], 2);
-  glBegin(GL_LINE_STRIP);
-  for (UINT i = 0; i < m_polyline.size(); i++) tglVertex(m_polyline[i]);
-  tglVertex(m_mousePosition);
-  glEnd();
+
+  TGraphics::DrawList2D drawList;
+  for (UINT i = 1; i < m_polyline.size(); i++)
+    drawList.addColorLine(m_polyline[i - 1], m_polyline[i], color, false);
+  drawList.addColorLine(m_polyline.back(), m_mousePosition, color, false);
+  TGraphics::drawWithOpenGLBackend(drawList);
 }
 
 //-----------------------------------------------------------------------------
