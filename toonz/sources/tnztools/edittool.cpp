@@ -7,6 +7,7 @@
 #include "toonz/stageobjectutil.h"
 #include "tstroke.h"
 #include "tgl.h"
+#include "tgraphics.h"
 #include "tenv.h"
 #include "toonzqt/gutil.h"
 
@@ -35,6 +36,9 @@
 #include <QApplication>
 #include <QDesktopWidget>
 
+#include <algorithm>
+#include <cmath>
+
 //=============================================================================
 // Scale Constraints
 //-----------------------------------------------------------------------------
@@ -42,6 +46,30 @@
 namespace ScaleConstraints {
 enum { None = 0, AspectRatio, Mass };
 }
+
+namespace {
+
+bool shouldUseMetalCpuToolPicking() {
+  return TGraphics::requestedBackendType() == TGraphics::BackendType::Metal &&
+         TGraphics::isMetalBackendAvailable();
+}
+
+double distance2(const TPointD &a, const TPointD &b) {
+  const double dx = a.x - b.x;
+  const double dy = a.y - b.y;
+  return dx * dx + dy * dy;
+}
+
+double distanceToSegment2(const TPointD &p, const TPointD &a,
+                          const TPointD &b) {
+  const TPointD ab = b - a;
+  const double len2 = ab * ab;
+  if (len2 <= 1e-6) return distance2(p, a);
+  const double t = std::max(0.0, std::min(1.0, ((p - a) * ab) / len2));
+  return distance2(p, a + ab * t);
+}
+
+}  // namespace
 
 TEnv::IntVar LockCenterX("EditToolLockCenterX", 0);
 TEnv::IntVar LockCenterY("EditToolLockCenterY", 0);
@@ -795,6 +823,58 @@ bool EditTool::transformEnabled() const {
 
 //-----------------------------------------------------------------------------
 
+int EditTool::pickMainHandleCpu(const TPointD &pos) {
+  if (m_activeAxis.getValue() != L"All") return -1;
+  if (!transformEnabled()) return -1;
+  if (TTool::getApplication()->getCurrentFrame()->isEditingLevel()) return -1;
+  if (getViewer()->is3DView()) return -1;
+
+  TXsheet *xsh         = getXsheet();
+  TStageObjectId objId = getObjectId();
+  int frame            = getFrame();
+  TAffine parentAff    = xsh->getParentPlacement(objId, frame);
+  TAffine aff          = xsh->getPlacement(objId, frame);
+  TPointD center       = Stage::inch * xsh->getCenter(objId, frame);
+
+  const double prefScale =
+      Preferences::instance()->getAnimateToolHandleSize();
+  const double unit = getPixelSize() * prefScale;
+
+  const TAffine handleToWorld =
+      getMatrix() * parentAff.inv() * TTranslation(aff * center);
+  auto toPos = [&](const TPointD &p) {
+    return getViewer()->worldToPos(handleToWorld * p);
+  };
+
+  const int devPixRatio = getDevicePixelRatio(getViewer()->viewerWidget());
+  const double unitPx   = std::max(1.0, devPixRatio * prefScale);
+  const double centerHit2 = (12.0 * unitPx) * (12.0 * unitPx);
+  const double diskHit2   = (10.0 * unitPx) * (10.0 * unitPx);
+  const double lineHit2   = (6.0 * unitPx) * (6.0 * unitPx);
+
+  const TPointD centerPos = toPos(TPointD());
+  const TPointD rotationPos = toPos(unit * TPointD(0, 30));
+  const TPointD scalePos =
+      toPos(m_currentScaleFactor * unit * 30 * TPointD(-1, -1));
+  const TPointD scaleXyPos = toPos(m_currentScaleFactor * unit * 30 *
+                                       TPointD(-1, -1) +
+                                   unit * TPointD(10, 10));
+  const TPointD shear =
+      m_currentScaleFactor * unit * 30 * TPointD(1, -1);
+  const TPointD shearStart = toPos(shear + unit * TPointD(-6, -3));
+  const TPointD shearEnd   = toPos(shear + unit * TPointD(6, 3));
+
+  if (distance2(pos, scaleXyPos) <= diskHit2) return ScaleXY;
+  if (distance2(pos, scalePos) <= diskHit2) return Scale;
+  if (distanceToSegment2(pos, shearStart, shearEnd) <= lineHit2) return Shear;
+  if (distance2(pos, rotationPos) <= diskHit2) return Rotation;
+  if (distance2(pos, centerPos) <= centerHit2) return Center;
+
+  return -1;
+}
+
+//-----------------------------------------------------------------------------
+
 const TStroke *EditTool::getSpline() const {
   TTool::Application *app    = TTool::getApplication();
   TXsheet *xsh               = app->getCurrentXsheet()->getXsheet();
@@ -813,7 +893,13 @@ void EditTool::mouseMove(const TPointD &, const TMouseEvent &e) {
   /*-- Pick screen only when the FxGadget is displayed or
        when the "All" axis is selected. --*/
   int selectedDevice = -1;
-  if (m_fxGadgetController->hasGadget() || m_activeAxis.getValue() == L"All")
+  const bool useMetalCpuPicking =
+      shouldUseMetalCpuToolPicking() && m_activeAxis.getValue() == L"All";
+  if (useMetalCpuPicking)
+    selectedDevice = pickMainHandleCpu(e.m_pos);
+  if (selectedDevice < 0 && (!useMetalCpuPicking ||
+                             m_fxGadgetController->hasGadget()) &&
+      (m_fxGadgetController->hasGadget() || m_activeAxis.getValue() == L"All"))
     selectedDevice = pick(e.m_pos);
 
   if (selectedDevice <= 0) {
@@ -929,7 +1015,12 @@ void EditTool::leftButtonDown(const TPointD &ppos, const TMouseEvent &e) {
 //-----------------------------------------------------------------------------
 
 void EditTool::onEditAllLeftButtonDown(TPointD &pos, const TMouseEvent &e) {
-  int selectedDevice = pick(e.m_pos);
+  const bool useMetalCpuPicking = shouldUseMetalCpuToolPicking();
+  int selectedDevice =
+      useMetalCpuPicking ? pickMainHandleCpu(e.m_pos) : -1;
+  if (selectedDevice < 0 &&
+      (!useMetalCpuPicking || m_fxGadgetController->hasGadget()))
+    selectedDevice = pick(e.m_pos);
   m_what             = selectedDevice >= 0 ? selectedDevice : Translation;
 
   if (selectedDevice < 0 && m_autoSelect.getValue() != L"None") {

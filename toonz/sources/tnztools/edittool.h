@@ -84,6 +84,7 @@ class EditTool final : public QObject, public TTool {
   TPropertyGroup m_prop;
 
   void drawMainHandle();
+  int pickMainHandleCpu(const TPointD& pos);
   void onEditAllLeftButtonDown(TPointD& pos, const TMouseEvent& e);
 
 public:

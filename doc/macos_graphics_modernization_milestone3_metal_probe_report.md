@@ -210,6 +210,11 @@ before porting scene internals.
   into dashed camera-space `ColorLine` rectangles.
 - Locator-window center cross overlay now mirrors into direct Metal as two red
   `ColorLine` commands when the viewer is used as a locator.
+- Edit Tool "All" mode now has a first CPU hit-test path for the main transform
+  handles when the Metal backend is requested. Center, rotation, isotropic
+  scale, horizontal/vertical scale, and shear handles can be selected without
+  entering `GL_SELECT`; FX gadget picking remains on the legacy path until those
+  gadgets get their own CPU or ID-buffer picker.
 - The direct Metal viewer background path now adds a checkerboard using
   `Preferences::getChessboardColors(...)` when `ToonzCheck::eTransparency` is
   active.
