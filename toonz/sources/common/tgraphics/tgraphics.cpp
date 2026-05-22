@@ -32,6 +32,11 @@ std::unique_ptr<RenderTarget> createNativeMetalImageRenderTarget(int width,
                                                                  int height);
 bool isNativeMetalLayerRenderTarget(const RenderTarget* target);
 TRaster32P readNativeMetalRenderTarget(RenderTarget* target);
+TRaster32P renderNativeMetalSunflare(int width, int height,
+                                     const TAffine& outputToWorld,
+                                     const TPixel32& color, int blades,
+                                     double intensity, double angle,
+                                     double bias, double sharpness);
 #endif
 
 namespace {
@@ -695,8 +700,8 @@ TRaster32P renderDrawListWithOpenGLBackend(const DrawList2D& drawList,
   return readOpenGLRenderTarget(target.get());
 }
 
-TRaster32P renderDrawListWithMetalBackend(const DrawList2D& drawList,
-                                          int width, int height) {
+TRaster32P renderDrawListWithMetalBackend(const DrawList2D& drawList, int width,
+                                          int height) {
   std::unique_ptr<RenderTarget> target =
       createMetalImageRenderTarget(width, height);
   if (!target) return TRaster32P();
@@ -712,6 +717,28 @@ TRaster32P renderDrawListWithActiveBackend(const DrawList2D& drawList,
   if (activeBackendType() == BackendType::Metal)
     return renderDrawListWithMetalBackend(drawList, width, height);
   return renderDrawListWithOpenGLBackend(drawList, width, height);
+}
+
+TRaster32P renderSunflareWithMetalBackend(int width, int height,
+                                          const TAffine& outputToWorld,
+                                          const TPixel32& color, int blades,
+                                          double intensity, double angle,
+                                          double bias, double sharpness) {
+#ifdef OPENTOONZ_WITH_GRAPHICS_METAL
+  return renderNativeMetalSunflare(width, height, outputToWorld, color, blades,
+                                   intensity, angle, bias, sharpness);
+#else
+  (void)width;
+  (void)height;
+  (void)outputToWorld;
+  (void)color;
+  (void)blades;
+  (void)intensity;
+  (void)angle;
+  (void)bias;
+  (void)sharpness;
+  return TRaster32P();
+#endif
 }
 
 }  // namespace TGraphics

@@ -108,9 +108,8 @@ class DVAPI DrawList2D final {
 public:
   void setClearColor(const TPixel32& color);
   void addColorRect(const TRectD& rect, const TPixel32& color, bool blending);
-  void addColorQuad(const TPointD& p00, const TPointD& p10,
-                    const TPointD& p11, const TPointD& p01,
-                    const TPixel32& color, bool blending);
+  void addColorQuad(const TPointD& p00, const TPointD& p10, const TPointD& p11,
+                    const TPointD& p01, const TPixel32& color, bool blending);
   void addCheckerboard(const TRectD& rect, const TDimensionD& cellSize,
                        const TPointD& origin, const TPixel32& color0,
                        const TPixel32& color1);
@@ -178,6 +177,9 @@ DVAPI TRaster32P renderDrawListWithMetalBackend(const DrawList2D& drawList,
                                                 int width, int height);
 DVAPI TRaster32P renderDrawListWithActiveBackend(const DrawList2D& drawList,
                                                  int width, int height);
+DVAPI TRaster32P renderSunflareWithMetalBackend(
+    int width, int height, const TAffine& outputToWorld, const TPixel32& color,
+    int blades, double intensity, double angle, double bias, double sharpness);
 
 }  // namespace TGraphics
 

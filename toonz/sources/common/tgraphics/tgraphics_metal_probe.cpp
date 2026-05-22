@@ -323,6 +323,67 @@ bool validateSolidClear(const TRaster32P& readback, int width, int height,
   return true;
 }
 
+int toByte(double value) {
+  return std::max(0,
+                  std::min(255, static_cast<int>(std::lround(value * 255.0))));
+}
+
+TPixel32 sunflareReferencePixel(double fragmentX, double fragmentY,
+                                const TAffine& outputToWorld,
+                                const TPixel32& color, int blades,
+                                double intensity, double angle, double bias,
+                                double sharpness) {
+  constexpr double pi       = 3.14159265358979323846;
+  const TPointD world       = outputToWorld * TPointD(fragmentX, fragmentY);
+  const double px           = 0.03 * world.x;
+  const double py           = 0.03 * world.y;
+  const double shiftedAngle = std::atan2(py, px) - angle * pi / 180.0;
+  const double bladeBase =
+      std::sin(shiftedAngle * std::max(1, blades)) + 0.01 * bias;
+  const double blade =
+      intensity * std::max(0.0, std::min(1.0, std::pow(bladeBase, sharpness)));
+  const double length = std::max(std::sqrt(px * px + py * py), 1.0e-6);
+  const double alpha  = color.m / 255.0;
+  const double scale  = (1.0 + blade) / length;
+
+  return TPixel32(toByte(color.r / 255.0 * alpha * scale),
+                  toByte(color.g / 255.0 * alpha * scale),
+                  toByte(color.b / 255.0 * alpha * scale),
+                  toByte(alpha * scale));
+}
+
+bool closeSunflarePixel(const TPixel32& a, const TPixel32& b) {
+  return std::abs(a.r - b.r) <= 2 && std::abs(a.g - b.g) <= 2 &&
+         std::abs(a.b - b.b) <= 2 && std::abs(a.m - b.m) <= 2;
+}
+
+bool validateSunflare(const TRaster32P& readback, int width, int height,
+                      const TAffine& outputToWorld, const TPixel32& color,
+                      int blades, double intensity, double angle, double bias,
+                      double sharpness) {
+  readback->lock();
+  for (int y = 0; y < height; ++y) {
+    const TPixel32* line = readback->pixels(y);
+    for (int x = 0; x < width; ++x) {
+      const TPixel32 expected =
+          sunflareReferencePixel(x + 0.5, y + 0.5, outputToWorld, color, blades,
+                                 intensity, angle, bias, sharpness);
+      if (!closeSunflarePixel(line[x], expected)) {
+        readback->unlock();
+        std::cerr << "tgraphics_metal_probe: sunflare pixel mismatch at " << x
+                  << "," << y << " expected ";
+        printPixel(expected);
+        std::cerr << " actual ";
+        printPixel(line[x]);
+        std::cerr << std::endl;
+        return false;
+      }
+    }
+  }
+  readback->unlock();
+  return true;
+}
+
 TRaster32P renderMetal(const TGraphics::DrawList2D& drawList, int width,
                        int height) {
   return TGraphics::renderDrawListWithMetalBackend(drawList, width, height);
@@ -658,6 +719,30 @@ int main(int argc, char* argv[]) {
     if (!openGLReadback)
       return fail("could not read back alpha OpenGL baseline");
     if (!compareRasters(readback, openGLReadback, "alpha", artifactDir)) {
+      return EXIT_FAILURE;
+    }
+  }
+
+  {
+    const int shaderWidth       = 16;
+    const int shaderHeight      = 12;
+    const TAffine outputToWorld = TTranslation(24.0, 31.0);
+    const TPixel32 color(96, 68, 28, 128);
+    const int blades       = 6;
+    const double intensity = 0.35;
+    const double angle     = 12.0;
+    const double bias      = 20.0;
+    const double sharpness = 3.0;
+
+    TRaster32P readback = TGraphics::renderSunflareWithMetalBackend(
+        shaderWidth, shaderHeight, outputToWorld, color, blades, intensity,
+        angle, bias, sharpness);
+    if (!readback) return fail("could not read back sunflare Metal shader");
+    if (!requireDimensions(readback, shaderWidth, shaderHeight)) {
+      return fail("sunflare readback dimensions do not match render target");
+    }
+    if (!validateSunflare(readback, shaderWidth, shaderHeight, outputToWorld,
+                          color, blades, intensity, angle, bias, sharpness)) {
       return EXIT_FAILURE;
     }
   }

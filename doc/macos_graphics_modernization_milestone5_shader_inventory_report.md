@@ -1,7 +1,7 @@
 # macOS Graphics Modernization Milestone 5 Shader Inventory
 
-Status: GLSL/OpenGL shader inventory and Metal-port classification added
-locally on 2026-05-22.
+Status: GLSL/OpenGL shader inventory, Metal-port classification, and first
+validated procedural Metal shader helper added locally on 2026-05-22.
 
 ## Objective
 
@@ -15,10 +15,22 @@ still compiles GLSL through `QOpenGLShaderProgram`, uses OpenGL transform
 feedback for bbox and input-port geometry programs, and renders through
 `ShadingContext`/OpenGL FBOs.
 
+The first implementation checkpoint ports the procedural `sunflare` fragment
+logic into the `tgraphics` Metal shader source and exposes a Metal-only
+offscreen render helper. The helper is validated by `tgraphics_metal_probe`
+against a CPU reference for the same formula. This proves the first procedural
+effect shader can render through Metal readback, but it is not yet connected to
+the production `ShaderFx` graph.
+
 ## Files Changed
 
 - `scripts/graphics_shader_inventory.sh`
 - `doc/macos_graphics_modernization_milestone5_shader_inventory_report.md`
+- `toonz/sources/include/tgraphics.h`
+- `toonz/sources/common/tgraphics/tgraphics.cpp`
+- `toonz/sources/common/tgraphics/tgraphics_metal.mm`
+- `toonz/sources/common/tgraphics/tgraphics_metal_shaders.metal`
+- `toonz/sources/common/tgraphics/tgraphics_metal_probe.cpp`
 
 ## Inventory Command
 
@@ -75,12 +87,20 @@ Direct Metal Shading Language rewrite candidates:
 - `caustics.frag`
 - `fireball.frag`
 - `starsky.frag`
-- `sunflare.frag`
 - `wavy.frag`
 
 These are procedural fragment shaders with no input texture sampling. They are
 the smallest useful shader-effect subset to port first because they avoid
 input-port texture routing and bbox transform feedback.
+
+First validated Metal procedural helper:
+
+- `sunflare.frag`
+
+The Metal implementation uses the same procedural inputs as the GLSL source:
+`outputToWorld`, `color`, `blades`, `intensity`, `angle`, `bias`, and
+`sharpness`. It renders into a Metal texture target and returns `TRaster32P`
+readback for probe/image-diff workflows.
 
 Shared shader-generation candidates:
 
@@ -116,13 +136,14 @@ Current Metal shader source:
 The current `tgraphics` Metal backend still compiles equivalent shader source
 from an Objective-C++ string in `tgraphics_metal.mm`; the `.metal` file is
 tracked in the target as source evidence, not yet packaged as a runtime
-library.
+library. The runtime string and tracked `.metal` source both include the
+sunflare fragment entry point.
 
 ## Next Effects Recommendation
 
-Port one procedural source effect first, preferably `sunflare` or `wavy`,
-behind an opt-in Metal shader-effect path. The minimum useful acceptance test
-for that port is:
+Continue from the validated `sunflare` helper by wiring a procedural source
+effect behind an opt-in Metal shader-effect path. The next useful acceptance
+test is:
 
 - render the same small effect frame through the current OpenGL `ShaderFx`
   path and the new Metal path
@@ -134,7 +155,18 @@ for that port is:
 
 ```sh
 bash scripts/graphics_shader_inventory.sh
+nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=ON'
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tgraphics_metal_probe --parallel 3
+nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
+nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=OFF'
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target OpenToonz --parallel 3
 ```
 
-Full OpenToonz build validation should still be run after the next source-code
-change that consumes this inventory.
+Metal probe output:
+
+```text
+tgraphics_metal_probe: ok on Apple M1 Max
+```
+
+Known validation gap: this checkpoint compares Metal `sunflare` output to a CPU
+formula reference, not yet to the production OpenGL `ShaderFx` implementation.

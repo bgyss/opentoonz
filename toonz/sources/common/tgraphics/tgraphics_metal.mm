@@ -8,14 +8,14 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <iostream>
 #include <optional>
 #include <string>
 
 namespace TGraphics {
 namespace {
 
-bool makeStrokedLineQuad(const ColorLine &line,
-                         std::array<TPointD, 4> &points) {
+bool makeStrokedLineQuad(const ColorLine &line, std::array<TPointD, 4> &points) {
   const double dx     = line.m_p1.x - line.m_p0.x;
   const double dy     = line.m_p1.y - line.m_p0.y;
   const double length = std::sqrt(dx * dx + dy * dy);
@@ -61,6 +61,14 @@ MetalState &metalState() {
   return state;
 }
 
+void logMetalError(NSString *context, NSError *error) {
+  if (!error) return;
+  const char *message = [[error localizedDescription] UTF8String];
+  std::cerr << "OpenToonz Metal: " << [context UTF8String] << " failed";
+  if (message) std::cerr << ": " << message;
+  std::cerr << std::endl;
+}
+
 NSString *shaderSource() {
   return @"#include <metal_stdlib>\n"
           "using namespace metal;\n"
@@ -85,6 +93,24 @@ NSString *shaderSource() {
           "fragment float4 tgraphicsColorFragment(VertexOut in [[stage_in]], "
           "constant float4 &color [[buffer(0)]]) {\n"
           "  return color;\n"
+          "}\n"
+          "struct SunflareUniforms { float a11; float a12; float a13; float "
+          "a21; float a22; float a23; float4 color; float blades; float "
+          "intensity; float angle; float bias; float sharpness; };\n"
+          "fragment float4 tgraphicsSunflareFragment(VertexOut in "
+          "[[stage_in]], constant SunflareUniforms &u [[buffer(0)]]) {\n"
+          "  float2 world = float2(in.position.x * u.a11 + in.position.y * "
+          "u.a12 + u.a13, in.position.x * u.a21 + in.position.y * u.a22 + "
+          "u.a23);\n"
+          "  float2 p = 0.03 * world;\n"
+          "  float angle = atan2(p.y, p.x) - u.angle * "
+          "0.017453292519943295;\n"
+          "  float bladeBase = sin(angle * u.blades) + 0.01 * u.bias;\n"
+          "  float blade = u.intensity * clamp(pow(bladeBase, u.sharpness), "
+          "0.0, 1.0);\n"
+          "  float4 premultiplied = float4(u.color.rgb * u.color.a, "
+          "u.color.a);\n"
+          "  return premultiplied * (1.0 + blade) / max(length(p), 1.0e-6);\n"
           "}\n";
 }
 
@@ -157,6 +183,61 @@ struct MetalVertex {
   float m_u = 0.0f;
   float m_v = 0.0f;
 };
+
+struct SunflareUniforms {
+  float m_a11         = 1.0f;
+  float m_a12         = 0.0f;
+  float m_a13         = 0.0f;
+  float m_a21         = 0.0f;
+  float m_a22         = 1.0f;
+  float m_a23         = 0.0f;
+  float m_padding0[2] = {0.0f, 0.0f};
+  float m_color[4]    = {1.0f, 1.0f, 1.0f, 1.0f};
+  float m_blades      = 6.0f;
+  float m_intensity   = 1.0f;
+  float m_angle       = 0.0f;
+  float m_bias        = 0.0f;
+  float m_sharpness   = 3.0f;
+};
+
+id<MTLRenderPipelineState> sunflarePipelineState() {
+  static id<MTLRenderPipelineState> pipeline = nil;
+  static bool attempted                      = false;
+  if (attempted) return pipeline;
+  attempted = true;
+
+  MetalState &state      = metalState();
+  NSError *error         = nil;
+  id<MTLLibrary> library = [state.m_device newLibraryWithSource:shaderSource()
+                                                        options:nil
+                                                          error:&error];
+  if (!library) {
+    logMetalError(@"compile shader library", error);
+    return nil;
+  }
+
+  id<MTLFunction> vertexFunction   = [library newFunctionWithName:@"tgraphicsVertex"];
+  id<MTLFunction> fragmentFunction = [library newFunctionWithName:@"tgraphicsSunflareFragment"];
+
+  MTLRenderPipelineDescriptor *descriptor        = [[MTLRenderPipelineDescriptor alloc] init];
+  descriptor.label                               = @"OpenToonz TGraphics Sunflare";
+  descriptor.vertexFunction                      = vertexFunction;
+  descriptor.fragmentFunction                    = fragmentFunction;
+  descriptor.colorAttachments[0].pixelFormat     = MTLPixelFormatBGRA8Unorm;
+  descriptor.colorAttachments[0].blendingEnabled = NO;
+
+  pipeline = [state.m_device newRenderPipelineStateWithDescriptor:descriptor error:&error];
+  if (!pipeline) logMetalError(@"create sunflare pipeline", error);
+
+#if !__has_feature(objc_arc)
+  [descriptor release];
+  [fragmentFunction release];
+  [vertexFunction release];
+  [library release];
+#endif
+
+  return pipeline;
+}
 
 class MetalCommandEncoder final : public CommandEncoder {
   RenderTarget *m_target = nullptr;
@@ -307,7 +388,10 @@ private:
     id<MTLLibrary> library = [state.m_device newLibraryWithSource:shaderSource()
                                                           options:nil
                                                             error:&error];
-    if (!library) return nil;
+    if (!library) {
+      logMetalError(@"compile shader library", error);
+      return nil;
+    }
 
     id<MTLFunction> vertexFunction   = [library newFunctionWithName:@"tgraphicsVertex"];
     id<MTLFunction> fragmentFunction = [library newFunctionWithName:@"tgraphicsFragment"];
@@ -327,6 +411,7 @@ private:
     }
 
     pipeline = [state.m_device newRenderPipelineStateWithDescriptor:descriptor error:&error];
+    if (!pipeline) logMetalError(@"create texture pipeline", error);
 
 #if !__has_feature(objc_arc)
     [descriptor release];
@@ -354,7 +439,10 @@ private:
     id<MTLLibrary> library = [state.m_device newLibraryWithSource:shaderSource()
                                                           options:nil
                                                             error:&error];
-    if (!library) return nil;
+    if (!library) {
+      logMetalError(@"compile shader library", error);
+      return nil;
+    }
 
     id<MTLFunction> vertexFunction   = [library newFunctionWithName:@"tgraphicsVertex"];
     id<MTLFunction> fragmentFunction = [library newFunctionWithName:@"tgraphicsColorFragment"];
@@ -374,6 +462,7 @@ private:
     }
 
     pipeline = [state.m_device newRenderPipelineStateWithDescriptor:descriptor error:&error];
+    if (!pipeline) logMetalError(@"create color pipeline", error);
 
 #if !__has_feature(objc_arc)
     [descriptor release];
@@ -491,8 +580,7 @@ private:
     return std::nullopt;
   }
 
-  std::array<MetalVertex, 6> makeVertices(
-      const std::array<TPointD, 4> &points) const {
+  std::array<MetalVertex, 6> makeVertices(const std::array<TPointD, 4> &points) const {
     const TPointD &p00 = points[0];
     const TPointD &p10 = points[1];
     const TPointD &p11 = points[2];
@@ -545,6 +633,8 @@ public:
 };
 
 }  // namespace
+
+TRaster32P readNativeMetalRenderTarget(RenderTarget *target);
 
 Device &nativeMetalDevice() {
   static MetalDevice device;
@@ -605,6 +695,66 @@ std::unique_ptr<RenderTarget> createNativeMetalImageRenderTarget(int width, int 
 
 bool isNativeMetalLayerRenderTarget(const RenderTarget *target) {
   return dynamic_cast<const MetalLayerRenderTarget *>(target) != nullptr;
+}
+
+TRaster32P renderNativeMetalSunflare(int width, int height, const TAffine &outputToWorld,
+                                     const TPixel32 &color, int blades, double intensity,
+                                     double angle, double bias, double sharpness) {
+  if (!probeMetalDevice() || width <= 0 || height <= 0) return TRaster32P();
+
+  MetalTextureRenderTarget target(width, height);
+  if (!target.texture()) return TRaster32P();
+
+  id<MTLRenderPipelineState> pipeline = sunflarePipelineState();
+  if (!pipeline) return TRaster32P();
+
+  MetalState &state = metalState();
+
+  MTLRenderPassDescriptor *pass        = [MTLRenderPassDescriptor renderPassDescriptor];
+  pass.colorAttachments[0].texture     = target.texture();
+  pass.colorAttachments[0].loadAction  = MTLLoadActionClear;
+  pass.colorAttachments[0].storeAction = MTLStoreActionStore;
+  pass.colorAttachments[0].clearColor  = MTLClearColorMake(0.0, 0.0, 0.0, 0.0);
+
+  id<MTLCommandBuffer> commandBuffer  = [state.m_commandQueue commandBuffer];
+  commandBuffer.label                 = @"OpenToonz TGraphics Sunflare";
+  id<MTLRenderCommandEncoder> encoder = [commandBuffer renderCommandEncoderWithDescriptor:pass];
+  encoder.label                       = @"Sunflare";
+
+  const float left              = -1.0f;
+  const float right             = 1.0f;
+  const float top               = 1.0f;
+  const float bottom            = -1.0f;
+  const MetalVertex vertices[6] = {{left, top, 0.0f, 0.0f},     {right, top, 1.0f, 0.0f},
+                                   {left, bottom, 0.0f, 1.0f},  {right, top, 1.0f, 0.0f},
+                                   {right, bottom, 1.0f, 1.0f}, {left, bottom, 0.0f, 1.0f}};
+
+  SunflareUniforms uniforms;
+  uniforms.m_a11       = static_cast<float>(outputToWorld.a11);
+  uniforms.m_a12       = static_cast<float>(outputToWorld.a12);
+  uniforms.m_a13       = static_cast<float>(outputToWorld.a13);
+  uniforms.m_a21       = static_cast<float>(outputToWorld.a21);
+  uniforms.m_a22       = static_cast<float>(outputToWorld.a22);
+  uniforms.m_a23       = static_cast<float>(outputToWorld.a23);
+  uniforms.m_color[0]  = color.r / 255.0f;
+  uniforms.m_color[1]  = color.g / 255.0f;
+  uniforms.m_color[2]  = color.b / 255.0f;
+  uniforms.m_color[3]  = color.m / 255.0f;
+  uniforms.m_blades    = static_cast<float>(std::max(1, blades));
+  uniforms.m_intensity = static_cast<float>(intensity);
+  uniforms.m_angle     = static_cast<float>(angle);
+  uniforms.m_bias      = static_cast<float>(bias);
+  uniforms.m_sharpness = static_cast<float>(sharpness);
+
+  [encoder setRenderPipelineState:pipeline];
+  [encoder setVertexBytes:vertices length:sizeof(vertices) atIndex:0];
+  [encoder setFragmentBytes:&uniforms length:sizeof(uniforms) atIndex:0];
+  [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+  [encoder endEncoding];
+  [commandBuffer commit];
+  [commandBuffer waitUntilCompleted];
+
+  return readNativeMetalRenderTarget(&target);
 }
 
 TRaster32P readNativeMetalRenderTarget(RenderTarget *target) {
