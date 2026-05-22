@@ -192,6 +192,53 @@ NSString *shaderSource() {
           "  }\n"
           "  return pix / float(2 * samplesCount - 1);\n"
           "}\n"
+          "fragment float4 tgraphicsSpinBlurFragment(VertexOut in "
+          "[[stage_in]], texture2d<float> sourceTexture [[texture(0)]], "
+          "sampler colorSampler [[sampler(0)]], constant RadialBlurUniforms "
+          "&u [[buffer(0)]]) {\n"
+          "  float2 center = float2(u.centerX * u.worldA11 + u.centerY * "
+          "u.worldA12 + u.worldA13, u.centerX * u.worldA21 + u.centerY * "
+          "u.worldA22 + u.worldA23);\n"
+          "  float scale = sqrt(abs(u.worldA11 * u.worldA22 - u.worldA12 * "
+          "u.worldA21));\n"
+          "  float radius = scale * max(u.radius, 0.0);\n"
+          "  float2 v = in.position.xy - center;\n"
+          "  float distance = length(v);\n"
+          "  float dist = max(distance - radius, 0.0);\n"
+          "  float blurLen = max(u.blur, 0.0) * 0.017453292519943295 * "
+          "dist;\n"
+          "  float blur = blurLen / max(distance, 0.01);\n"
+          "  int samplesCount = int(clamp(ceil(blurLen * 4.0), 1.0, "
+          "2000.0));\n"
+          "  float angleStep = blur / float(samplesCount);\n"
+          "  float cosStep = cos(angleStep);\n"
+          "  float sinStep = sin(angleStep);\n"
+          "  float2x2 rotStep0 = float2x2(float2(cosStep, sinStep), "
+          "float2(-sinStep, cosStep));\n"
+          "  float2x2 rotStep1 = float2x2(float2(cosStep, -sinStep), "
+          "float2(sinStep, cosStep));\n"
+          "  float2 texPos = float2(in.position.x * u.inputA11 + "
+          "in.position.y * u.inputA12 + u.inputA13, in.position.x * "
+          "u.inputA21 + in.position.y * u.inputA22 + u.inputA23);\n"
+          "  float4 pix = sourceTexture.sample(colorSampler, texPos);\n"
+          "  float2 v0 = rotStep0 * v;\n"
+          "  float2 v1 = rotStep1 * v;\n"
+          "  for (int s = 1; s < samplesCount; ++s) {\n"
+          "    float2 p0 = center + v0;\n"
+          "    float2 p1 = center + v1;\n"
+          "    float2 tPos0 = float2(p0.x * u.inputA11 + p0.y * u.inputA12 "
+          "+ u.inputA13, p0.x * u.inputA21 + p0.y * u.inputA22 + "
+          "u.inputA23);\n"
+          "    float2 tPos1 = float2(p1.x * u.inputA11 + p1.y * u.inputA12 "
+          "+ u.inputA13, p1.x * u.inputA21 + p1.y * u.inputA22 + "
+          "u.inputA23);\n"
+          "    pix += sourceTexture.sample(colorSampler, tPos0);\n"
+          "    pix += sourceTexture.sample(colorSampler, tPos1);\n"
+          "    v0 = rotStep0 * v0;\n"
+          "    v1 = rotStep1 * v1;\n"
+          "  }\n"
+          "  return pix / float(2 * samplesCount - 1);\n"
+          "}\n"
           "struct SunflareUniforms { float a11; float a12; float a13; float "
           "a21; float a22; float a23; float4 color; float blades; float "
           "intensity; float angle; float bias; float sharpness; };\n"
@@ -666,6 +713,13 @@ id<MTLRenderPipelineState> radialBlurPipelineState() {
   static bool attempted                      = false;
   return proceduralShaderPipelineState(pipeline, attempted, @"create radial blur pipeline",
                                        @"tgraphicsRadialBlurFragment");
+}
+
+id<MTLRenderPipelineState> spinBlurPipelineState() {
+  static id<MTLRenderPipelineState> pipeline = nil;
+  static bool attempted                      = false;
+  return proceduralShaderPipelineState(pipeline, attempted, @"create spin blur pipeline",
+                                       @"tgraphicsSpinBlurFragment");
 }
 
 id<MTLSamplerState> sharedSamplerState() {
@@ -1517,6 +1571,72 @@ TRaster32P renderNativeMetalRadialBlur(int width, int height, const TRaster32P &
   commandBuffer.label                 = @"OpenToonz TGraphics Radial Blur";
   id<MTLRenderCommandEncoder> encoder = [commandBuffer renderCommandEncoderWithDescriptor:pass];
   encoder.label                       = @"Radial Blur";
+
+  const float left              = -1.0f;
+  const float right             = 1.0f;
+  const float top               = 1.0f;
+  const float bottom            = -1.0f;
+  const MetalVertex vertices[6] = {{left, top, 0.0f, 0.0f},     {right, top, 1.0f, 0.0f},
+                                   {left, bottom, 0.0f, 1.0f},  {right, top, 1.0f, 0.0f},
+                                   {right, bottom, 1.0f, 1.0f}, {left, bottom, 0.0f, 1.0f}};
+
+  RadialBlurUniforms uniforms;
+  uniforms.m_inputA11 = static_cast<float>(outputToInput.a11);
+  uniforms.m_inputA12 = static_cast<float>(outputToInput.a12);
+  uniforms.m_inputA13 = static_cast<float>(outputToInput.a13);
+  uniforms.m_inputA21 = static_cast<float>(outputToInput.a21);
+  uniforms.m_inputA22 = static_cast<float>(outputToInput.a22);
+  uniforms.m_inputA23 = static_cast<float>(outputToInput.a23);
+  uniforms.m_worldA11 = static_cast<float>(worldToOutput.a11);
+  uniforms.m_worldA12 = static_cast<float>(worldToOutput.a12);
+  uniforms.m_worldA13 = static_cast<float>(worldToOutput.a13);
+  uniforms.m_worldA21 = static_cast<float>(worldToOutput.a21);
+  uniforms.m_worldA22 = static_cast<float>(worldToOutput.a22);
+  uniforms.m_worldA23 = static_cast<float>(worldToOutput.a23);
+  uniforms.m_centerX  = static_cast<float>(center.x);
+  uniforms.m_centerY  = static_cast<float>(center.y);
+  uniforms.m_radius   = static_cast<float>(radius);
+  uniforms.m_blur     = static_cast<float>(blur);
+
+  [encoder setRenderPipelineState:pipeline];
+  [encoder setVertexBytes:vertices length:sizeof(vertices) atIndex:0];
+  [encoder setFragmentTexture:sourceTexture atIndex:0];
+  [encoder setFragmentSamplerState:sampler atIndex:0];
+  [encoder setFragmentBytes:&uniforms length:sizeof(uniforms) atIndex:0];
+  [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+  [encoder endEncoding];
+  [commandBuffer commit];
+  [commandBuffer waitUntilCompleted];
+
+  return readNativeMetalRenderTarget(&target);
+}
+
+TRaster32P renderNativeMetalSpinBlur(int width, int height, const TRaster32P &source,
+                                     const TAffine &outputToInput,
+                                     const TAffine &worldToOutput,
+                                     const TPointD &center, double radius, double blur) {
+  if (!probeMetalDevice() || width <= 0 || height <= 0 || !source) return TRaster32P();
+
+  MetalTextureRenderTarget target(width, height);
+  if (!target.texture()) return TRaster32P();
+
+  id<MTLRenderPipelineState> pipeline = spinBlurPipelineState();
+  id<MTLSamplerState> sampler         = sharedSamplerState();
+  id<MTLTexture> sourceTexture        = uploadRasterTexture(source);
+  if (!pipeline || !sampler || !sourceTexture) return TRaster32P();
+
+  MetalState &state = metalState();
+
+  MTLRenderPassDescriptor *pass        = [MTLRenderPassDescriptor renderPassDescriptor];
+  pass.colorAttachments[0].texture     = target.texture();
+  pass.colorAttachments[0].loadAction  = MTLLoadActionClear;
+  pass.colorAttachments[0].storeAction = MTLStoreActionStore;
+  pass.colorAttachments[0].clearColor  = MTLClearColorMake(0.0, 0.0, 0.0, 0.0);
+
+  id<MTLCommandBuffer> commandBuffer  = [state.m_commandQueue commandBuffer];
+  commandBuffer.label                 = @"OpenToonz TGraphics Spin Blur";
+  id<MTLRenderCommandEncoder> encoder = [commandBuffer renderCommandEncoderWithDescriptor:pass];
+  encoder.label                       = @"Spin Blur";
 
   const float left              = -1.0f;
   const float right             = 1.0f;

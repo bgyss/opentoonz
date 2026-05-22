@@ -107,6 +107,22 @@ fi
     --scene-render \
     --save-load-scene "$artifact_dir/radialblurGPU-metal.tnz" \
     --write-pam "$artifact_dir/radialblurGPU-metal-saved-scene.pam"
+  OPENTOONZ_GRAPHICS_BACKEND=metal "$probe" \
+    --shader SHADER_spinblurGPU \
+    --write-pam "$artifact_dir/spinblurGPU-metal.pam"
+  OPENTOONZ_GRAPHICS_BACKEND=metal "$probe" \
+    --shader SHADER_spinblurGPU \
+    --renderer \
+    --write-pam "$artifact_dir/spinblurGPU-metal-renderer.pam"
+  OPENTOONZ_GRAPHICS_BACKEND=metal "$probe" \
+    --shader SHADER_spinblurGPU \
+    --scene-render \
+    --write-pam "$artifact_dir/spinblurGPU-metal-scene.pam"
+  OPENTOONZ_GRAPHICS_BACKEND=metal "$probe" \
+    --shader SHADER_spinblurGPU \
+    --scene-render \
+    --save-load-scene "$artifact_dir/spinblurGPU-metal.tnz" \
+    --write-pam "$artifact_dir/spinblurGPU-metal-saved-scene.pam"
 )
 
 echo "graphics_shaderfx_compare: ok"

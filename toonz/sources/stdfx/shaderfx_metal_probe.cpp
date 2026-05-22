@@ -29,6 +29,7 @@
 #include <QString>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
@@ -160,6 +161,73 @@ bool compareRasters(const TRaster32P& actual, const TRaster32P& expected,
     return false;
   }
   return true;
+}
+
+void addPointToRect(TRectD& rect, const TPointD& point) {
+  rect.x0 = std::min(rect.x0, point.x);
+  rect.y0 = std::min(rect.y0, point.y);
+  rect.x1 = std::max(rect.x1, point.x);
+  rect.y1 = std::max(rect.y1, point.y);
+}
+
+double positiveModulo(double value, double divisor) {
+  const double result = std::fmod(value, divisor);
+  return result < 0.0 ? result + divisor : result;
+}
+
+void addSpinBlurredPointBox(TRectD& rect, const TPointD& point,
+                            const TPointD& center, double radius,
+                            double blurDegrees) {
+  static const double pi      = 3.14159265358979323846;
+  static const double piTwice = 2.0 * pi;
+  static const double piHalf  = pi / 2.0;
+  const double dx             = point.x - center.x;
+  const double dy             = point.y - center.y;
+  const double distance       = std::sqrt(dx * dx + dy * dy);
+  const double angle          = std::atan2(dy, dx);
+  const double dist           = std::max(distance - radius, 0.0);
+  const double blurLen        = blurDegrees * pi / 180.0 * dist;
+  const double blur           = blurLen / std::max(distance, 0.01);
+  const double angle0         = angle - blur;
+  const double angle1         = angle + blur;
+
+  addPointToRect(rect, center + TPointD(distance * std::cos(angle0),
+                                        distance * std::sin(angle0)));
+  addPointToRect(rect, center + TPointD(distance * std::cos(angle1),
+                                        distance * std::sin(angle1)));
+
+  const double blurTwice = 2.0 * blur;
+  if (positiveModulo(-angle0, piTwice) < blurTwice)
+    addPointToRect(rect, center + TPointD(distance, 0.0));
+  if (positiveModulo(piHalf - angle0, piTwice) < blurTwice)
+    addPointToRect(rect, center + TPointD(0.0, distance));
+  if (positiveModulo(pi - angle0, piTwice) < blurTwice)
+    addPointToRect(rect, center + TPointD(-distance, 0.0));
+  if (positiveModulo(-piHalf - angle0, piTwice) < blurTwice)
+    addPointToRect(rect, center + TPointD(0.0, -distance));
+}
+
+TRectD spinBlurredRect(const TRectD& rect, const TPointD& center,
+                       double radius, double blurDegrees) {
+  TRectD blurredRect = rect;
+  addSpinBlurredPointBox(blurredRect, TPointD(rect.x0, rect.y0), center,
+                         radius, blurDegrees);
+  addSpinBlurredPointBox(blurredRect, TPointD(rect.x0, rect.y1), center,
+                         radius, blurDegrees);
+  addSpinBlurredPointBox(blurredRect, TPointD(rect.x1, rect.y0), center,
+                         radius, blurDegrees);
+  addSpinBlurredPointBox(blurredRect, TPointD(rect.x1, rect.y1), center,
+                         radius, blurDegrees);
+  return blurredRect;
+}
+
+TRectD transformRect(const TAffine& affine, const TRectD& rect) {
+  TRectD transformed(affine * TPointD(rect.x0, rect.y0),
+                     TDimensionD(0.0, 0.0));
+  addPointToRect(transformed, affine * TPointD(rect.x0, rect.y1));
+  addPointToRect(transformed, affine * TPointD(rect.x1, rect.y0));
+  addPointToRect(transformed, affine * TPointD(rect.x1, rect.y1));
+  return transformed;
 }
 
 bool writePam(const TRaster32P& raster, const std::string& path) {
@@ -437,7 +505,8 @@ TRasterFxP makeProbeShaderFx(const Options& options, TFxP foregroundFx,
     if (!root->getInputPort(0) || !root->getInputPort(1)) return TRasterFxP();
     root->getInputPort(0)->setFx(foregroundFx.getPointer());
     root->getInputPort(1)->setFx(backgroundFx.getPointer());
-  } else if (options.shaderName == "SHADER_radialblurGPU") {
+  } else if (options.shaderName == "SHADER_radialblurGPU" ||
+             options.shaderName == "SHADER_spinblurGPU") {
     if (root->getInputPortCount() != 1) return TRasterFxP();
     if (!root->getInputPort(0)) return TRasterFxP();
     root->getInputPort(0)->setFx(foregroundFx.getPointer());
@@ -565,9 +634,13 @@ TRaster32P renderRadialBlurSceneForProbe(const Options& options,
   ToonzScene scene;
   const int width  = tile.getRaster()->getLx() * 3;
   const int height = tile.getRaster()->getLy() * 3;
+  const std::wstring levelName =
+      options.shaderName == "SHADER_spinblurGPU"
+          ? L"SpinBlurProbeForeground"
+          : L"RadialBlurProbeForeground";
 
   TLevelColumnFx* foregroundFx = addProbeRasterColumn(
-      scene, 0, tfloor(frame), L"RadialBlurProbeForeground",
+      scene, 0, tfloor(frame), levelName,
       makeHSLProbeSceneRaster(width, height, true));
   if (!foregroundFx) return TRaster32P();
 
@@ -585,6 +658,8 @@ TRaster32P renderSceneForProbe(const Options& options, const TTile& tile,
   if (options.shaderName == "SHADER_HSLBlendGPU")
     return renderHSLSceneForProbe(options, tile, frame, settings);
   if (options.shaderName == "SHADER_radialblurGPU")
+    return renderRadialBlurSceneForProbe(options, tile, frame, settings);
+  if (options.shaderName == "SHADER_spinblurGPU")
     return renderRadialBlurSceneForProbe(options, tile, frame, settings);
 
   TFxP root = makeProbeShaderFx(options, foregroundFx, backgroundFx);
@@ -662,6 +737,10 @@ bool hydrateSavedProbeInputLevels(const Options& options, ToonzScene& scene,
     return hydrateSavedProbeLevel(scene, L"RadialBlurProbeForeground",
                                   scenePath);
   }
+  if (options.shaderName == "SHADER_spinblurGPU") {
+    return hydrateSavedProbeLevel(scene, L"SpinBlurProbeForeground",
+                                  scenePath);
+  }
   return true;
 }
 
@@ -686,11 +765,16 @@ TRaster32P renderSavedLoadedSceneForProbe(const Options& options,
     if (!foregroundColumnFx || !backgroundColumnFx) return TRaster32P();
     root = makeProbeShaderFx(options, TFxP(foregroundColumnFx),
                              TFxP(backgroundColumnFx));
-  } else if (options.shaderName == "SHADER_radialblurGPU") {
+  } else if (options.shaderName == "SHADER_radialblurGPU" ||
+             options.shaderName == "SHADER_spinblurGPU") {
     const int width  = tile.getRaster()->getLx() * 3;
     const int height = tile.getRaster()->getLy() * 3;
+    const std::wstring levelName =
+        options.shaderName == "SHADER_spinblurGPU"
+            ? L"SpinBlurProbeForeground"
+            : L"RadialBlurProbeForeground";
     TLevelColumnFx* foregroundColumnFx = addSavedProbeRasterColumn(
-        sourceScene, scenePath, 0, tfloor(frame), L"RadialBlurProbeForeground",
+        sourceScene, scenePath, 0, tfloor(frame), levelName,
         makeHSLProbeSceneRaster(width, height, true));
     if (!foregroundColumnFx) return TRaster32P();
     root = makeProbeShaderFx(options, TFxP(foregroundColumnFx), TFxP());
@@ -755,6 +839,32 @@ TRaster32P renderExpectedMetalHelper(const Options& options, int width,
         width, height, makeHSLProbeRaster(width, height, tile.m_pos, true),
         outputToTexture, worldToOutput, TPointD(0.0, 0.0), 3.0, 0.3);
   }
+  if (options.shaderName == "SHADER_spinblurGPU") {
+    const TAffine worldToOutput = TTranslation(-tile.m_pos) * settings.m_affine;
+    const double scale =
+        std::sqrt(std::abs(worldToOutput.a11 * worldToOutput.a22 -
+                           worldToOutput.a12 * worldToOutput.a21));
+    const TRectD outputRect(TPointD(0.0, 0.0),
+                            TDimensionD(width, height));
+    const TRectD blurredOutputRect =
+        spinBlurredRect(outputRect, worldToOutput * TPointD(0.0, 0.0),
+                        scale * 3.0, 1.0);
+    TRectD inputRect = transformRect(worldToOutput.inv(), blurredOutputRect);
+    inputRect.x0 = tfloor(inputRect.x0), inputRect.y0 = tfloor(inputRect.y0);
+    inputRect.x1 = tceil(inputRect.x1), inputRect.y1 = tceil(inputRect.y1);
+    const int inputWidth  = tround(inputRect.getLx());
+    const int inputHeight = tround(inputRect.getLy());
+    if (inputWidth <= 0 || inputHeight <= 0) return TRaster32P();
+    const TAffine textureToOutput =
+        TTranslation(-tile.m_pos) * settings.m_affine *
+        settings.m_affine.inv() * TTranslation(inputRect.getP00()) *
+        TScale(inputRect.getLx(), inputRect.getLy());
+    const TAffine outputToTexture = textureToOutput.inv();
+    return TGraphics::renderSpinBlurWithMetalBackend(
+        width, height,
+        makeHSLProbeRaster(inputWidth, inputHeight, inputRect.getP00(), true),
+        outputToTexture, worldToOutput, TPointD(0.0, 0.0), 3.0, 1.0);
+  }
   return TRaster32P();
 }
 
@@ -783,7 +893,8 @@ int main(int argc, char* argv[]) {
   TFxP foregroundFx;
   TFxP backgroundFx;
   if (options.shaderName == "SHADER_HSLBlendGPU" ||
-      options.shaderName == "SHADER_radialblurGPU") {
+      options.shaderName == "SHADER_radialblurGPU" ||
+      options.shaderName == "SHADER_spinblurGPU") {
     foregroundFx = TFxP(new HSLProbeRasterFx(true));
     if (options.shaderName == "SHADER_HSLBlendGPU")
       backgroundFx = TFxP(new HSLProbeRasterFx(false));
@@ -798,7 +909,8 @@ int main(int argc, char* argv[]) {
   settings.m_affine =
       TAffine::translation(4.0, -3.0) * TAffine::scale(1.25, 0.75);
   if (options.shaderName == "SHADER_HSLBlendGPU" ||
-      options.shaderName == "SHADER_radialblurGPU")
+      options.shaderName == "SHADER_radialblurGPU" ||
+      options.shaderName == "SHADER_spinblurGPU")
     settings.m_affine = TAffine();
 
   bool rendered = false;
@@ -822,7 +934,8 @@ int main(int argc, char* argv[]) {
     }
   } else if (options.renderWithRenderer) {
     if ((options.shaderName == "SHADER_HSLBlendGPU" ||
-         options.shaderName == "SHADER_radialblurGPU") &&
+         options.shaderName == "SHADER_radialblurGPU" ||
+         options.shaderName == "SHADER_spinblurGPU") &&
         TGraphics::activeBackendType() != TGraphics::BackendType::Metal)
       return fail("input-texture ShaderFx probe requires the Metal backend")
                  ? 0
@@ -834,7 +947,8 @@ int main(int argc, char* argv[]) {
       rendered = true;
     }
   } else if (options.shaderName == "SHADER_HSLBlendGPU" ||
-             options.shaderName == "SHADER_radialblurGPU") {
+             options.shaderName == "SHADER_radialblurGPU" ||
+             options.shaderName == "SHADER_spinblurGPU") {
     if (TGraphics::activeBackendType() != TGraphics::BackendType::Metal)
       return fail("input-texture ShaderFx probe requires the Metal backend")
                  ? 0
@@ -874,7 +988,9 @@ int main(int argc, char* argv[]) {
   } else if (TGraphics::activeBackendType() == TGraphics::BackendType::Metal) {
     TRaster32P expected =
         renderExpectedMetalHelper(options, width, height, tile, settings);
-    if (!compareRasters(actual, expected, 0)) return 1;
+    const int helperTolerance =
+        options.shaderName == "SHADER_spinblurGPU" ? 2 : 0;
+    if (!compareRasters(actual, expected, helperTolerance)) return 1;
   }
 
   std::cout << "shaderfx_metal_probe: ok shader=" << options.shaderName

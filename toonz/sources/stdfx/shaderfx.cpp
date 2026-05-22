@@ -35,6 +35,8 @@
 #include <boost/iterator/transform_iterator.hpp>
 #include <boost/ptr_container/ptr_vector.hpp>
 
+#include <cmath>
+
 // Diagnostics include
 // #define DIAGNOSTICS
 #ifdef DIAGNOSTICS
@@ -150,6 +152,73 @@ inline TRectD tileRect(const TTile &tile) {
 inline void ceilRect(TRectD &rect) {
   rect.x0 = tfloor(rect.x0), rect.y0 = tfloor(rect.y0);
   rect.x1 = tceil(rect.x1), rect.y1 = tceil(rect.y1);
+}
+
+inline void addPointToRect(TRectD &rect, const TPointD &point) {
+  rect.x0 = std::min(rect.x0, point.x);
+  rect.y0 = std::min(rect.y0, point.y);
+  rect.x1 = std::max(rect.x1, point.x);
+  rect.y1 = std::max(rect.y1, point.y);
+}
+
+inline double positiveModulo(double value, double divisor) {
+  const double result = std::fmod(value, divisor);
+  return result < 0.0 ? result + divisor : result;
+}
+
+void addSpinBlurredPointBox(TRectD &rect, const TPointD &point,
+                            const TPointD &center, double radius,
+                            double blurDegrees) {
+  static const double pi       = 3.14159265358979323846;
+  static const double piTwice  = 2.0 * pi;
+  static const double piHalf   = pi / 2.0;
+  const double dx              = point.x - center.x;
+  const double dy              = point.y - center.y;
+  const double distance        = std::sqrt(dx * dx + dy * dy);
+  const double angle           = std::atan2(dy, dx);
+  const double dist            = std::max(distance - radius, 0.0);
+  const double blurLen         = blurDegrees * pi / 180.0 * dist;
+  const double blur            = blurLen / std::max(distance, 0.01);
+  const double angle0          = angle - blur;
+  const double angle1          = angle + blur;
+
+  addPointToRect(rect, center + TPointD(distance * std::cos(angle0),
+                                        distance * std::sin(angle0)));
+  addPointToRect(rect, center + TPointD(distance * std::cos(angle1),
+                                        distance * std::sin(angle1)));
+
+  const double blurTwice = 2.0 * blur;
+  if (positiveModulo(-angle0, piTwice) < blurTwice)
+    addPointToRect(rect, center + TPointD(distance, 0.0));
+  if (positiveModulo(piHalf - angle0, piTwice) < blurTwice)
+    addPointToRect(rect, center + TPointD(0.0, distance));
+  if (positiveModulo(pi - angle0, piTwice) < blurTwice)
+    addPointToRect(rect, center + TPointD(-distance, 0.0));
+  if (positiveModulo(-piHalf - angle0, piTwice) < blurTwice)
+    addPointToRect(rect, center + TPointD(0.0, -distance));
+}
+
+TRectD spinBlurredRect(const TRectD &rect, const TPointD &center,
+                       double radius, double blurDegrees) {
+  TRectD blurredRect = rect;
+  addSpinBlurredPointBox(blurredRect, TPointD(rect.x0, rect.y0), center,
+                         radius, blurDegrees);
+  addSpinBlurredPointBox(blurredRect, TPointD(rect.x0, rect.y1), center,
+                         radius, blurDegrees);
+  addSpinBlurredPointBox(blurredRect, TPointD(rect.x1, rect.y0), center,
+                         radius, blurDegrees);
+  addSpinBlurredPointBox(blurredRect, TPointD(rect.x1, rect.y1), center,
+                         radius, blurDegrees);
+  return blurredRect;
+}
+
+TRectD transformRect(const TAffine &affine, const TRectD &rect) {
+  TRectD transformed(affine * TPointD(rect.x0, rect.y0),
+                     TDimensionD(0.0, 0.0));
+  addPointToRect(transformed, affine * TPointD(rect.x0, rect.y1));
+  addPointToRect(transformed, affine * TPointD(rect.x1, rect.y0));
+  addPointToRect(transformed, affine * TPointD(rect.x1, rect.y1));
+  return transformed;
 }
 
 }  // namespace
@@ -616,6 +685,48 @@ bool ShaderFx::doGetBBox(double frame, TRectD &bbox,
     return port->doGetBBox(frame, bbox, info);
   }
 
+  if (TGraphics::activeBackendType() == TGraphics::BackendType::Metal &&
+      m_shaderInterface->mainShader().m_name ==
+          QStringLiteral("SHADER_spinblurGPU") &&
+      m_inputPorts.size() == 1) {
+    TRasterFxPort &port = m_inputPorts[0];
+    if (!port.isConnected()) return true;
+    if (!port->doGetBBox(frame, bbox, info)) return false;
+    if (bbox == TConsts::infiniteRectD) return true;
+
+    TPointD center(0.0, 0.0);
+    double radius = 3.0;
+    double blur   = 1.0;
+    const std::vector<ShaderInterface::Parameter> &siParams =
+        m_shaderInterface->parameters();
+    if (siParams.size() == m_params.size()) {
+      for (int i = 0, count = int(siParams.size()); i != count; ++i) {
+        const QString &name = siParams[i].m_name;
+        switch (siParams[i].m_type) {
+        case ShaderInterface::VEC2: {
+          const TPointParamP &param =
+              *boost::unsafe_any_cast<TPointParamP>(&m_params[i]);
+          if (name == QStringLiteral("center")) center = param->getValue(frame);
+          break;
+        }
+        case ShaderInterface::FLOAT: {
+          const TDoubleParamP &param =
+              *boost::unsafe_any_cast<TDoubleParamP>(&m_params[i]);
+          if (name == QStringLiteral("radius"))
+            radius = param->getValue(frame);
+          else if (name == QStringLiteral("blur"))
+            blur = param->getValue(frame);
+          break;
+        }
+        default:
+          break;
+        }
+      }
+    }
+    bbox = spinBlurredRect(bbox, center, radius, std::max(blur, 0.0));
+    return true;
+  }
+
   const ShaderInterface::ShaderData &sd = m_shaderInterface->bboxShader();
   if (!sd.isValid()) return true;
 
@@ -705,7 +816,9 @@ int ShaderFx::getMemoryRequirement(const TRectD &rect, double frame,
       (m_shaderInterface->mainShader().m_name ==
            QStringLiteral("SHADER_HSLBlendGPU") ||
        m_shaderInterface->mainShader().m_name ==
-           QStringLiteral("SHADER_radialblurGPU")))
+           QStringLiteral("SHADER_radialblurGPU") ||
+       m_shaderInterface->mainShader().m_name ==
+           QStringLiteral("SHADER_spinblurGPU")))
     return -1;
   return TStandardZeraryFx::getMemoryRequirement(rect, frame, info);
 }
@@ -1254,6 +1367,95 @@ bool renderRadialBlurShaderWithMetal(const ShaderInterface *shaderInterface,
   return true;
 }
 
+bool renderSpinBlurShaderWithMetal(const ShaderInterface *shaderInterface,
+                                   const std::vector<boost::any> &params,
+                                   boost::ptr_vector<TRasterFxPort> &ports,
+                                   TTile &tile, double frame,
+                                   const TRenderSettings &info) {
+  if (TGraphics::activeBackendType() != TGraphics::BackendType::Metal)
+    return false;
+  if (shaderInterface->mainShader().m_name !=
+      QStringLiteral("SHADER_spinblurGPU"))
+    return false;
+  if (ports.size() != 1 || !ports[0].isConnected()) return false;
+
+  TRaster32P outputRaster = tile.getRaster();
+  if (!outputRaster || info.m_bpp != 32) return false;
+
+  TPointD center(0.0, 0.0);
+  double radius = 3.0;
+  double blur   = 1.0;
+
+  const std::vector<ShaderInterface::Parameter> &siParams =
+      shaderInterface->parameters();
+  if (siParams.size() != params.size()) return false;
+
+  for (int i = 0, count = int(siParams.size()); i != count; ++i) {
+    const QString &name = siParams[i].m_name;
+    switch (siParams[i].m_type) {
+    case ShaderInterface::VEC2: {
+      const TPointParamP &param =
+          *boost::unsafe_any_cast<TPointParamP>(&params[i]);
+      if (name == QStringLiteral("center")) center = param->getValue(frame);
+      break;
+    }
+    case ShaderInterface::FLOAT: {
+      const TDoubleParamP &param =
+          *boost::unsafe_any_cast<TDoubleParamP>(&params[i]);
+      if (name == QStringLiteral("radius"))
+        radius = param->getValue(frame);
+      else if (name == QStringLiteral("blur"))
+        blur = param->getValue(frame);
+      break;
+    }
+    default:
+      break;
+    }
+  }
+
+  const TRectD outRect = ::tileRect(tile);
+  if (outRect.getLx() <= 0.0 || outRect.getLy() <= 0.0) return false;
+
+  const TAffine worldToOutput = TTranslation(-tile.m_pos) * info.m_affine;
+  const double scale =
+      std::sqrt(std::abs(worldToOutput.a11 * worldToOutput.a22 -
+                         worldToOutput.a12 * worldToOutput.a21));
+  const TPointD centerInOutput = worldToOutput * center;
+  const TRectD outputRect(TPointD(0.0, 0.0),
+                          TDimensionD(outputRaster->getLx(),
+                                      outputRaster->getLy()));
+  const TRectD blurredOutputRect =
+      spinBlurredRect(outputRect, centerInOutput,
+                      scale * std::max(radius, 0.0), std::max(blur, 0.0));
+  TRectD inputRect = transformRect(worldToOutput.inv(), blurredOutputRect);
+  ::ceilRect(inputRect);
+  const TDimension inputSize(tround(inputRect.getLx()),
+                             tround(inputRect.getLy()));
+  if (inputSize.lx <= 0 || inputSize.ly <= 0) return false;
+
+  TTile inTile;
+  TRenderSettings inputInfo(info);
+  inputInfo.m_affine = info.m_affine;
+  ports[0]->allocateAndCompute(inTile, inputRect.getP00(), inputSize,
+                               tile.getRaster(), frame, inputInfo);
+  if (!TRaster32P(inTile.getRaster())) return false;
+
+  const TAffine textureToOutput =
+      TTranslation(-tile.m_pos) * info.m_affine * info.m_affine.inv() *
+      TTranslation(inputRect.getP00()) *
+      TScale(inputRect.getLx(), inputRect.getLy());
+  const TAffine outputToTexture = textureToOutput.inv();
+
+  TRaster32P rendered = TGraphics::renderSpinBlurWithMetalBackend(
+      outputRaster->getLx(), outputRaster->getLy(),
+      TRaster32P(inTile.getRaster()), outputToTexture, worldToOutput, center,
+      radius, blur);
+  if (!rendered) return false;
+
+  outputRaster->copy(rendered);
+  return true;
+}
+
 //-------------------------------------------------------------------
 
 void ShaderFx::doCompute(TTile &tile, double frame,
@@ -1307,6 +1509,9 @@ void ShaderFx::doCompute(TTile &tile, double frame,
     return;
   if (renderRadialBlurShaderWithMetal(m_shaderInterface, m_params, m_inputPorts,
                                       tile, frame, info))
+    return;
+  if (renderSpinBlurShaderWithMetal(m_shaderInterface, m_params, m_inputPorts,
+                                    tile, frame, info))
     return;
 
   ShadingContextManager *manager = ShadingContextManager::instance();
@@ -1480,6 +1685,13 @@ void ShaderFx::compute(TTile &tile, double frame, const TRenderSettings &info) {
       doCompute(tile, frame, info);
       return;
     }
+    if (m_shaderInterface->mainShader().m_name ==
+            QStringLiteral("SHADER_spinblurGPU") &&
+        m_inputPorts.size() == 1 && m_inputPorts[0].isConnected() &&
+        TRaster32P(tile.getRaster()) && info.m_bpp == 32) {
+      doCompute(tile, frame, info);
+      return;
+    }
   }
 
   TStandardZeraryFx::compute(tile, frame, info);
@@ -1513,6 +1725,21 @@ void ShaderFx::doDryCompute(TRectD &rect, double frame,
   if (TGraphics::activeBackendType() == TGraphics::BackendType::Metal &&
       m_shaderInterface->mainShader().m_name ==
           QStringLiteral("SHADER_radialblurGPU") &&
+      m_inputPorts.size() == 1) {
+    TRectD inputRect = rect;
+    if (inputRect.getLx() <= 0.0 || inputRect.getLy() <= 0.0) return;
+    ::ceilRect(inputRect);
+
+    TRenderSettings inputInfo(info);
+    inputInfo.m_affine = info.m_affine;
+    TRasterFxPort &port = m_inputPorts[0];
+    if (port.isConnected()) port->dryCompute(inputRect, frame, inputInfo);
+    return;
+  }
+
+  if (TGraphics::activeBackendType() == TGraphics::BackendType::Metal &&
+      m_shaderInterface->mainShader().m_name ==
+          QStringLiteral("SHADER_spinblurGPU") &&
       m_inputPorts.size() == 1) {
     TRectD inputRect = rect;
     if (inputRect.getLx() <= 0.0 || inputRect.getLy() <= 0.0) return;

@@ -62,6 +62,10 @@ TRaster32P renderNativeMetalRadialBlur(
     int width, int height, const TRaster32P& source,
     const TAffine& outputToInput, const TAffine& worldToOutput,
     const TPointD& center, double radius, double blur);
+TRaster32P renderNativeMetalSpinBlur(
+    int width, int height, const TRaster32P& source,
+    const TAffine& outputToInput, const TAffine& worldToOutput,
+    const TPointD& center, double radius, double blur);
 #endif
 
 namespace {
@@ -870,6 +874,26 @@ TRaster32P renderRadialBlurWithMetalBackend(
 #ifdef OPENTOONZ_WITH_GRAPHICS_METAL
   return renderNativeMetalRadialBlur(width, height, source, outputToInput,
                                      worldToOutput, center, radius, blur);
+#else
+  (void)width;
+  (void)height;
+  (void)source;
+  (void)outputToInput;
+  (void)worldToOutput;
+  (void)center;
+  (void)radius;
+  (void)blur;
+  return TRaster32P();
+#endif
+}
+
+TRaster32P renderSpinBlurWithMetalBackend(
+    int width, int height, const TRaster32P& source,
+    const TAffine& outputToInput, const TAffine& worldToOutput,
+    const TPointD& center, double radius, double blur) {
+#ifdef OPENTOONZ_WITH_GRAPHICS_METAL
+  return renderNativeMetalSpinBlur(width, height, source, outputToInput,
+                                   worldToOutput, center, radius, blur);
 #else
   (void)width;
   (void)height;

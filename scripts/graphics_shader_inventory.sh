@@ -54,6 +54,18 @@ find "$program_dir" -type f \( -name '*.frag' -o -name '*.vert' -o -name '*.glsl
   classification="direct_msl_rewrite_candidate"
   notes="fragment_or_procedural_shader"
   case "$(basename "$shader")" in
+    HSLBlendGPU.frag)
+      classification="migrated_hand_routed_metal_input"
+      notes="has explicit tgraphics Metal helper; GLSL source is still packaged for OpenGL fallback"
+      ;;
+    radialblurGPU.frag)
+      classification="migrated_hand_routed_metal_input"
+      notes="has explicit tgraphics Metal helper and ShaderFx Metal route"
+      ;;
+    spinblurGPU.frag)
+      classification="migrated_hand_routed_metal_input"
+      notes="has explicit tgraphics Metal helper and ShaderFx Metal route"
+      ;;
     *_ports.vert|*_bbox.vert)
       classification="blocked_by_opengl_transform_feedback"
       notes="ShaderFx uses GL transform feedback varyings for geometry/bbox"

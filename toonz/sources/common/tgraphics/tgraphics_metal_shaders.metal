@@ -177,6 +177,58 @@ fragment float4 tgraphicsRadialBlurFragment(
   return pix / float(2 * samplesCount - 1);
 }
 
+fragment float4 tgraphicsSpinBlurFragment(
+    VertexOut in [[stage_in]], texture2d<float> sourceTexture [[texture(0)]],
+    sampler colorSampler [[sampler(0)]],
+    constant RadialBlurUniforms& u [[buffer(0)]]) {
+  float2 center =
+      float2(u.centerX * u.worldA11 + u.centerY * u.worldA12 + u.worldA13,
+             u.centerX * u.worldA21 + u.centerY * u.worldA22 + u.worldA23);
+  float scale =
+      sqrt(abs(u.worldA11 * u.worldA22 - u.worldA12 * u.worldA21));
+  float radius = scale * max(u.radius, 0.0);
+  float2 v = in.position.xy - center;
+  float distance = length(v);
+  float dist = max(distance - radius, 0.0);
+  float blurLen = max(u.blur, 0.0) * 0.017453292519943295 * dist;
+  float blur = blurLen / max(distance, 0.01);
+  int samplesCount =
+      int(clamp(ceil(blurLen * 4.0), 1.0, 2000.0));
+  float angleStep = blur / float(samplesCount);
+  float cosStep = cos(angleStep);
+  float sinStep = sin(angleStep);
+  float2x2 rotStep0 =
+      float2x2(float2(cosStep, sinStep), float2(-sinStep, cosStep));
+  float2x2 rotStep1 =
+      float2x2(float2(cosStep, -sinStep), float2(sinStep, cosStep));
+
+  float2 texPos =
+      float2(in.position.x * u.inputA11 + in.position.y * u.inputA12 +
+                 u.inputA13,
+             in.position.x * u.inputA21 + in.position.y * u.inputA22 +
+                 u.inputA23);
+  float4 pix = sourceTexture.sample(colorSampler, texPos);
+
+  float2 v0 = rotStep0 * v;
+  float2 v1 = rotStep1 * v;
+  for (int s = 1; s < samplesCount; ++s) {
+    float2 p0 = center + v0;
+    float2 p1 = center + v1;
+    float2 tPos0 =
+        float2(p0.x * u.inputA11 + p0.y * u.inputA12 + u.inputA13,
+               p0.x * u.inputA21 + p0.y * u.inputA22 + u.inputA23);
+    float2 tPos1 =
+        float2(p1.x * u.inputA11 + p1.y * u.inputA12 + u.inputA13,
+               p1.x * u.inputA21 + p1.y * u.inputA22 + u.inputA23);
+    pix += sourceTexture.sample(colorSampler, tPos0);
+    pix += sourceTexture.sample(colorSampler, tPos1);
+    v0 = rotStep0 * v0;
+    v1 = rotStep1 * v1;
+  }
+
+  return pix / float(2 * samplesCount - 1);
+}
+
 struct SunflareUniforms {
   float a11;
   float a12;
