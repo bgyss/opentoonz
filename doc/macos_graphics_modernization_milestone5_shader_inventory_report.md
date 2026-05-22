@@ -312,6 +312,12 @@ the OpenGL and Metal `tgraphics` backends, validates it in
 `tgraphics_metal_probe`, and moves shared `ToolUtils::drawArrow(...)` and
 `ToolUtils::drawRectWhitArrow(...)` arrowheads from immediate-mode
 `GL_TRIANGLES` to backend-neutral color-triangle commands.
+The shared balloon picking checkpoint moves `ToolUtils::drawBalloon(...)`
+picking fills from direct `glRectd(...)` and `GL_QUADS` drawing to
+`DrawList2D` color-rect/color-quad commands while preserving the active
+picking color. The visible balloon label texture upload remains on its
+existing OpenGL texture path until Qt image texture helpers are represented in
+`tgraphics`.
 
 ## Files Changed
 
@@ -790,7 +796,8 @@ emit `tgraphics` color commands, and shared current-color tool point, cross,
 line, arrow-shaft, and arrow-rectangle primitives now also emit `tgraphics`
 color commands. Shared non-contrast stippled tool rectangles now also emit
 `tgraphics` color-line segments. Shared tool arrowheads now also emit
-`tgraphics` color-triangle commands. Geometric
+`tgraphics` color-triangle commands. Shared balloon picking fills now also emit
+`tgraphics` color-rect/color-quad commands. Geometric
 rectangle, line, arc construction, and polygon outline previews now also emit
 `tgraphics` color-line commands.
 Geometric multiline Bezier speed-handle connector segments now also emit

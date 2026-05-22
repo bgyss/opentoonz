@@ -133,6 +133,17 @@ void drawCurrentColorRectWithTGraphics(const TRectD &rect) {
   glPopAttrib();
 }
 
+void drawCurrentColorQuadWithTGraphics(const TPointD &p00, const TPointD &p10,
+                                       const TPointD &p11,
+                                       const TPointD &p01) {
+  TGraphics::DrawList2D drawList;
+  drawList.addColorQuad(p00, p10, p11, p01, currentGLColor(),
+                        currentGLBlendEnabled());
+  glPushAttrib(GL_ENABLE_BIT | GL_COLOR_BUFFER_BIT);
+  TGraphics::drawWithOpenGLBackend(drawList);
+  glPopAttrib();
+}
+
 void drawCurrentColorLineWithTGraphics(const TPointD &p0, const TPointD &p1) {
   TGraphics::DrawList2D drawList;
   drawList.addColorLine(p0, p1, currentGLColor(), currentGLBlendEnabled());
@@ -1747,7 +1758,8 @@ void ToolUtils::drawBalloon(const TPointD &pos, std::string text,
       double x1 = x0 + pixelSize * textRect.width();
       double y1 = y0 + pixelSize * textRect.height();
       double d  = pixelSize * 5;
-      glRectd(x0 - d, y0 - d, x1 + d, y1 + d);
+      drawCurrentColorRectWithTGraphics(TRectD(x0 - d, y0 - d, x1 + d,
+                                               y1 + d));
     } else {
       TPointD posBalloon = viewer->worldToPos(pos);
 
@@ -1767,12 +1779,7 @@ void ToolUtils::drawBalloon(const TPointD &pos, std::string text,
       TPointD w3(viewer->winToWorld(p3));
       TPointD w4(viewer->winToWorld(p4));
 
-      glBegin(GL_QUADS);
-      glVertex2d(w1.x, w1.y);
-      glVertex2d(w2.x, w2.y);
-      glVertex2d(w4.x, w4.y);
-      glVertex2d(w3.x, w3.y);
-      glEnd();
+      drawCurrentColorQuadWithTGraphics(w1, w2, w4, w3);
     }
 
     return;
