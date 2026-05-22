@@ -160,6 +160,10 @@ non-active camera frame guides from direct `tglDrawRect(...)` plus OpenGL line
 stipple state to `DrawList2D` color-line commands. Picking fills and the denser
 axis/center/shear primitives remain on the existing OpenGL path.
 
+The viewer safe-area checkpoint moves `ViewerDraw::drawSafeArea()` from OpenGL
+line stipple plus direct `tglDrawRect(...)` calls to explicit dashed
+`DrawList2D` color-line commands in camera space.
+
 ## Files Changed
 
 - `scripts/graphics_shader_inventory.sh`
@@ -605,6 +609,8 @@ dashed and solid `tgraphics` color-line commands instead of OpenGL line stipple,
 direct `tglDrawRect(...)`, and immediate-mode crosshair lines. Edit-tool
 visible scale-handle outlines and non-active camera guides now also emit
 `tgraphics` color-line commands instead of direct rectangle/stipple drawing.
+Viewer safe-area guides now emit explicit dashed `tgraphics` color-line
+commands instead of OpenGL line stipple and direct `tglDrawRect(...)` calls.
 Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
 effects and by moving the remaining preview/export and style-editor surfaces
 through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene

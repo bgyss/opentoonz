@@ -41,6 +41,35 @@ TEnv::StringVar EnvSafeAreaName("SafeAreaName", "PR_safe");
 /* TODO, move to include */
 void getSafeAreaSizeList(QList<QList<double>> &_sizeList);
 
+namespace {
+
+void appendDashedLine(TGraphics::DrawList2D &drawList, const TPointD &p0,
+                      const TPointD &p1, const TPixel32 &color) {
+  const double dx     = p1.x - p0.x;
+  const double dy     = p1.y - p0.y;
+  const double length = sqrt(dx * dx + dy * dy);
+  if (length <= 1e-6) return;
+
+  const TPointD unit(dx / length, dy / length);
+  const double dashLength = 6.0;
+  const double gapLength  = 4.0;
+  for (double start = 0.0; start < length; start += dashLength + gapLength) {
+    const double rawEnd = start + dashLength;
+    const double end    = rawEnd < length ? rawEnd : length;
+    drawList.addColorLine(p0 + unit * start, p0 + unit * end, color, false);
+  }
+}
+
+void appendDashedRectOutline(TGraphics::DrawList2D &drawList,
+                             const TRectD &rect, const TPixel32 &color) {
+  appendDashedLine(drawList, rect.getP00(), rect.getP10(), color);
+  appendDashedLine(drawList, rect.getP10(), rect.getP11(), color);
+  appendDashedLine(drawList, rect.getP11(), rect.getP01(), color);
+  appendDashedLine(drawList, rect.getP01(), rect.getP00(), color);
+}
+
+}  // namespace
+
 //=============================================================================
 //=============================================================================
 // SafeAreaData
@@ -552,9 +581,6 @@ TRectD ViewerDraw::getCameraRect() {
 
 void ViewerDraw::drawSafeArea() {
   TRectD rect = getCameraRect();
-  glColor3d(1.0, 0.0, 0.0);
-  glLineStipple(1, 0xCCCC);
-  glEnable(GL_LINE_STIPPLE);
 
   QList<QList<double>> sizeList;
   getSafeAreaSizeList(sizeList);
@@ -562,21 +588,23 @@ void ViewerDraw::drawSafeArea() {
   double ux = 0.5 * rect.getLx();
   double uy = 0.5 * rect.getLy();
 
+  TGraphics::DrawList2D drawList;
   for (int i = 0; i < sizeList.size(); i++) {
     QList<double> curSize = sizeList.at(i);
-    if (curSize.size() == 5)
-      tglColor(
-          TPixel((int)curSize.at(2), (int)curSize.at(3), (int)curSize.at(4)));
-    else
-      tglColor(TPixel32::Red);
+    TPixel32 color = TPixel32::Red;
+    if (curSize.size() == 5) {
+      color = TPixel32((int)curSize.at(2), (int)curSize.at(3),
+                       (int)curSize.at(4), 255);
+    }
 
     double fx = 0.01 * curSize.at(0);
     double fy = 0.01 * curSize.at(1);
 
-    tglDrawRect(-ux * fx, -uy * fy, ux * fx, uy * fy);
+    appendDashedRectOutline(drawList, TRectD(-ux * fx, -uy * fy, ux * fx,
+                                             uy * fy),
+                            color);
   }
-
-  glDisable(GL_LINE_STIPPLE);
+  TGraphics::drawWithOpenGLBackend(drawList);
 }
 
 //-----------------------------------------------------------------------------
