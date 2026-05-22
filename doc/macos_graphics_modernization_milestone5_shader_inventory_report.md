@@ -307,6 +307,11 @@ The shared stippled rectangle checkpoint moves non-contrast
 immediate-mode `GL_LINE_STRIP` drawing to explicit `DrawList2D` color-line
 segments. Contrast-blended rectangle outlines remain on legacy OpenGL until
 the contrast blend mode is represented in `tgraphics`.
+The color-triangle checkpoint adds a `DrawList2D` color-triangle command to
+the OpenGL and Metal `tgraphics` backends, validates it in
+`tgraphics_metal_probe`, and moves shared `ToolUtils::drawArrow(...)` and
+`ToolUtils::drawRectWhitArrow(...)` arrowheads from immediate-mode
+`GL_TRIANGLES` to backend-neutral color-triangle commands.
 
 ## Files Changed
 
@@ -784,7 +789,8 @@ Shared plain tool rectangles, filled rectangles, and square outlines now also
 emit `tgraphics` color commands, and shared current-color tool point, cross,
 line, arrow-shaft, and arrow-rectangle primitives now also emit `tgraphics`
 color commands. Shared non-contrast stippled tool rectangles now also emit
-`tgraphics` color-line segments. Geometric
+`tgraphics` color-line segments. Shared tool arrowheads now also emit
+`tgraphics` color-triangle commands. Geometric
 rectangle, line, arc construction, and polygon outline previews now also emit
 `tgraphics` color-line commands.
 Geometric multiline Bezier speed-handle connector segments now also emit

@@ -410,13 +410,14 @@ void ToolUtils::drawArrow(const TSegment &s, double pixelSize) {
 
   TPointD p;
 
-  glBegin(GL_TRIANGLES);
+  TGraphics::DrawList2D drawList;
+  const TPixel32 color = currentGLColor();
+  const bool blending  = currentGLBlendEnabled();
   p = s.getP0() + v + rotate90(vn);
-  tglVertex(p);
-  tglVertex(p1);
+  const TPointD arrowPoint0 = p;
   p = s.getP0() + v + rotate270(vn);
-  tglVertex(p);
-  glEnd();
+  drawList.addColorTriangle(arrowPoint0, p1, p, color, blending);
+  TGraphics::drawWithOpenGLBackend(drawList);
 }
 
 //-----------------------------------------------------------------------------
@@ -442,23 +443,19 @@ void ToolUtils::drawRectWhitArrow(const TPointD &pos, double r) {
   TPointD p12 = TPointD(p02.x, p02.y + par);
   TPointD p;
 
-  tglColor(TPixel32(130, 130, 130));
-
-  glBegin(GL_TRIANGLES);
+  TGraphics::DrawList2D drawList;
   p = p11 + rotate90(TPointD(0, par));
-  tglVertex(p);
-  tglVertex(p01);
+  const TPointD topArrowPoint0 = p;
   p = p11 + rotate270(TPointD(0, par));
-  tglVertex(p);
-  glEnd();
+  drawList.addColorTriangle(topArrowPoint0, p01, p, TPixel32(130, 130, 130),
+                            false);
 
-  glBegin(GL_TRIANGLES);
   p = p12 + rotate90(TPointD(0, -par));
-  tglVertex(p);
-  tglVertex(p02);
+  const TPointD bottomArrowPoint0 = p;
   p = p12 + rotate270(TPointD(0, -par));
-  tglVertex(p);
-  glEnd();
+  drawList.addColorTriangle(bottomArrowPoint0, p02, p,
+                            TPixel32(130, 130, 130), false);
+  TGraphics::drawWithOpenGLBackend(drawList);
 }
 
 //-----------------------------------------------------------------------------

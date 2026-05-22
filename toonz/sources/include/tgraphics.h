@@ -90,6 +90,12 @@ struct DVAPI ColorQuad final {
   bool m_blending = false;
 };
 
+struct DVAPI ColorTriangle final {
+  TPointD m_points[3];
+  TPixel32 m_color;
+  bool m_blending = false;
+};
+
 struct DVAPI ColorLine final {
   TPointD m_p0;
   TPointD m_p1;
@@ -101,6 +107,7 @@ struct DVAPI ColorLine final {
 class DVAPI DrawList2D final {
   std::vector<ColorRect> m_colorRects;
   std::vector<ColorQuad> m_colorQuads;
+  std::vector<ColorTriangle> m_colorTriangles;
   std::vector<ColorLine> m_colorLines;
   std::vector<TextureQuad> m_textureQuads;
   TPixel32 m_clearColor;
@@ -111,6 +118,9 @@ public:
   void addColorRect(const TRectD& rect, const TPixel32& color, bool blending);
   void addColorQuad(const TPointD& p00, const TPointD& p10, const TPointD& p11,
                     const TPointD& p01, const TPixel32& color, bool blending);
+  void addColorTriangle(const TPointD& p0, const TPointD& p1,
+                        const TPointD& p2, const TPixel32& color,
+                        bool blending);
   void addCheckerboard(const TRectD& rect, const TDimensionD& cellSize,
                        const TPointD& origin, const TPixel32& color0,
                        const TPixel32& color1);
@@ -131,6 +141,7 @@ public:
   const TPixel32& clearColor() const;
   const std::vector<ColorRect>& colorRects() const;
   const std::vector<ColorQuad>& colorQuads() const;
+  const std::vector<ColorTriangle>& colorTriangles() const;
   const std::vector<ColorLine>& colorLines() const;
   const std::vector<TextureQuad>& textureQuads() const;
   bool empty() const;

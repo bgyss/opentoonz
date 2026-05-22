@@ -955,6 +955,21 @@ public:
       [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
     }
 
+    for (const ColorTriangle &triangle : drawList.colorTriangles()) {
+      id<MTLRenderPipelineState> pipeline = colorPipelineState(triangle.m_blending);
+      if (!pipeline) continue;
+
+      std::array<MetalVertex, 3> vertices = makeVertices(triangle);
+      const float color[4] = {triangle.m_color.r / 255.0f, triangle.m_color.g / 255.0f,
+                              triangle.m_color.b / 255.0f, triangle.m_color.m / 255.0f};
+      [encoder setRenderPipelineState:pipeline];
+      [encoder setVertexBytes:vertices.data()
+                       length:vertices.size() * sizeof(MetalVertex)
+                      atIndex:0];
+      [encoder setFragmentBytes:color length:sizeof(color) atIndex:0];
+      [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];
+    }
+
     for (const ColorLine &line : drawList.colorLines()) {
       id<MTLRenderPipelineState> pipeline = colorPipelineState(line.m_blending);
       if (!pipeline) continue;
@@ -1156,6 +1171,16 @@ private:
              {pixelToClipX(p10.x), pixelToClipY(p10.y), 1.0f, 0.0f},
              {pixelToClipX(p11.x), pixelToClipY(p11.y), 1.0f, 1.0f},
              {pixelToClipX(p01.x), pixelToClipY(p01.y), 0.0f, 1.0f}}};
+  }
+
+  std::array<MetalVertex, 3> makeVertices(const ColorTriangle &triangle) const {
+    const TPointD &p0 = triangle.m_points[0];
+    const TPointD &p1 = triangle.m_points[1];
+    const TPointD &p2 = triangle.m_points[2];
+
+    return {{{pixelToClipX(p0.x), pixelToClipY(p0.y), 0.0f, 0.0f},
+             {pixelToClipX(p1.x), pixelToClipY(p1.y), 0.0f, 0.0f},
+             {pixelToClipX(p2.x), pixelToClipY(p2.y), 0.0f, 0.0f}}};
   }
 
   std::optional<TRectD> axisAlignedLineRect(const ColorLine &line) const {

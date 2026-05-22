@@ -168,6 +168,18 @@ void DrawList2D::addColorQuad(const TPointD& p00, const TPointD& p10,
   m_colorQuads.push_back(colorQuad);
 }
 
+void DrawList2D::addColorTriangle(const TPointD& p0, const TPointD& p1,
+                                  const TPointD& p2, const TPixel32& color,
+                                  bool blending) {
+  ColorTriangle colorTriangle;
+  colorTriangle.m_points[0] = p0;
+  colorTriangle.m_points[1] = p1;
+  colorTriangle.m_points[2] = p2;
+  colorTriangle.m_color     = color;
+  colorTriangle.m_blending  = blending;
+  m_colorTriangles.push_back(colorTriangle);
+}
+
 void DrawList2D::addCheckerboard(const TRectD& rect,
                                  const TDimensionD& cellSize,
                                  const TPointD& origin, const TPixel32& color0,
@@ -267,6 +279,10 @@ const std::vector<ColorQuad>& DrawList2D::colorQuads() const {
   return m_colorQuads;
 }
 
+const std::vector<ColorTriangle>& DrawList2D::colorTriangles() const {
+  return m_colorTriangles;
+}
+
 const std::vector<ColorLine>& DrawList2D::colorLines() const {
   return m_colorLines;
 }
@@ -277,7 +293,8 @@ const std::vector<TextureQuad>& DrawList2D::textureQuads() const {
 
 bool DrawList2D::empty() const {
   return !m_hasClearColor && m_colorRects.empty() && m_colorQuads.empty() &&
-         m_colorLines.empty() && m_textureQuads.empty();
+         m_colorTriangles.empty() && m_colorLines.empty() &&
+         m_textureQuads.empty();
 }
 
 class OpenGLImageRenderTarget final : public RenderTarget {
@@ -348,6 +365,10 @@ public:
       drawColorQuad(quad);
     }
 
+    for (const ColorTriangle& triangle : drawList.colorTriangles()) {
+      drawColorTriangle(triangle);
+    }
+
     for (const ColorLine& line : drawList.colorLines()) {
       drawColorLine(line);
     }
@@ -398,6 +419,23 @@ private:
     tglVertex(quad.m_points[1]);
     tglVertex(quad.m_points[2]);
     tglVertex(quad.m_points[3]);
+    glEnd();
+    glDisable(GL_BLEND);
+  }
+
+  void drawColorTriangle(const ColorTriangle& triangle) {
+    if (triangle.m_blending) {
+      glEnable(GL_BLEND);
+      glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    } else {
+      glDisable(GL_BLEND);
+    }
+
+    tglColor(triangle.m_color);
+    glBegin(GL_TRIANGLES);
+    tglVertex(triangle.m_points[0]);
+    tglVertex(triangle.m_points[1]);
+    tglVertex(triangle.m_points[2]);
     glEnd();
     glDisable(GL_BLEND);
   }

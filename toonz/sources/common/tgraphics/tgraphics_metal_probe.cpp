@@ -768,6 +768,33 @@ int main(int argc, char* argv[]) {
   }
 
   {
+    const TPixel32 triangleClearColor(7, 13, 19, 255);
+    const TPixel32 baseColor(23, 43, 59, 255);
+    const TPixel32 triangleColor(220, 64, 149, 224);
+    TGraphics::DrawList2D drawList;
+    drawList.setClearColor(triangleClearColor);
+    drawList.addColorRect(TRectD(0, 0, width, height), baseColor, false);
+    drawList.addColorTriangle(TPointD(1, 6), TPointD(4, 1), TPointD(8, 6),
+                              triangleColor, true);
+
+    TRaster32P readback = renderMetal(drawList, width, height);
+    if (!readback)
+      return fail("could not read back color triangle Metal target");
+    if (!requireDimensions(readback, width, height)) {
+      return fail(
+          "color triangle readback dimensions do not match render target");
+    }
+
+    TRaster32P openGLReadback = renderOpenGL(drawList, width, height);
+    if (!openGLReadback)
+      return fail("could not read back color triangle OpenGL baseline");
+    if (!compareRasters(readback, openGLReadback, "color triangle",
+                        artifactDir)) {
+      return EXIT_FAILURE;
+    }
+  }
+
+  {
     TGraphics::DrawList2D drawList;
     drawList.setClearColor(clearColor);
     drawList.addTexture(
