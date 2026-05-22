@@ -191,6 +191,12 @@ square gadget from `glRectd(...)` plus `tglDrawRect(...)` to `DrawList2D`
 color-rect and color-line commands. Picking still uses the existing disk/name
 path.
 
+The edit-tool axes checkpoint moves the visible object x/y axes and center
+cross from direct immediate-mode `GL_LINES` drawing to paired `DrawList2D`
+color-line commands under the existing tool transforms. This preserves the
+OpenGL compatibility presentation path while giving the Metal backend the same
+line-command shape for these basic editing overlays.
+
 ## Files Changed
 
 - `scripts/graphics_shader_inventory.sh`
@@ -653,6 +659,8 @@ handles now emit `tgraphics` color-rect commands instead of repeated direct
 `tgraphics` color-rect and color-line commands instead of direct rectangle
 drawing calls. Skeleton change-parent square gadgets now also emit `tgraphics`
 color-rect and color-line commands instead of direct rectangle drawing calls.
+Edit-tool object axes and center crosses now emit `tgraphics` color-line
+commands instead of direct immediate-mode `GL_LINES`.
 Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
 effects and by moving the remaining preview/export and style-editor surfaces
 through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene

@@ -110,6 +110,15 @@ void drawDashedRectOutlineWithTGraphics(const TRectD &rect,
   TGraphics::drawWithOpenGLBackend(drawList);
 }
 
+void drawLinePairWithTGraphics(const TPointD &a0, const TPointD &a1,
+                               const TPointD &b0, const TPointD &b1,
+                               const TPixel32 &color) {
+  TGraphics::DrawList2D drawList;
+  drawList.addColorLine(a0, a1, color, false);
+  drawList.addColorLine(b0, b1, color, false);
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
+
 }  // namespace
 
 TEnv::IntVar LockCenterX("EditToolLockCenterX", 0);
@@ -1478,13 +1487,8 @@ void EditTool::draw() {
     glPushMatrix();
     tglMultMatrix(parentAff.inv() * aff * TTranslation(center));
     glScaled(unit, unit, 1);
-    tglColor(normalColor);
-    glBegin(GL_LINES);  // GL_LINE_STRIP to GL_LINES for continuous axes
-    glVertex2i(-800, 0);
-    glVertex2i(800, 0);
-    glVertex2i(0, -100);
-    glVertex2i(0, 100);
-    glEnd();
+    drawLinePairWithTGraphics(TPointD(-800, 0), TPointD(800, 0),
+                              TPointD(0, -100), TPointD(0, 100), normalColor);
     glPopMatrix();
   }
 
@@ -1497,12 +1501,12 @@ void EditTool::draw() {
   {
     tglDrawCircle(center, unit * 10);
     tglDrawCircle(center, unit * 8);
-    glBegin(GL_LINES);
-    glVertex2d(-unit * 8, 0.0);
-    glVertex2d(unit * 8, 0.0);
-    glVertex2d(0.0, -unit * 8);
-    glVertex2d(0.0, unit * 8);
-    glEnd();
+    drawLinePairWithTGraphics(TPointD(-unit * 8, 0.0),
+                              TPointD(unit * 8, 0.0),
+                              TPointD(0.0, -unit * 8),
+                              TPointD(0.0, unit * 8),
+                              m_highlightedDevice == Center ? highlightedColor
+                                                            : normalColor);
   }
 
   // draw label (column/pegbar name; possibly camera icon)
