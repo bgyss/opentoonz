@@ -3,6 +3,7 @@
 // TnzCore includes
 #include "tmeshimage.h"
 #include "tgl.h"
+#include "tgraphics.h"
 #include "tundo.h"
 
 // TnzExt includes
@@ -53,6 +54,56 @@ bool borderVertex(const TTextureMesh &mesh, int v) {
   }
 
   return false;
+}
+
+void appendRectOutline(TGraphics::DrawList2D &drawList, const TRectD &rect,
+                       const TPixel32 &color) {
+  drawList.addColorLine(rect.getP00(), rect.getP10(), color, false);
+  drawList.addColorLine(rect.getP10(), rect.getP11(), color, false);
+  drawList.addColorLine(rect.getP11(), rect.getP01(), color, false);
+  drawList.addColorLine(rect.getP01(), rect.getP00(), color, false);
+}
+
+void appendDashedLine(TGraphics::DrawList2D &drawList, const TPointD &p0,
+                      const TPointD &p1, const TPixel32 &color,
+                      double pixelSize) {
+  const TPointD delta = p1 - p0;
+  const double length = norm(delta);
+  if (length <= 1e-6) return;
+
+  const TPointD unit = delta / length;
+  const double dashLength = 6.0 * pixelSize;
+  const double gapLength  = 4.0 * pixelSize;
+  for (double start = 0.0; start < length; start += dashLength + gapLength) {
+    const double end = std::min(start + dashLength, length);
+    drawList.addColorLine(p0 + unit * start, p0 + unit * end, color, false);
+  }
+}
+
+void drawFilledSquareWithTGraphics(const TPointD &pos, double radius,
+                                   const TPixel32 &color) {
+  TGraphics::DrawList2D drawList;
+  drawList.addColorRect(TRectD(pos - TPointD(radius, radius),
+                               pos + TPointD(radius, radius)),
+                        color, false);
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
+
+void drawSquareWithTGraphics(const TPointD &pos, double radius,
+                             const TPixel32 &color) {
+  TGraphics::DrawList2D drawList;
+  appendRectOutline(drawList,
+                    TRectD(pos - TPointD(radius, radius),
+                           pos + TPointD(radius, radius)),
+                    color);
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
+
+void drawDashedLineWithTGraphics(const TPointD &p0, const TPointD &p1,
+                                 const TPixel32 &color, double pixelSize) {
+  TGraphics::DrawList2D drawList;
+  appendDashedLine(drawList, p0, p1, color, pixelSize);
+  TGraphics::drawWithOpenGLBackend(drawList);
 }
 
 //============================================================================
@@ -1245,9 +1296,6 @@ void PlasticTool::draw_mesh() {
       typedef MeshSelection::objects_container objects_container;
       const objects_container &objects = m_this->m_mvSel.objects();
 
-      glColor3ub(255, 0, 0);  // Red
-      glLineWidth(1.0f);
-
       const double hSize = MESH_SELECTED_HANDLE_SIZE * m_pixelSize;
 
       objects_container::const_iterator vt, vEnd = objects.end();
@@ -1255,7 +1303,7 @@ void PlasticTool::draw_mesh() {
         const TTextureVertex &vx =
             m_this->m_mi->meshes()[vt->m_meshIdx]->vertex(vt->m_idx);
 
-        ::drawFullSquare(vx.P(), hSize);
+        drawFilledSquareWithTGraphics(vx.P(), hSize, TPixel32::Red);
       }
     }
 
@@ -1289,12 +1337,9 @@ void PlasticTool::draw_mesh() {
         const TTextureMesh::vertex_type &vx =
             m_this->m_mi->meshes()[vHigh.m_meshIdx]->vertex(vHigh.m_idx);
 
-        glColor3ub(255, 0, 0);  // Red
-        glLineWidth(1.0f);
-
         const double hSize = MESH_HIGHLIGHTED_HANDLE_SIZE * m_pixelSize;
 
-        ::drawSquare(vx.P(), hSize);
+        drawSquareWithTGraphics(vx.P(), hSize, TPixel32::Red);
       }
     }
 
@@ -1308,21 +1353,8 @@ void PlasticTool::draw_mesh() {
             &vx1 = m_this->m_mi->meshes()[eHigh.m_meshIdx]->edgeVertex(
                 eHigh.m_idx, 1);
 
-        {
-          glPushAttrib(GL_LINE_BIT);
-
-          glEnable(GL_LINE_STIPPLE);
-          glLineStipple(1, 0xCCCC);
-
-          glColor3ub(0, 0, 255);  // Blue
-          glLineWidth(1.0f);
-
-          glBegin(GL_LINES);
-          drawLine(vx0.P(), vx1.P());
-          glEnd();
-
-          glPopAttrib();
-        }
+        drawDashedLineWithTGraphics(vx0.P(), vx1.P(), TPixel32::Blue,
+                                    m_pixelSize);
       }
     }
 

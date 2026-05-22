@@ -255,6 +255,11 @@ line in `PlasticTool::drawAngleLimits(...)` from immediate-mode `GL_LINES` to a
 `DrawList2D` color-line command. Thicker plastic skeleton and mesh edit edge
 overlays remain on legacy OpenGL until `tgraphics` has matching line-width and
 stipple semantics.
+The plastic mesh-edit checkpoint moves selected vertex square fills,
+highlighted vertex square outlines, and one-pixel dashed edge highlights from
+direct OpenGL square/line drawing to `DrawList2D` color commands. Width-2
+selected mesh edge overlays remain on legacy OpenGL until `tgraphics` has
+line-width semantics.
 
 ## Files Changed
 
@@ -272,6 +277,7 @@ stipple semantics.
 - `toonz/sources/tnztools/edittool.cpp`
 - `toonz/sources/tnztools/hooktool.cpp`
 - `toonz/sources/tnztools/plastictool.cpp`
+- `toonz/sources/tnztools/plastictool_meshedit.cpp`
 - `toonz/sources/tnztools/selectiontool.cpp`
 - `toonz/sources/tnztools/setsaveboxtool.cpp`
 - `toonz/sources/tnztools/skeletontool.cpp`
@@ -738,6 +744,10 @@ live-view zoom-box borders now also emit `tgraphics` color-line commands.
 Plastic angle-limit guide lines now emit `tgraphics` color-line commands, while
 thicker plastic skeleton and mesh edit edge overlays remain on legacy OpenGL
 until width/stipple semantics are represented in `tgraphics`.
+Plastic mesh-edit selected vertex fills, highlighted vertex outlines, and
+one-pixel dashed edge highlights now also emit `tgraphics` color commands;
+width-2 selected mesh edges stay on legacy OpenGL until line-width semantics are
+represented in `tgraphics`.
 Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
 effects and by moving the remaining preview/export and style-editor surfaces
 through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene
