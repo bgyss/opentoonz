@@ -162,7 +162,10 @@ public:
     pass.colorAttachments[0].texture     = renderTexture;
     pass.colorAttachments[0].loadAction  = MTLLoadActionClear;
     pass.colorAttachments[0].storeAction = MTLStoreActionStore;
-    pass.colorAttachments[0].clearColor  = MTLClearColorMake(0.0, 0.0, 0.0, 0.0);
+    const TPixel32 clearColor =
+        drawList.hasClearColor() ? drawList.clearColor() : TPixel32(0, 0, 0, 0);
+    pass.colorAttachments[0].clearColor = MTLClearColorMake(
+        clearColor.r / 255.0, clearColor.g / 255.0, clearColor.b / 255.0, clearColor.m / 255.0);
 
     id<MTLCommandBuffer> commandBuffer = [state.m_commandQueue commandBuffer];
     commandBuffer.label                = @"OpenToonz TGraphics";

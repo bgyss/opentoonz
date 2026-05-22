@@ -80,6 +80,11 @@ RasterTexture::RasterTexture(const TRaster32P& raster) : m_raster(raster) {}
 
 const TRaster32P& RasterTexture::raster() const { return m_raster; }
 
+void DrawList2D::setClearColor(const TPixel32& color) {
+  m_clearColor    = color;
+  m_hasClearColor = true;
+}
+
 void DrawList2D::addTexture(const TRectD& rect, const TRaster32P& raster,
                             bool blending) {
   TextureQuad quad;
@@ -89,11 +94,17 @@ void DrawList2D::addTexture(const TRectD& rect, const TRaster32P& raster,
   m_textureQuads.push_back(quad);
 }
 
+bool DrawList2D::hasClearColor() const { return m_hasClearColor; }
+
+const TPixel32& DrawList2D::clearColor() const { return m_clearColor; }
+
 const std::vector<TextureQuad>& DrawList2D::textureQuads() const {
   return m_textureQuads;
 }
 
-bool DrawList2D::empty() const { return m_textureQuads.empty(); }
+bool DrawList2D::empty() const {
+  return !m_hasClearColor && m_textureQuads.empty();
+}
 
 class OpenGLImageRenderTarget final : public RenderTarget {
   std::unique_ptr<QOffscreenSurface> m_surface;
@@ -153,6 +164,7 @@ public:
     OpenGLImageRenderTarget* imageTarget =
         dynamic_cast<OpenGLImageRenderTarget*>(m_target);
     if (imageTarget) beginImageTargetDraw(*imageTarget);
+    if (drawList.hasClearColor()) clear(drawList.clearColor());
 
     for (const TextureQuad& quad : drawList.textureQuads()) {
       const RasterTexture* texture =
@@ -167,6 +179,12 @@ public:
   }
 
 private:
+  void clear(const TPixel32& color) {
+    glClearColor(color.r / 255.0f, color.g / 255.0f, color.b / 255.0f,
+                 color.m / 255.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+  }
+
   void beginImageTargetDraw(OpenGLImageRenderTarget& target) {
     target.makeCurrent();
     target.fbo()->bind();
@@ -174,8 +192,7 @@ private:
     glViewport(0, 0, target.width(), target.height());
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_SCISSOR_TEST);
-    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
+    clear(TPixel32(0, 0, 0, 0));
 
     glMatrixMode(GL_PROJECTION);
     glPushMatrix();

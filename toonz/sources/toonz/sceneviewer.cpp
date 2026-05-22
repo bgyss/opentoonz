@@ -1078,6 +1078,32 @@ bool SceneViewer::ensureMetalLayerTarget(int width, int height) {
 
 //-------------------------------------------------------------------------------
 
+bool SceneViewer::presentBackgroundWithMetal() {
+  const int width  = std::max(1, this->width() * getDevPixRatio());
+  const int height = std::max(1, this->height() * getDevPixRatio());
+  if (!ensureMetalLayerTarget(width, height)) return false;
+
+  TPixel32 bgColor;
+  if (m_visualSettings.m_colorMask == 0) {
+    if (isPreviewEnabled())
+      bgColor = Preferences::instance()->getPreviewBgColor();
+    else
+      bgColor = Preferences::instance()->getViewerBgColor();
+    bgColor.m = 255;
+  } else
+    bgColor = TPixel32(0, 0, 0, 255);
+
+  TGraphics::DrawList2D drawList;
+  drawList.setClearColor(bgColor);
+
+  std::unique_ptr<TGraphics::CommandEncoder> encoder =
+      TGraphics::metalDevice().createCommandEncoder(m_metalLayerTarget.get());
+  encoder->draw(drawList);
+  return true;
+}
+
+//-------------------------------------------------------------------------------
+
 bool SceneViewer::presentRasterWithMetal(const TRaster32P& raster) {
   if (!raster) {
     hideMetalLayer();
@@ -2310,6 +2336,8 @@ void SceneViewer::paintGL() {
   }
 
   drawBuildVars();
+
+  if (shouldPresentWithMetal()) presentBackgroundWithMetal();
 
   // This seems not to be necessary for now.
   // copyFrontBufferToBackBuffer();

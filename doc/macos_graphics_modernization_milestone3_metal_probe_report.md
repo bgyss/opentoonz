@@ -1,8 +1,9 @@
 # macOS Graphics Modernization Milestone 3 Metal Probe Report
 
 Status: initial Milestone 3 build/probe, render-target, textured-draw,
-offscreen-readback, replace/blend pipeline, OpenGL baseline comparison, and
-first native-view Metal presentation slice completed locally on 2026-05-22.
+offscreen-readback, replace/blend pipeline, OpenGL baseline comparison, first
+native-view Metal presentation slice, and first direct Metal viewer-background
+command completed locally on 2026-05-22.
 
 ## Objective
 
@@ -17,13 +18,17 @@ OpenGL baseline, and run an automated Metal/OpenGL validation probe while
 preserving OpenGL as the default renderer. It also adds the first opt-in
 `SceneViewer` path that can present a captured viewer framebuffer through a
 native `CAMetalLayer` child widget when `OPENTOONZ_GRAPHICS_BACKEND=metal` is
-requested.
+requested, plus a first direct Metal viewer command that clears the Metal layer
+to the active viewer background color before the compatibility snapshot is
+presented.
 
 This is not yet a full native Metal scene renderer. Scene composition still
 comes from the existing OpenGL viewer path, then the captured viewer framebuffer
-is uploaded to Metal and presented through `DrawList2D`. This is a deliberate
-transitional slice to validate Qt/native-view ownership, drawable lifecycle, and
-Metal presentation before porting scene internals.
+is uploaded to Metal and presented through `DrawList2D`. The direct Metal
+background clear is intentionally narrow and is immediately followed by that
+compatibility snapshot. This is a deliberate transitional slice to validate
+Qt/native-view ownership, drawable lifecycle, direct command encoding, and Metal
+presentation before porting scene internals.
 
 ## Files Changed
 
@@ -76,6 +81,13 @@ Metal presentation before porting scene internals.
   - triangle draws for `DrawList2D` texture quads
   - per-quad `TextureQuad::m_blending` handling
   - drawable presentation
+- Added `DrawList2D::setClearColor(...)`, `hasClearColor()`, and
+  `clearColor()` so small draw lists can represent a direct render-target clear
+  without requiring a synthetic full-frame texture.
+- Updated the Metal render pass clear color to use `DrawList2D`'s clear color,
+  while preserving transparent black as the default when no clear color is set.
+- Updated the OpenGL baseline command encoder to honor the same `DrawList2D`
+  clear color before drawing texture quads.
 - Matched Metal alpha blending to the existing `tglDraw` OpenGL baseline:
   `GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA` for both color and alpha channels.
 - Added `MetalTextureRenderTarget` for offscreen render/readback validation.
@@ -101,6 +113,10 @@ Metal presentation before porting scene internals.
   `SceneViewer::paintGL()` captures the current OpenGL viewer framebuffer and
   presents it through the Metal command encoder. The existing frozen-frame path
   can also present `m_viewGrabImage` through Metal.
+- `SceneViewer::paintGL()` now also emits a direct Metal clear command for the
+  active viewer background color before presenting the compatibility OpenGL
+  framebuffer snapshot. This is the first direct viewer-side Metal command, not
+  the final direct scene rendering path.
 - Linked `tnzcore` against `Metal.framework` only when
   `WITH_GRAPHICS_METAL=ON`.
 - Linked `tnzcore` against `QuartzCore.framework` only when
@@ -140,9 +156,8 @@ Commands run:
 bash scripts/graphics_inventory.sh
 git diff --check
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=ON'
-nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tgraphics_metal_probe --parallel 3
-nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target OpenToonz tgraphics_metal_probe --parallel 3
+nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
 nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app/Contents/MacOS/OpenToonz >/tmp/opentoonz-metal-smoke.log 2>&1 & pid=$!; sleep 8; ...'
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --parallel 3
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=OFF'
@@ -156,9 +171,9 @@ Metal-enabled build compiles `tgraphics_metal.mm`, includes the shader source in
 the CMake target metadata, links `tnzcore` against AppKit, Metal, and
 QuartzCore, builds `tgraphics_metal_probe`, and links `OpenToonz.app`.
 
-Probe output after validating transparent clear pixels, opaque replace drawing,
-OpenGL-compatible alpha blending over both solid and gradient destinations, and
-Metal/OpenGL readback parity:
+Probe output after validating direct solid clear/background pixels, transparent
+clear pixels, opaque replace drawing, OpenGL-compatible alpha blending over both
+solid and gradient destinations, and Metal/OpenGL readback parity:
 
 ```text
 tgraphics_metal_probe: ok on Apple M1 Max
@@ -177,6 +192,8 @@ inside the full UI.
 
 - Qt native-view integration exists only for presenting a captured viewer
   framebuffer through Metal.
+- The direct Metal viewer background clear is currently superseded by the
+  compatibility OpenGL framebuffer snapshot in the same paint pass.
 - Scene drawing, picking, overlays, and interaction still originate from the
   existing OpenGL viewer path.
 - Metal shader source is present in the build tree, but the experimental
@@ -188,9 +205,9 @@ inside the full UI.
 
 ## Next Milestone 3 Work
 
-- Integrate the CAMetalLayer render target with a narrow Qt viewer/native-view
-  path that draws scene components directly instead of presenting an OpenGL
-  framebuffer snapshot.
+- Replace the compatibility OpenGL framebuffer snapshot with direct Metal
+  drawing for the first actual scene components: camera stand background,
+  checker/background modes, raster image textures, and simple overlays.
 - Expand the offscreen probe from synthetic quads into baseline scene fixtures.
 - Route only a narrow scene-viewer path to the Metal command encoder once
   drawable lifecycle and fallback behavior are stable.

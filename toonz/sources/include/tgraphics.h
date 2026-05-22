@@ -77,10 +77,15 @@ struct DVAPI TextureQuad final {
 
 class DVAPI DrawList2D final {
   std::vector<TextureQuad> m_textureQuads;
+  TPixel32 m_clearColor;
+  bool m_hasClearColor = false;
 
 public:
+  void setClearColor(const TPixel32& color);
   void addTexture(const TRectD& rect, const TRaster32P& raster, bool blending);
 
+  bool hasClearColor() const;
+  const TPixel32& clearColor() const;
   const std::vector<TextureQuad>& textureQuads() const;
   bool empty() const;
 };

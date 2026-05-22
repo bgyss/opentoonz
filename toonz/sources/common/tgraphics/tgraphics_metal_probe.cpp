@@ -166,6 +166,28 @@ bool compareRasters(const TRaster32P& metal, const TRaster32P& opengl,
   return true;
 }
 
+bool validateSolidClear(const TRaster32P& readback, int width, int height,
+                        const TPixel32& clearColor) {
+  readback->lock();
+  for (int y = 0; y < height; ++y) {
+    const TPixel32* line = readback->pixels(y);
+    for (int x = 0; x < width; ++x) {
+      if (!samePixel(line[x], clearColor)) {
+        readback->unlock();
+        std::cerr << "tgraphics_metal_probe: clear pixel mismatch at " << x
+                  << "," << y << " expected ";
+        printPixel(clearColor);
+        std::cerr << " actual ";
+        printPixel(line[x]);
+        std::cerr << std::endl;
+        return false;
+      }
+    }
+  }
+  readback->unlock();
+  return true;
+}
+
 TRaster32P renderMetal(const TGraphics::DrawList2D& drawList, int width,
                        int height) {
   std::unique_ptr<TGraphics::RenderTarget> target =
@@ -211,7 +233,29 @@ int main(int argc, char* argv[]) {
   const TPixel32 clearColor(0, 0, 0, 0);
 
   {
+    const TPixel32 viewerBgColor(19, 23, 29, 255);
     TGraphics::DrawList2D drawList;
+    drawList.setClearColor(viewerBgColor);
+
+    TRaster32P readback = renderMetal(drawList, width, height);
+    if (!readback) return fail("could not read back clear Metal target");
+    if (!requireDimensions(readback, width, height)) {
+      return fail("clear readback dimensions do not match render target");
+    }
+    if (!validateSolidClear(readback, width, height, viewerBgColor)) {
+      return EXIT_FAILURE;
+    }
+
+    TRaster32P openGLReadback = renderOpenGL(drawList, width, height);
+    if (!openGLReadback) return fail("could not read back clear OpenGL target");
+    if (!compareRasters(readback, openGLReadback, "clear")) {
+      return EXIT_FAILURE;
+    }
+  }
+
+  {
+    TGraphics::DrawList2D drawList;
+    drawList.setClearColor(clearColor);
     drawList.addTexture(
         TRectD(gradientX0, gradientY0, gradientX1, gradientY1),
         makeGradientRaster(gradientX1 - gradientX0, gradientY1 - gradientY0),
@@ -243,6 +287,7 @@ int main(int argc, char* argv[]) {
     const int overlayY1 = 6;
 
     TGraphics::DrawList2D drawList;
+    drawList.setClearColor(TPixel32(0, 0, 0, 0));
     drawList.addTexture(TRectD(0, 0, width, height),
                         makeSolidRaster(width, height, baseColor), false);
     drawList.addTexture(

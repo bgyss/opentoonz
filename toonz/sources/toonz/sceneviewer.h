@@ -345,6 +345,7 @@ protected:
   bool shouldPresentWithMetal() const;
   void hideMetalLayer();
   bool ensureMetalLayerTarget(int width, int height);
+  bool presentBackgroundWithMetal();
   bool presentRasterWithMetal(const TRaster32P& raster);
   bool presentCurrentOpenGLFrameWithMetal();
 
