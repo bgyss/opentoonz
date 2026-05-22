@@ -99,8 +99,8 @@ The preview-frame checkpoint moves the `SceneViewer::drawPreview()` blank-color
 camera-frame fill from direct `tglFillRect(...)` to a `DrawList2D` color-rect
 command on the OpenGL compatibility path. The existing Metal presenter already
 emits an equivalent color quad for this overlay; the frame-not-ready red
-hairline rectangles remain on the legacy OpenGL path until a pixel-stable
-hairline primitive is added to `tgraphics`.
+hairline rectangles now also emit `DrawList2D` color-line commands under the
+existing camera transform.
 
 The viewer-mask checkpoint moves `ViewerDraw::drawCameraMask(...)` and
 `ViewerDraw::drawColorcard(...)` filled rectangles from direct `tglFillRect(...)`
@@ -559,11 +559,12 @@ preview-swatch CPU raster-buffer presentation now goes through a matching
 `tgraphics` raster-rect command instead of calling `tglDraw(...)` directly, and
 scene-viewer OpenGL compatibility background clears now emit the same
 `tgraphics` clear command shape used by the Metal presenter. Preview blank-color
-camera-frame fills also now use a `tgraphics` color-rect command in the OpenGL
-compatibility path, matching the existing Metal overlay shape. Viewer camera
-masks and color-card fills now also emit `tgraphics` color-rect commands on the
-OpenGL compatibility path. Image-viewer FX preview-remake double borders now
-emit `tgraphics` color-line commands for their screen-space overlay, and
+camera-frame fills and frame-not-ready red outlines also now use `tgraphics`
+color commands in the OpenGL compatibility path, matching the existing Metal
+overlay shape. Viewer camera masks and color-card fills now also emit
+`tgraphics` color-rect commands on the OpenGL compatibility path. Image-viewer
+FX preview-remake double borders now emit `tgraphics` color-line commands for
+their screen-space overlay, and
 image-viewer zoom/RGB-pick drag overlays now emit `tgraphics` color-line
 commands instead of immediate-mode line strips. Cleanup preview camera-test
 frame/cross outlines now emit `tgraphics` color-quad commands sized by the

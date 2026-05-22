@@ -154,6 +154,12 @@ void appendQuadLines(TGraphics::DrawList2D& drawList, const TPointD& p00,
   drawList.addColorLine(p01, p00, color, false);
 }
 
+void appendRectOutline(TGraphics::DrawList2D& drawList, const TRectD& rect,
+                       const TPixel32& color) {
+  appendQuadLines(drawList, rect.getP00(), rect.getP10(), rect.getP11(),
+                  rect.getP01(), color);
+}
+
 //-------------------------------------------------------------------------------
 
 double getActualFrameRate() {
@@ -2374,10 +2380,10 @@ void SceneViewer::drawPreview() {
   }
 
   if (frameNotReady) {
-    glColor3d(1, 0, 0);
-
-    tglDrawRect(frameRect);
-    tglDrawRect(frameRect.enlarge(5));
+    TGraphics::DrawList2D drawList;
+    appendRectOutline(drawList, frameRect, TPixel32::Red);
+    appendRectOutline(drawList, frameRect.enlarge(5), TPixel32::Red);
+    TGraphics::drawWithOpenGLBackend(drawList);
   }
 
   glPopMatrix();
