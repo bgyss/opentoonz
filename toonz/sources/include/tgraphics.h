@@ -106,6 +106,9 @@ DVAPI Device &openGLDevice();
 DVAPI bool isMetalBuildEnabled();
 DVAPI bool isMetalDeviceAvailable();
 DVAPI const char *metalDeviceName();
+DVAPI std::unique_ptr<RenderTarget> createMetalLayerRenderTarget(
+    void *metalLayer, int width, int height, double devicePixelRatio);
+DVAPI bool isMetalLayerRenderTarget(const RenderTarget *target);
 DVAPI bool isMetalBackendAvailable();
 DVAPI BackendType requestedBackendType();
 DVAPI BackendType activeBackendType();

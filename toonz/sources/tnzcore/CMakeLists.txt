@@ -357,9 +357,11 @@ elseif(BUILD_ENV_APPLE)
     )
     if(WITH_GRAPHICS_METAL)
         find_library(METAL_LIB Metal REQUIRED)
+        find_library(QUARTZCORE_LIB QuartzCore REQUIRED)
         set(EXTRA_LIBS
             ${EXTRA_LIBS}
             ${METAL_LIB}
+            ${QUARTZCORE_LIB}
         )
     endif()
 elseif(BUILD_ENV_UNIXLIKE)

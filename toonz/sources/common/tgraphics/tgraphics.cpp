@@ -14,6 +14,9 @@ namespace TGraphics {
 #ifdef OPENTOONZ_WITH_GRAPHICS_METAL
 bool probeMetalDevice();
 const char *probeMetalDeviceName();
+std::unique_ptr<RenderTarget> createNativeMetalLayerRenderTarget(
+    void *metalLayer, int width, int height, double devicePixelRatio);
+bool isNativeMetalLayerRenderTarget(const RenderTarget *target);
 #endif
 
 namespace {
@@ -132,6 +135,29 @@ const char *metalDeviceName() {
   return probeMetalDeviceName();
 #else
   return "";
+#endif
+}
+
+std::unique_ptr<RenderTarget> createMetalLayerRenderTarget(
+    void *metalLayer, int width, int height, double devicePixelRatio) {
+#ifdef OPENTOONZ_WITH_GRAPHICS_METAL
+  return createNativeMetalLayerRenderTarget(metalLayer, width, height,
+                                            devicePixelRatio);
+#else
+  (void)metalLayer;
+  (void)width;
+  (void)height;
+  (void)devicePixelRatio;
+  return std::unique_ptr<RenderTarget>();
+#endif
+}
+
+bool isMetalLayerRenderTarget(const RenderTarget *target) {
+#ifdef OPENTOONZ_WITH_GRAPHICS_METAL
+  return isNativeMetalLayerRenderTarget(target);
+#else
+  (void)target;
+  return false;
 #endif
 }
 

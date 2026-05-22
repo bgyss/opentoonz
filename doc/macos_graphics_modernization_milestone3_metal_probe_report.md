@@ -1,13 +1,15 @@
 # macOS Graphics Modernization Milestone 3 Metal Probe Report
 
-Status: initial Milestone 3 build/probe slice completed locally on 2026-05-22.
+Status: initial Milestone 3 build/probe and render-target slices completed
+locally on 2026-05-22.
 
 ## Objective
 
 This checkpoint adds the first native macOS Metal implementation behind
 `WITH_GRAPHICS_METAL`. It proves that `tnzcore` can compile Objective-C++ Metal
-code, link against `Metal.framework`, create a default `MTLDevice`, and create a
-command queue while preserving OpenGL as the active renderer.
+code, link against `Metal.framework` and `QuartzCore.framework`, create a
+default `MTLDevice`, create a command queue, and configure a CAMetalLayer render
+target while preserving OpenGL as the active renderer.
 
 This is not yet a visible Metal scene viewer. The active backend intentionally
 continues to fall back to OpenGL until a Metal render target is wired into the
@@ -24,13 +26,23 @@ Qt viewer hierarchy.
 
 - Added public `TGraphics::isMetalDeviceAvailable()` and
   `TGraphics::metalDeviceName()` probes.
+- Added `TGraphics::createMetalLayerRenderTarget(...)` and
+  `TGraphics::isMetalLayerRenderTarget(...)` so future viewer integration can
+  wrap a CAMetalLayer without exposing Objective-C types in the C++ header.
 - Added `tgraphics_metal.mm`, compiled only on macOS when
   `WITH_GRAPHICS_METAL=ON`.
 - Created a native Metal state object with:
   - `MTLCreateSystemDefaultDevice()`
   - `newCommandQueue`
   - cached Metal device name
+- Added a `MetalLayerRenderTarget` that configures:
+  - `CAMetalLayer.device`
+  - `MTLPixelFormatBGRA8Unorm`
+  - `framebufferOnly`
+  - high-DPI aware `drawableSize`
 - Linked `tnzcore` against `Metal.framework` only when
+  `WITH_GRAPHICS_METAL=ON`.
+- Linked `tnzcore` against `QuartzCore.framework` only when
   `WITH_GRAPHICS_METAL=ON`.
 - Kept `TGraphics::isMetalBackendAvailable()` false because CAMetalLayer/
   render-target presentation is not implemented yet.
@@ -72,8 +84,8 @@ nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwi
 Result: passed.
 
 The default OpenGL build does not compile `tgraphics_metal.mm`. The
-Metal-enabled build compiles `tgraphics_metal.mm`, links `tnzcore`, and links
-`OpenToonz.app`.
+Metal-enabled build compiles `tgraphics_metal.mm`, links `tnzcore` against
+Metal and QuartzCore, and links `OpenToonz.app`.
 
 ## Manual Smoke
 
@@ -82,14 +94,14 @@ OpenGL even if `OPENTOONZ_GRAPHICS_BACKEND=metal` is requested.
 
 ## Known Limitations
 
-- No CAMetalLayer or Qt native-view integration yet.
-- No Metal `RenderTarget` implementation yet.
+- No Qt native-view integration yet.
 - No Metal texture upload, shader, draw, or readback path yet.
 - `OPENTOONZ_GRAPHICS_BACKEND=metal` still falls back to OpenGL.
 
 ## Next Milestone 3 Work
 
-- Add a Metal render target around a CAMetalLayer or compatible Qt native view.
+- Integrate the CAMetalLayer render target with a narrow Qt viewer/native-view
+  path.
 - Add minimal Metal shaders and pipeline state for textured 2D quads.
 - Add texture upload/readback support for `DrawList2D` validation.
 - Route only a narrow scene-viewer path to the Metal command encoder once
