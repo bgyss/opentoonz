@@ -1395,6 +1395,57 @@ bool SceneViewer::presentCameraOverlayWithMetal(unsigned long flags,
 
 //-------------------------------------------------------------------------------
 
+bool SceneViewer::presentPreviewFrameOverlayWithMetal(const TRectD& frameRect,
+                                                      bool frameNotReady) {
+  if (m_draw3DMode) return false;
+
+  const int targetWidth  = std::max(1, width() * getDevPixRatio());
+  const int targetHeight = std::max(1, height() * getDevPixRatio());
+  if (!ensureMetalLayerTarget(targetWidth, targetHeight)) return false;
+
+  auto toMetalPixel = [targetWidth, targetHeight](const TPointD& point) {
+    return TPointD(targetWidth * 0.5 + point.x,
+                   targetHeight - (targetHeight * 0.5 + point.y));
+  };
+
+  auto cameraPoint = [&](const TPointD& point) {
+    return toMetalPixel(m_drawCameraAff * point);
+  };
+
+  auto addFrameLines = [&](TGraphics::DrawList2D& drawList,
+                           const TRectD& rect, const TPixel32& color) {
+    const TPointD p00 = cameraPoint(rect.getP00());
+    const TPointD p10 = cameraPoint(rect.getP10());
+    const TPointD p11 = cameraPoint(rect.getP11());
+    const TPointD p01 = cameraPoint(rect.getP01());
+    drawList.addColorLine(p00, p10, color, false);
+    drawList.addColorLine(p10, p11, color, false);
+    drawList.addColorLine(p11, p01, color, false);
+    drawList.addColorLine(p01, p00, color, false);
+  };
+
+  TGraphics::DrawList2D drawList;
+
+  if (m_visualSettings.m_blankColor != TPixel::Transparent) {
+    const TPixel& color = m_visualSettings.m_blankColor;
+    drawList.addColorQuad(cameraPoint(frameRect.getP00()),
+                          cameraPoint(frameRect.getP10()),
+                          cameraPoint(frameRect.getP11()),
+                          cameraPoint(frameRect.getP01()),
+                          TPixel32(color.r, color.g, color.b, color.m), true);
+  }
+
+  if (frameNotReady) {
+    const TPixel32 red(255, 0, 0, 255);
+    addFrameLines(drawList, frameRect, red);
+    addFrameLines(drawList, frameRect.enlarge(5), red);
+  }
+
+  return presentDrawListWithMetal(drawList);
+}
+
+//-------------------------------------------------------------------------------
+
 bool SceneViewer::presentDrawListWithMetal(
     const TGraphics::DrawList2D& drawList) {
   if (drawList.empty()) return false;
@@ -2257,13 +2308,18 @@ void SceneViewer::drawPreview() {
   frameRect.y1 *= inch;
   frameRect -= 0.5 * (frameRect.getP00() + frameRect.getP11());
 
+  const bool frameNotReady =
+      !previewer->isFrameReady(row) ||
+      (app->getCurrentFrame()->isPlaying() && previewer->isBusy());
+  if (shouldPresentWithMetal())
+    presentPreviewFrameOverlayWithMetal(frameRect, frameNotReady);
+
   if (m_visualSettings.m_blankColor != TPixel::Transparent) {
     tglColor(m_visualSettings.m_blankColor);
     tglFillRect(frameRect);
   }
 
-  if (!previewer->isFrameReady(row) ||
-      (app->getCurrentFrame()->isPlaying() && previewer->isBusy())) {
+  if (frameNotReady) {
     glColor3d(1, 0, 0);
 
     tglDrawRect(frameRect);

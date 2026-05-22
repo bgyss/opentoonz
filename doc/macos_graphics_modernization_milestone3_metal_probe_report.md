@@ -202,6 +202,9 @@ before porting scene internals.
   `ColorLine` commands using the table transform when the field guide is
   visible. Field-guide number labels remain on the OpenGL overlay path until
   text rendering is added to `DrawList2D`.
+- Preview-frame overlays now mirror into direct Metal while preview mode is
+  active: blank-color fills use transformed `ColorQuad` commands, and
+  not-ready/busy preview markers use direct red `ColorLine` frame rectangles.
 - The direct Metal viewer background path now adds a checkerboard using
   `Preferences::getChessboardColors(...)` when `ToonzCheck::eTransparency` is
   active.

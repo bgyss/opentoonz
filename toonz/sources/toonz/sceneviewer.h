@@ -351,6 +351,8 @@ protected:
   bool presentFieldGuideWithMetal();
   bool presentGuidesWithMetal();
   bool presentCameraOverlayWithMetal(unsigned long flags, double pixelSize);
+  bool presentPreviewFrameOverlayWithMetal(const TRectD& frameRect,
+                                           bool frameNotReady);
   bool presentDrawListWithMetal(const TGraphics::DrawList2D& drawList);
   bool presentRasterQuadWithMetal(const TRaster32P& raster, const TPointD& p00,
                                   const TPointD& p10, const TPointD& p11,
