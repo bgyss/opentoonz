@@ -66,6 +66,68 @@ TRasterP keepChannels(const TRasterP &rin, TPalette *palette, UCHAR channel) {
 
 //-----------------------------------------------------------------------------
 
+GLint textureInternalFormatForType(GLenum type) {
+  if (type == TGL_TYPE16) return GL_RGBA16;
+  if (type == TGL_TYPE32F) return GL_RGBA32F;
+  return GL_RGBA;
+}
+
+void drawRasterPixelsAsTexture(const TRect &rect, const TRasterP &ras,
+                               GLenum type) {
+  if (!ras) return;
+
+  int texWidth = 1, texHeight = 1;
+  while (texWidth < ras->getLx()) texWidth <<= 1;
+  while (texHeight < ras->getLy()) texHeight <<= 1;
+
+  GLuint texId = 0;
+  glGenTextures(1, &texId);
+  if (texId == 0) return;
+
+  glPushAttrib(GL_ENABLE_BIT | GL_TEXTURE_BIT | GL_COLOR_BUFFER_BIT |
+               GL_CURRENT_BIT);
+  glPushClientAttrib(GL_CLIENT_PIXEL_STORE_BIT);
+
+  glBindTexture(GL_TEXTURE_2D, texId);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+
+  glTexImage2D(GL_TEXTURE_2D, 0, textureInternalFormatForType(type), texWidth,
+               texHeight, 0, TGL_FMT, type, nullptr);
+  glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+  glPixelStorei(GL_UNPACK_ROW_LENGTH, ras->getWrap());
+  glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, ras->getLx(), ras->getLy(), TGL_FMT,
+                  type, ras->getRawData());
+
+  glEnable(GL_TEXTURE_2D);
+  glDisable(GL_BLEND);
+  glColor4d(1.0, 1.0, 1.0, 1.0);
+
+  const double s = ras->getLx() / (double)texWidth;
+  const double t = ras->getLy() / (double)texHeight;
+
+  glBegin(GL_QUADS);
+  glTexCoord2d(0.0, 0.0);
+  glVertex2d(rect.x0, rect.y0);
+  glTexCoord2d(s, 0.0);
+  glVertex2d(rect.x0 + ras->getLx(), rect.y0);
+  glTexCoord2d(s, t);
+  glVertex2d(rect.x0 + ras->getLx(), rect.y0 + ras->getLy());
+  glTexCoord2d(0.0, t);
+  glVertex2d(rect.x0, rect.y0 + ras->getLy());
+  glEnd();
+
+  glPopClientAttrib();
+  glPopAttrib();
+
+  glDeleteTextures(1, &texId);
+}
+
+//-----------------------------------------------------------------------------
+
 inline void quickput(const TRasterP &rout, const TRasterP &rin,
                      const TPaletteP &palette, const TAffine &aff,
                      bool useChecks) {
@@ -501,11 +563,7 @@ void Painter::doFlushRasterImages(const TRasterP &rin, int bg,
     glPushMatrix();
     glLoadIdentity();
 
-    glRasterPos2d(rect.x0, rect.y0);
-    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-
-    glDrawPixels(ras->getWrap(), ras->getLy(), TGL_FMT, bpcType,
-                 (GLvoid *)ras->getRawData());
+    drawRasterPixelsAsTexture(rect, ras, bpcType);
 
     CHECK_ERRORS_BY_GL
 
