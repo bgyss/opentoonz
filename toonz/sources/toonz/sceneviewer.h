@@ -348,6 +348,7 @@ protected:
   bool shouldSkipMetalCompatibilitySnapshot() const;
   bool ensureMetalLayerTarget(int width, int height);
   bool presentBackgroundWithMetal();
+  bool presentFieldGuideWithMetal();
   bool presentGuidesWithMetal();
   bool presentCameraOverlayWithMetal(unsigned long flags, double pixelSize);
   bool presentDrawListWithMetal(const TGraphics::DrawList2D& drawList);

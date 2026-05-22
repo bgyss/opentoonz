@@ -198,6 +198,10 @@ before porting scene internals.
   preview sub-camera rectangle into direct Metal `ColorLine` commands when the
   camera overlay is visible. Camera-name text remains on the OpenGL overlay path
   until text rendering is added to `DrawList2D`.
+- Field-guide grid and diagonal lines now also mirror into direct Metal
+  `ColorLine` commands using the table transform when the field guide is
+  visible. Field-guide number labels remain on the OpenGL overlay path until
+  text rendering is added to `DrawList2D`.
 - The direct Metal viewer background path now adds a checkerboard using
   `Preferences::getChessboardColors(...)` when `ToonzCheck::eTransparency` is
   active.

@@ -1206,6 +1206,55 @@ bool SceneViewer::presentBackgroundWithMetal() {
 
 //-------------------------------------------------------------------------------
 
+bool SceneViewer::presentFieldGuideWithMetal() {
+  if (!fieldGuideToggle.getStatus() || m_draw3DMode) return false;
+
+  const int targetWidth  = std::max(1, width() * getDevPixRatio());
+  const int targetHeight = std::max(1, height() * getDevPixRatio());
+  if (!ensureMetalLayerTarget(targetWidth, targetHeight)) return false;
+
+  auto toMetalPixel = [targetWidth, targetHeight](const TPointD& point) {
+    return TPointD(targetWidth * 0.5 + point.x,
+                   targetHeight - (targetHeight * 0.5 + point.y));
+  };
+
+  TSceneProperties* sprop =
+      TApp::instance()->getCurrentScene()->getScene()->getProperties();
+  int fieldCount = sprop->getFieldGuideSize();
+  if (fieldCount < 4) fieldCount = 4;
+
+  const double fieldScale = 1.0;
+  const double aspect     = sprop->getFieldGuideAspectRatio();
+  const double lx = 0.5 * fieldCount / fieldScale * Stage::inch;
+  const double ly = lx / aspect;
+  const double ux = lx / fieldCount;
+  const double uy = ly / fieldCount;
+  const TPixel32 guideColor(102, 102, 102, 255);
+
+  TGraphics::DrawList2D drawList;
+  auto appendFieldGuideLine = [&](const TPointD& p0, const TPointD& p1) {
+    drawList.addColorLine(toMetalPixel(m_drawTableAff * p0),
+                          toMetalPixel(m_drawTableAff * p1), guideColor,
+                          false);
+  };
+
+  for (int i = -fieldCount; i <= fieldCount; ++i) {
+    appendFieldGuideLine(TPointD(i * ux, -fieldCount * uy),
+                         TPointD(i * ux, fieldCount * uy));
+    appendFieldGuideLine(TPointD(-fieldCount * ux, i * uy),
+                         TPointD(fieldCount * ux, i * uy));
+  }
+
+  appendFieldGuideLine(TPointD(-fieldCount * ux, -fieldCount * uy),
+                       TPointD(fieldCount * ux, fieldCount * uy));
+  appendFieldGuideLine(TPointD(-fieldCount * ux, fieldCount * uy),
+                       TPointD(fieldCount * ux, -fieldCount * uy));
+
+  return presentDrawListWithMetal(drawList);
+}
+
+//-------------------------------------------------------------------------------
+
 bool SceneViewer::presentGuidesWithMetal() {
   if (m_drawCameraTest || m_draw3DMode) return false;
   if (!viewGuideToggle.getStatus()) return false;
@@ -2239,6 +2288,8 @@ void SceneViewer::drawOverlay() {
 
   // draw FieldGuide
   if (fieldGuideToggle.getStatus()) {
+    if (shouldPresentWithMetal()) presentFieldGuideWithMetal();
+
     glPushMatrix();
     tglMultMatrix(m_drawTableAff);
     ViewerDraw::drawFieldGuide();
