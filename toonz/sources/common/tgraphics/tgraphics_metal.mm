@@ -173,16 +173,15 @@ public:
         [commandBuffer renderCommandEncoderWithDescriptor:pass];
     encoder.label = @"DrawList2D";
 
-    id<MTLRenderPipelineState> pipeline = pipelineState();
+    id<MTLRenderPipelineState> defaultPipeline = pipelineState(false);
     id<MTLSamplerState> sampler         = samplerState();
-    if (!pipeline || !sampler) {
+    if (!defaultPipeline || !sampler) {
       [encoder endEncoding];
       if (drawable) [commandBuffer presentDrawable:drawable];
       [commandBuffer commit];
       return;
     }
 
-    [encoder setRenderPipelineState:pipeline];
     [encoder setFragmentSamplerState:sampler atIndex:0];
 
     for (const TextureQuad &quad : drawList.textureQuads()) {
@@ -193,7 +192,11 @@ public:
       id<MTLTexture> metalTexture = upload(texture->raster());
       if (!metalTexture) continue;
 
+      id<MTLRenderPipelineState> pipeline = pipelineState(quad.m_blending);
+      if (!pipeline) continue;
+
       std::array<MetalVertex, 6> vertices = makeVertices(quad.m_rect);
+      [encoder setRenderPipelineState:pipeline];
       [encoder setVertexBytes:vertices.data()
                        length:vertices.size() * sizeof(MetalVertex)
                       atIndex:0];
@@ -208,9 +211,15 @@ public:
   }
 
 private:
-  id<MTLRenderPipelineState> pipelineState() {
-    static id<MTLRenderPipelineState> pipeline = nil;
-    static bool attempted                      = false;
+  id<MTLRenderPipelineState> pipelineState(bool blending) {
+    static id<MTLRenderPipelineState> replacePipeline = nil;
+    static id<MTLRenderPipelineState> blendPipeline   = nil;
+    static bool attemptedReplace                      = false;
+    static bool attemptedBlend                        = false;
+
+    id<MTLRenderPipelineState> &pipeline =
+        blending ? blendPipeline : replacePipeline;
+    bool &attempted = blending ? attemptedBlend : attemptedReplace;
     if (attempted) return pipeline;
     attempted = true;
 
@@ -231,13 +240,16 @@ private:
     descriptor.vertexFunction                 = vertexFunction;
     descriptor.fragmentFunction               = fragmentFunction;
     descriptor.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
-    descriptor.colorAttachments[0].blendingEnabled = YES;
-    descriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
-    descriptor.colorAttachments[0].destinationRGBBlendFactor =
-        MTLBlendFactorOneMinusSourceAlpha;
-    descriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorOne;
-    descriptor.colorAttachments[0].destinationAlphaBlendFactor =
-        MTLBlendFactorOneMinusSourceAlpha;
+    descriptor.colorAttachments[0].blendingEnabled = blending ? YES : NO;
+    if (blending) {
+      descriptor.colorAttachments[0].sourceRGBBlendFactor =
+          MTLBlendFactorSourceAlpha;
+      descriptor.colorAttachments[0].destinationRGBBlendFactor =
+          MTLBlendFactorOneMinusSourceAlpha;
+      descriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorOne;
+      descriptor.colorAttachments[0].destinationAlphaBlendFactor =
+          MTLBlendFactorOneMinusSourceAlpha;
+    }
 
     pipeline = [state.m_device newRenderPipelineStateWithDescriptor:descriptor
                                                               error:&error];
