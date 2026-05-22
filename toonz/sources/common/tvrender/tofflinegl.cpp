@@ -627,7 +627,7 @@ void TOfflineGL::initMatrix() {
   glViewport(0, 0, m_imp->getLx(), m_imp->getLy());
   glMatrixMode(GL_PROJECTION);
   glLoadIdentity();
-  gluOrtho2D(0, m_imp->getLx(), 0, m_imp->getLy());
+  glOrtho(0, m_imp->getLx(), 0, m_imp->getLy(), -1, 1);
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
   // glTranslatef(0.375, 0.375, 0.0);    //WRONG

@@ -805,7 +805,7 @@ void ToonzScene::renderFrame(const TRaster32P &ras, int row, const TXsheet *xsh,
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    gluOrtho2D(0, ras->getLx(), 0, ras->getLy());
+    glOrtho(0, ras->getLx(), 0, ras->getLy(), -1, 1);
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();

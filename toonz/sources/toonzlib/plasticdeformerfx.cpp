@@ -390,7 +390,7 @@ void PlasticDeformerFx::doCompute(TTile &tile, double frame,
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    gluOrtho2D(0, d.lx, 0, d.ly);
+    glOrtho(0, d.lx, 0, d.ly, -1, 1);
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();

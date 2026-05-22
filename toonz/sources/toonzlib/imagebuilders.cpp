@@ -368,7 +368,7 @@ TImageP ImageRasterizer::build(int imFlags, void *extData) {
 
                 glMatrixMode(GL_PROJECTION);
                 glLoadIdentity();
-                gluOrtho2D(bbox.x0, bbox.x1, bbox.y0, bbox.y1);
+                glOrtho(bbox.x0, bbox.x1, bbox.y0, bbox.y1, -1, 1);
 
                 glMatrixMode(GL_MODELVIEW);
                 glLoadIdentity();

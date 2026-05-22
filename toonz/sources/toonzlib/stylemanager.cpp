@@ -399,7 +399,7 @@ QImage CustomStyleManager::makeIcon(
 
       glMatrixMode(GL_PROJECTION);
       glLoadIdentity();
-      gluOrtho2D(0, chipSize.lx, 0, chipSize.ly);
+      glOrtho(0, chipSize.lx, 0, chipSize.ly, -1, 1);
 
       glMatrixMode(GL_MODELVIEW);
       glLoadIdentity();

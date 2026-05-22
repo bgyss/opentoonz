@@ -100,7 +100,7 @@ void ShadingContext::Imp::initMatrix(int lx, int ly) {
   glViewport(0, 0, lx, ly);
   glMatrixMode(GL_PROJECTION);
   glLoadIdentity();
-  gluOrtho2D(0, lx, 0, ly);
+  glOrtho(0, lx, 0, ly, -1, 1);
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
 }

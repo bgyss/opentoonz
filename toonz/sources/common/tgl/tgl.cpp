@@ -25,7 +25,6 @@
 
 //#include "tthread.h"
 
-#undef SCALE_BY_GLU
 //#undef NEW_DRAW_TEXT
 
 //-----------------------------------------------------------------------------
@@ -172,9 +171,13 @@ void tglDrawDisk(const TPointD &c, double r) {
 
   glPushMatrix();
   glTranslated(c.x, c.y, 0.0);
-  GLUquadric *quadric = gluNewQuadric();
-  gluDisk(quadric, 0, r, slices, 1);
-  gluDeleteQuadric(quadric);
+  glBegin(GL_TRIANGLE_FAN);
+  glVertex2d(0.0, 0.0);
+  for (int i = 0; i <= slices; ++i) {
+    double angle = M_2PI * i / (double)slices;
+    glVertex2d(r * cos(angle), r * sin(angle));
+  }
+  glEnd();
   glPopMatrix();
 }
 
@@ -550,15 +553,7 @@ void tglBuildMipmaps(std::vector<TRaster32P> &rasters,
   TRaster32P ras2(lx, ly);
   double sx = (double)lx / (double)ras->getLx();
   double sy = (double)ly / (double)ras->getLy();
-#ifndef SCALE_BY_GLU
   TRop::resample(ras2, ras, TScale(sx, sy), resampleFilter);
-#else
-  ras->lock();
-  gluScaleImage(GL_RGBA, ras->getLx(), ras->getLy(), GL_UNSIGNED_BYTE,
-                ras->getRawData(), lx, ly, GL_UNSIGNED_BYTE,
-                ras2->getRawData());
-  ras->unlock();
-#endif
 
   rasters[0] = ras2;
   int ras2Lx = ras2->getLx();
@@ -572,15 +567,7 @@ void tglBuildMipmaps(std::vector<TRaster32P> &rasters,
     sx         = (double)lx / (double)ras2Lx;
     sy         = (double)ly / (double)ras2Ly;
     rasters[i] = TRaster32P(lx, ly);
-#ifndef SCALE_BY_GLU
     TRop::resample(rasters[i], ras2, TScale(sx, sy), resampleFilter);
-#else
-    ras2->lock();
-    gluScaleImage(GL_RGBA, ras->getLx(), ras->getLy(), GL_UNSIGNED_BYTE,
-                  ras2->getRawData(), lx, ly, GL_UNSIGNED_BYTE,
-                  rasters[i]->getRawData());
-    ras2->unlock();
-#endif
   }
 }
 

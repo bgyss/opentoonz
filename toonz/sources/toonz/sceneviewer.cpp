@@ -88,6 +88,9 @@
 #include <QOpenGLFramebufferObject>
 #include <QMainWindow>
 
+#include <algorithm>
+#include <cmath>
+
 #include "sceneviewer.h"
 
 TEnv::IntVar RotateOnCameraCenter("RotateOnCameraCenter", 0);
@@ -142,6 +145,130 @@ double getActualFrameRate() {
 
 //-----------------------------------------------------------------------------
 
+void multMatrix4d(const GLdouble a[16], const GLdouble b[16],
+                  GLdouble result[16]) {
+  for (int col = 0; col < 4; ++col) {
+    for (int row = 0; row < 4; ++row) {
+      result[row + col * 4] =
+          a[row + 0 * 4] * b[0 + col * 4] +
+          a[row + 1 * 4] * b[1 + col * 4] +
+          a[row + 2 * 4] * b[2 + col * 4] +
+          a[row + 3 * 4] * b[3 + col * 4];
+    }
+  }
+}
+
+bool invertMatrix4d(const GLdouble matrix[16], GLdouble inverse[16]) {
+  GLdouble augmented[4][8];
+  for (int row = 0; row < 4; ++row) {
+    for (int col = 0; col < 4; ++col) {
+      augmented[row][col] = matrix[row + col * 4];
+      augmented[row][col + 4] = (row == col) ? 1.0 : 0.0;
+    }
+  }
+
+  for (int col = 0; col < 4; ++col) {
+    int pivot = col;
+    for (int row = col + 1; row < 4; ++row) {
+      if (std::fabs(augmented[row][col]) >
+          std::fabs(augmented[pivot][col]))
+        pivot = row;
+    }
+
+    if (std::fabs(augmented[pivot][col]) < 1.0e-12) return false;
+
+    if (pivot != col) {
+      for (int i = 0; i < 8; ++i)
+        std::swap(augmented[col][i], augmented[pivot][i]);
+    }
+
+    const GLdouble pivotValue = augmented[col][col];
+    for (int i = 0; i < 8; ++i) augmented[col][i] /= pivotValue;
+
+    for (int row = 0; row < 4; ++row) {
+      if (row == col) continue;
+      const GLdouble factor = augmented[row][col];
+      for (int i = 0; i < 8; ++i)
+        augmented[row][i] -= factor * augmented[col][i];
+    }
+  }
+
+  for (int row = 0; row < 4; ++row)
+    for (int col = 0; col < 4; ++col)
+      inverse[row + col * 4] = augmented[row][col + 4];
+
+  return true;
+}
+
+bool projectPoint(GLdouble objX, GLdouble objY, GLdouble objZ,
+                  const GLdouble modelView[16], const GLdouble projection[16],
+                  const GLint viewport[4], GLdouble *winX, GLdouble *winY,
+                  GLdouble *winZ) {
+  GLdouble transform[16];
+  multMatrix4d(projection, modelView, transform);
+
+  const GLdouble in[4] = {objX, objY, objZ, 1.0};
+  GLdouble out[4];
+  for (int row = 0; row < 4; ++row) {
+    out[row] = transform[row + 0 * 4] * in[0] +
+               transform[row + 1 * 4] * in[1] +
+               transform[row + 2 * 4] * in[2] +
+               transform[row + 3 * 4] * in[3];
+  }
+
+  if (out[3] == 0.0) return false;
+
+  out[0] /= out[3];
+  out[1] /= out[3];
+  out[2] /= out[3];
+
+  *winX = viewport[0] + (out[0] + 1.0) * viewport[2] * 0.5;
+  *winY = viewport[1] + (out[1] + 1.0) * viewport[3] * 0.5;
+  *winZ = (out[2] + 1.0) * 0.5;
+  return true;
+}
+
+bool unProjectPoint(GLdouble winX, GLdouble winY, GLdouble winZ,
+                    const GLdouble modelView[16],
+                    const GLdouble projection[16], const GLint viewport[4],
+                    GLdouble *objX, GLdouble *objY, GLdouble *objZ) {
+  GLdouble transform[16], inverse[16];
+  multMatrix4d(projection, modelView, transform);
+  if (!invertMatrix4d(transform, inverse)) return false;
+
+  const GLdouble in[4] = {
+      (winX - viewport[0]) * 2.0 / viewport[2] - 1.0,
+      (winY - viewport[1]) * 2.0 / viewport[3] - 1.0,
+      2.0 * winZ - 1.0,
+      1.0};
+
+  GLdouble out[4];
+  for (int row = 0; row < 4; ++row) {
+    out[row] = inverse[row + 0 * 4] * in[0] +
+               inverse[row + 1 * 4] * in[1] +
+               inverse[row + 2 * 4] * in[2] +
+               inverse[row + 3 * 4] * in[3];
+  }
+
+  if (out[3] == 0.0) return false;
+
+  *objX = out[0] / out[3];
+  *objY = out[1] / out[3];
+  *objZ = out[2] / out[3];
+  return true;
+}
+
+void pickMatrix(GLdouble x, GLdouble y, GLdouble width, GLdouble height,
+                const GLint viewport[4]) {
+  if (width <= 0.0 || height <= 0.0) return;
+
+  glTranslated((viewport[2] - 2.0 * (x - viewport[0])) / width,
+               (viewport[3] - 2.0 * (y - viewport[1])) / height, 0.0);
+  glScaled(viewport[2] / width, viewport[3] / height, 1.0);
+}
+
+//-----------------------------------------------------------------------------
+
 void copyFrontBufferToBackBuffer() {
   static GLint viewport[4];
   static GLfloat raster_pos[4];
@@ -155,7 +282,7 @@ void copyFrontBufferToBackBuffer() {
   glMatrixMode(GL_PROJECTION);
   glPushMatrix();
   glLoadIdentity();
-  gluOrtho2D(0, viewport[2], 0, viewport[3]);
+  glOrtho(0, viewport[2], 0, viewport[3], -1, 1);
 
   /* set modelview matrix */
   glMatrixMode(GL_MODELVIEW);
@@ -190,12 +317,14 @@ T3DPointD computeNew3DPosition(T3DPointD start3DPos, TPointD delta2D,
                                GLdouble projection3D[16], GLint viewport3D[4],
                                int devPixRatio) {
   GLdouble pos2D_x, pos2D_y, pos2D_z;
-  gluProject(-start3DPos.x, -start3DPos.y, start3DPos.z, modelView3D,
-             projection3D, viewport3D, &pos2D_x, &pos2D_y, &pos2D_z);
+  if (!projectPoint(-start3DPos.x, -start3DPos.y, start3DPos.z, modelView3D,
+                    projection3D, viewport3D, &pos2D_x, &pos2D_y, &pos2D_z))
+    return start3DPos;
   new2dPos = TPointD(pos2D_x + delta2D.x, pos2D_y + delta2D.y);
   GLdouble pos3D_x, pos3D_y, pos3D_z;
-  gluUnProject(new2dPos.x, new2dPos.y, 1, modelView3D, projection3D, viewport3D,
-               &pos3D_x, &pos3D_y, &pos3D_z);
+  if (!unProjectPoint(new2dPos.x, new2dPos.y, 1, modelView3D, projection3D,
+                      viewport3D, &pos3D_x, &pos3D_y, &pos3D_z))
+    return start3DPos;
   new2dPos.y = viewport3D[3] - new2dPos.y - 20 * devPixRatio;
   return T3DPointD(pos3D_x, pos3D_y, pos3D_z);
 }
@@ -223,7 +352,7 @@ void copyBackBufferToFrontBuffer(const TRect &rect) {
   glMatrixMode(GL_PROJECTION);
   glPushMatrix();
   glLoadIdentity();
-  gluOrtho2D(0, viewport[2], 0, viewport[3]);
+  glOrtho(0, viewport[2], 0, viewport[3], -1, 1);
 
   /* set modelview matrix */
   glMatrixMode(GL_MODELVIEW);
@@ -2358,8 +2487,11 @@ double SceneViewer::projectToZ(const TPointD &delta) {
   glGetDoublev(GL_MODELVIEW_MATRIX, modelview);
 
   double ax, ay, az, bx, by, bz;
-  gluProject(0, 0, 0, modelview, projection, viewport, &ax, &ay, &az);
-  gluProject(0, 0, 1, modelview, projection, viewport, &bx, &by, &bz);
+  if (!projectPoint(0, 0, 0, modelview, projection, viewport, &ax, &ay, &az) ||
+      !projectPoint(0, 0, 1, modelview, projection, viewport, &bx, &by, &bz)) {
+    glPopMatrix();
+    return 0.0;
+  }
 
   glPopMatrix();
   TPointD zdir(bx - ax, by - ay);
@@ -3192,7 +3324,7 @@ int SceneViewer::pick(const TPointD &point) {
   glGetDoublev(GL_PROJECTION_MATRIX, mat);
   glPushMatrix();
   glLoadIdentity();
-  gluPickMatrix(point.x, point.y, 5, 5, viewport);
+  pickMatrix(point.x, point.y, 5, 5, viewport);
   glMultMatrixd(mat);
   assert(glGetError() == GL_NO_ERROR);
 

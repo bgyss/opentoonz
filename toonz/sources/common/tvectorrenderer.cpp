@@ -98,7 +98,7 @@ void hardRenderVectorImage_MESA(const TVectorRenderData &rd, TRaster32P &ras,
   glViewport(0, 0, rasterWidth, rasterHeight);
   glMatrixMode(GL_PROJECTION);
   glLoadIdentity();
-  gluOrtho2D(0, rasterWidth, 0, rasterHeight);
+  glOrtho(0, rasterWidth, 0, rasterHeight, -1, 1);
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
   glTranslatef(0.375, 0.375, 0.0);
@@ -227,7 +227,7 @@ void hardRenderVectorImage(const TVectorRenderData &rd, TRaster32P &ras,
   glViewport(0, 0, rasterWidth, rasterHeight);
   glMatrixMode(GL_PROJECTION);
   glLoadIdentity();
-  gluOrtho2D(0, rasterWidth, 0, rasterHeight);
+  glOrtho(0, rasterWidth, 0, rasterHeight, -1, 1);
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
   glTranslatef(0.375, 0.375, 0.0);
@@ -406,7 +406,7 @@ void hardRenderVectorImage(const TVectorRenderData &rd, TRaster32P &ras,
 
   glMatrixMode(GL_PROJECTION);
   glLoadIdentity();
-  gluOrtho2D(0, ras->getLx(), 0, ras->getLy());
+  glOrtho(0, ras->getLx(), 0, ras->getLy(), -1, 1);
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
   glTranslatef(0.375, 0.375, 0.0);

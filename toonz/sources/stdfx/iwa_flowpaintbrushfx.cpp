@@ -933,7 +933,7 @@ void Iwa_FlowPaintBrushFx::doCompute(TTile &tile, double frame,
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    gluOrtho2D(0, p.dim.lx, 0, p.dim.ly);
+    glOrtho(0, p.dim.lx, 0, p.dim.ly, -1, 1);
 
     glMatrixMode(GL_MODELVIEW);
 
