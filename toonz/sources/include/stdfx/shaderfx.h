@@ -26,6 +26,8 @@ class TTile;
 //=========================================================
 
 void DVAPI loadShaderInterfaces(const TFilePath &shaderInterfacesFolder);
+bool DVAPI renderShaderFxForProbe(const char *shaderName, TTile &tile,
+                                  double frame, const TRenderSettings &info);
 bool DVAPI renderSunflareShaderFxForProbe(TTile &tile, double frame,
                                           const TRenderSettings &info);
 bool DVAPI renderSunflareShaderFxWithMetalForProbe(

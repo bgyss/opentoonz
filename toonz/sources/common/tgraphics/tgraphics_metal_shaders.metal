@@ -48,6 +48,17 @@ struct SunflareUniforms {
   float sharpness;
 };
 
+struct CausticsUniforms {
+  float a11;
+  float a12;
+  float a13;
+  float a21;
+  float a22;
+  float a23;
+  float4 color;
+  float time;
+};
+
 fragment float4 tgraphicsSunflareFragment(
     VertexOut in [[stage_in]],
     constant SunflareUniforms &u [[buffer(0)]]) {
@@ -60,4 +71,40 @@ fragment float4 tgraphicsSunflareFragment(
   float blade = u.intensity * clamp(pow(bladeBase, u.sharpness), 0.0, 1.0);
   float4 premultiplied = float4(u.color.rgb * u.color.a, u.color.a);
   return premultiplied * (1.0 + blade) / max(length(p), 1.0e-6);
+}
+
+float4 causticsTextureRND2D(float2 uv, float time) {
+  uv = floor(uv);
+  float v = uv.x + uv.y * 1.0e3;
+  float4 res = fract(1.0e5 * sin(float4(v * 1.0e-2, (v + 1.0) * 1.0e-2,
+                                          (v + 1.0e3) * 1.0e-2,
+                                          (v + 1.0e3 + 1.0) * 1.0e-2)));
+  return 2.0 * abs(fract(res + float4(time * 0.03)) - 0.5);
+}
+
+float causticsNoise(float2 p, float time) {
+  float4 r = causticsTextureRND2D(p, time);
+  float2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(r.x, r.y, f.x), mix(r.z, r.w, f.x), f.y);
+}
+
+float causticsBuildColor(float2 p, float time) {
+  p += causticsNoise(p, time);
+  return 1.0 - abs(pow(abs(causticsNoise(p, time) - 0.5), 0.75)) * 1.7;
+}
+
+fragment float4 tgraphicsCausticsFragment(
+    VertexOut in [[stage_in]], constant CausticsUniforms &u [[buffer(0)]]) {
+  float2 p = float2(in.position.x * u.a11 + in.position.y * u.a12 + u.a13,
+                    in.position.x * u.a21 + in.position.y * u.a22 + u.a23);
+  float speed = 0.15;
+  float c1 = causticsBuildColor(p * 0.03 + u.time * speed, u.time);
+  float c2 = causticsBuildColor(p * 0.03 - u.time * speed, u.time);
+  float c3 = causticsBuildColor(p * 0.02 - u.time * speed, u.time);
+  float c4 = causticsBuildColor(p * 0.02 + u.time * speed, u.time);
+  float cf = pow(c1 * c2 * c3 * c4 + 0.5, 6.0);
+  float4 outColor = float4(float3(cf), 0.0) + u.color;
+  outColor.rgb *= outColor.a;
+  return outColor;
 }

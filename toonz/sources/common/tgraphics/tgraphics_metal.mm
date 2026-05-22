@@ -97,6 +97,8 @@ NSString *shaderSource() {
           "struct SunflareUniforms { float a11; float a12; float a13; float "
           "a21; float a22; float a23; float4 color; float blades; float "
           "intensity; float angle; float bias; float sharpness; };\n"
+          "struct CausticsUniforms { float a11; float a12; float a13; float "
+          "a21; float a22; float a23; float4 color; float time; };\n"
           "fragment float4 tgraphicsSunflareFragment(VertexOut in "
           "[[stage_in]], constant SunflareUniforms &u [[buffer(0)]]) {\n"
           "  float2 world = float2(in.position.x * u.a11 + in.position.y * "
@@ -111,6 +113,44 @@ NSString *shaderSource() {
           "  float4 premultiplied = float4(u.color.rgb * u.color.a, "
           "u.color.a);\n"
           "  return premultiplied * (1.0 + blade) / max(length(p), 1.0e-6);\n"
+          "}\n"
+          "float4 causticsTextureRND2D(float2 uv, float time) {\n"
+          "  uv = floor(uv);\n"
+          "  float v = uv.x + uv.y * 1.0e3;\n"
+          "  float4 res = fract(1.0e5 * sin(float4(v * 1.0e-2, "
+          "(v + 1.0) * 1.0e-2, (v + 1.0e3) * 1.0e-2, "
+          "(v + 1.0e3 + 1.0) * 1.0e-2)));\n"
+          "  return 2.0 * abs(fract(res + float4(time * 0.03)) - 0.5);\n"
+          "}\n"
+          "float causticsNoise(float2 p, float time) {\n"
+          "  float4 r = causticsTextureRND2D(p, time);\n"
+          "  float2 f = fract(p);\n"
+          "  f = f * f * (3.0 - 2.0 * f);\n"
+          "  return mix(mix(r.x, r.y, f.x), mix(r.z, r.w, f.x), f.y);\n"
+          "}\n"
+          "float causticsBuildColor(float2 p, float time) {\n"
+          "  p += causticsNoise(p, time);\n"
+          "  return 1.0 - abs(pow(abs(causticsNoise(p, time) - 0.5), "
+          "0.75)) * 1.7;\n"
+          "}\n"
+          "fragment float4 tgraphicsCausticsFragment(VertexOut in "
+          "[[stage_in]], constant CausticsUniforms &u [[buffer(0)]]) {\n"
+          "  float2 p = float2(in.position.x * u.a11 + in.position.y * "
+          "u.a12 + u.a13, in.position.x * u.a21 + in.position.y * u.a22 + "
+          "u.a23);\n"
+          "  float speed = 0.15;\n"
+          "  float c1 = causticsBuildColor(p * 0.03 + u.time * speed, "
+          "u.time);\n"
+          "  float c2 = causticsBuildColor(p * 0.03 - u.time * speed, "
+          "u.time);\n"
+          "  float c3 = causticsBuildColor(p * 0.02 - u.time * speed, "
+          "u.time);\n"
+          "  float c4 = causticsBuildColor(p * 0.02 + u.time * speed, "
+          "u.time);\n"
+          "  float cf = pow(c1 * c2 * c3 * c4 + 0.5, 6.0);\n"
+          "  float4 outColor = float4(float3(cf), 0.0) + u.color;\n"
+          "  outColor.rgb *= outColor.a;\n"
+          "  return outColor;\n"
           "}\n";
 }
 
@@ -200,9 +240,21 @@ struct SunflareUniforms {
   float m_sharpness   = 3.0f;
 };
 
-id<MTLRenderPipelineState> sunflarePipelineState() {
-  static id<MTLRenderPipelineState> pipeline = nil;
-  static bool attempted                      = false;
+struct CausticsUniforms {
+  float m_a11         = 1.0f;
+  float m_a12         = 0.0f;
+  float m_a13         = 0.0f;
+  float m_a21         = 0.0f;
+  float m_a22         = 1.0f;
+  float m_a23         = 0.0f;
+  float m_padding0[2] = {0.0f, 0.0f};
+  float m_color[4]    = {0.0f, 120.0f / 255.0f, 1.0f, 1.0f};
+  float m_time        = 0.0f;
+};
+
+id<MTLRenderPipelineState> proceduralShaderPipelineState(id<MTLRenderPipelineState> &pipeline,
+                                                         bool &attempted, NSString *label,
+                                                         NSString *fragmentFunctionName) {
   if (attempted) return pipeline;
   attempted = true;
 
@@ -217,17 +269,17 @@ id<MTLRenderPipelineState> sunflarePipelineState() {
   }
 
   id<MTLFunction> vertexFunction   = [library newFunctionWithName:@"tgraphicsVertex"];
-  id<MTLFunction> fragmentFunction = [library newFunctionWithName:@"tgraphicsSunflareFragment"];
+  id<MTLFunction> fragmentFunction = [library newFunctionWithName:fragmentFunctionName];
 
   MTLRenderPipelineDescriptor *descriptor        = [[MTLRenderPipelineDescriptor alloc] init];
-  descriptor.label                               = @"OpenToonz TGraphics Sunflare";
+  descriptor.label                               = label;
   descriptor.vertexFunction                      = vertexFunction;
   descriptor.fragmentFunction                    = fragmentFunction;
   descriptor.colorAttachments[0].pixelFormat     = MTLPixelFormatBGRA8Unorm;
   descriptor.colorAttachments[0].blendingEnabled = NO;
 
   pipeline = [state.m_device newRenderPipelineStateWithDescriptor:descriptor error:&error];
-  if (!pipeline) logMetalError(@"create sunflare pipeline", error);
+  if (!pipeline) logMetalError(label, error);
 
 #if !__has_feature(objc_arc)
   [descriptor release];
@@ -237,6 +289,20 @@ id<MTLRenderPipelineState> sunflarePipelineState() {
 #endif
 
   return pipeline;
+}
+
+id<MTLRenderPipelineState> sunflarePipelineState() {
+  static id<MTLRenderPipelineState> pipeline = nil;
+  static bool attempted                      = false;
+  return proceduralShaderPipelineState(pipeline, attempted, @"create sunflare pipeline",
+                                       @"tgraphicsSunflareFragment");
+}
+
+id<MTLRenderPipelineState> causticsPipelineState() {
+  static id<MTLRenderPipelineState> pipeline = nil;
+  static bool attempted                      = false;
+  return proceduralShaderPipelineState(pipeline, attempted, @"create caustics pipeline",
+                                       @"tgraphicsCausticsFragment");
 }
 
 class MetalCommandEncoder final : public CommandEncoder {
@@ -745,6 +811,61 @@ TRaster32P renderNativeMetalSunflare(int width, int height, const TAffine &outpu
   uniforms.m_angle     = static_cast<float>(angle);
   uniforms.m_bias      = static_cast<float>(bias);
   uniforms.m_sharpness = static_cast<float>(sharpness);
+
+  [encoder setRenderPipelineState:pipeline];
+  [encoder setVertexBytes:vertices length:sizeof(vertices) atIndex:0];
+  [encoder setFragmentBytes:&uniforms length:sizeof(uniforms) atIndex:0];
+  [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+  [encoder endEncoding];
+  [commandBuffer commit];
+  [commandBuffer waitUntilCompleted];
+
+  return readNativeMetalRenderTarget(&target);
+}
+
+TRaster32P renderNativeMetalCaustics(int width, int height, const TAffine &outputToWorld,
+                                     const TPixel32 &color, double time) {
+  if (!probeMetalDevice() || width <= 0 || height <= 0) return TRaster32P();
+
+  MetalTextureRenderTarget target(width, height);
+  if (!target.texture()) return TRaster32P();
+
+  id<MTLRenderPipelineState> pipeline = causticsPipelineState();
+  if (!pipeline) return TRaster32P();
+
+  MetalState &state = metalState();
+
+  MTLRenderPassDescriptor *pass        = [MTLRenderPassDescriptor renderPassDescriptor];
+  pass.colorAttachments[0].texture     = target.texture();
+  pass.colorAttachments[0].loadAction  = MTLLoadActionClear;
+  pass.colorAttachments[0].storeAction = MTLStoreActionStore;
+  pass.colorAttachments[0].clearColor  = MTLClearColorMake(0.0, 0.0, 0.0, 0.0);
+
+  id<MTLCommandBuffer> commandBuffer  = [state.m_commandQueue commandBuffer];
+  commandBuffer.label                 = @"OpenToonz TGraphics Caustics";
+  id<MTLRenderCommandEncoder> encoder = [commandBuffer renderCommandEncoderWithDescriptor:pass];
+  encoder.label                       = @"Caustics";
+
+  const float left              = -1.0f;
+  const float right             = 1.0f;
+  const float top               = 1.0f;
+  const float bottom            = -1.0f;
+  const MetalVertex vertices[6] = {{left, top, 0.0f, 0.0f},     {right, top, 1.0f, 0.0f},
+                                   {left, bottom, 0.0f, 1.0f},  {right, top, 1.0f, 0.0f},
+                                   {right, bottom, 1.0f, 1.0f}, {left, bottom, 0.0f, 1.0f}};
+
+  CausticsUniforms uniforms;
+  uniforms.m_a11      = static_cast<float>(outputToWorld.a11);
+  uniforms.m_a12      = static_cast<float>(outputToWorld.a12);
+  uniforms.m_a13      = static_cast<float>(outputToWorld.a13);
+  uniforms.m_a21      = static_cast<float>(outputToWorld.a21);
+  uniforms.m_a22      = static_cast<float>(outputToWorld.a22);
+  uniforms.m_a23      = static_cast<float>(outputToWorld.a23);
+  uniforms.m_color[0] = color.r / 255.0f;
+  uniforms.m_color[1] = color.g / 255.0f;
+  uniforms.m_color[2] = color.b / 255.0f;
+  uniforms.m_color[3] = color.m / 255.0f;
+  uniforms.m_time     = static_cast<float>(time);
 
   [encoder setRenderPipelineState:pipeline];
   [encoder setVertexBytes:vertices length:sizeof(vertices) atIndex:0];

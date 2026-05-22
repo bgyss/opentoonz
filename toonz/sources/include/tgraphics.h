@@ -180,6 +180,10 @@ DVAPI TRaster32P renderDrawListWithActiveBackend(const DrawList2D& drawList,
 DVAPI TRaster32P renderSunflareWithMetalBackend(
     int width, int height, const TAffine& outputToWorld, const TPixel32& color,
     int blades, double intensity, double angle, double bias, double sharpness);
+DVAPI TRaster32P renderCausticsWithMetalBackend(int width, int height,
+                                                const TAffine& outputToWorld,
+                                                const TPixel32& color,
+                                                double time);
 
 }  // namespace TGraphics
 

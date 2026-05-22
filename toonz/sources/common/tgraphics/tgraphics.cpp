@@ -37,6 +37,9 @@ TRaster32P renderNativeMetalSunflare(int width, int height,
                                      const TPixel32& color, int blades,
                                      double intensity, double angle,
                                      double bias, double sharpness);
+TRaster32P renderNativeMetalCaustics(int width, int height,
+                                     const TAffine& outputToWorld,
+                                     const TPixel32& color, double time);
 #endif
 
 namespace {
@@ -737,6 +740,21 @@ TRaster32P renderSunflareWithMetalBackend(int width, int height,
   (void)angle;
   (void)bias;
   (void)sharpness;
+  return TRaster32P();
+#endif
+}
+
+TRaster32P renderCausticsWithMetalBackend(int width, int height,
+                                          const TAffine& outputToWorld,
+                                          const TPixel32& color, double time) {
+#ifdef OPENTOONZ_WITH_GRAPHICS_METAL
+  return renderNativeMetalCaustics(width, height, outputToWorld, color, time);
+#else
+  (void)width;
+  (void)height;
+  (void)outputToWorld;
+  (void)color;
+  (void)time;
   return TRaster32P();
 #endif
 }

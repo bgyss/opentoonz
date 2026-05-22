@@ -933,24 +933,29 @@ void ShaderFx::getInputData(const TRectD &rect, double frame,
 
 //-------------------------------------------------------------------
 
-bool renderSunflareWithMetal(const ShaderInterface *shaderInterface,
-                             const std::vector<boost::any> &params,
-                             TTile &tile, double frame,
-                             const TRenderSettings &info) {
+bool renderProceduralShaderWithMetal(const ShaderInterface *shaderInterface,
+                                     const std::vector<boost::any> &params,
+                                     TTile &tile, double frame,
+                                     const TRenderSettings &info) {
   if (TGraphics::activeBackendType() != TGraphics::BackendType::Metal)
-    return false;
-  if (shaderInterface->mainShader().m_name != QStringLiteral("SHADER_sunflare"))
     return false;
 
   TRaster32P outputRaster = tile.getRaster();
   if (!outputRaster) return false;
 
-  TPixel32 color(255, 170, 75, 255);
+  const QString shaderName = shaderInterface->mainShader().m_name;
+  const bool isSunflare    = shaderName == QStringLiteral("SHADER_sunflare");
+  const bool isCaustics    = shaderName == QStringLiteral("SHADER_caustics");
+  if (!isSunflare && !isCaustics) return false;
+
+  TPixel32 color = isCaustics ? TPixel32(0, 120, 255, 255)
+                              : TPixel32(255, 170, 75, 255);
   int blades       = 6;
   double intensity = 1.0;
   double angle     = 0.0;
   double bias      = 0.0;
   double sharpness = 3.0;
+  double time      = 0.0;
 
   const std::vector<ShaderInterface::Parameter> &siParams =
       shaderInterface->parameters();
@@ -985,6 +990,8 @@ bool renderSunflareWithMetal(const ShaderInterface *shaderInterface,
         bias = param->getValue(frame);
       else if (name == QStringLiteral("sharpness"))
         sharpness = param->getValue(frame);
+      else if (name == QStringLiteral("time"))
+        time = param->getValue(frame);
       break;
     }
     default:
@@ -992,10 +999,17 @@ bool renderSunflareWithMetal(const ShaderInterface *shaderInterface,
     }
   }
 
-  TRaster32P rendered = TGraphics::renderSunflareWithMetalBackend(
-      outputRaster->getLx(), outputRaster->getLy(),
-      (TTranslation(-tile.m_pos) * info.m_affine).inv(), color, blades,
-      intensity, angle, bias, sharpness);
+  const TAffine outputToWorld = (TTranslation(-tile.m_pos) * info.m_affine).inv();
+  TRaster32P rendered;
+  if (isCaustics) {
+    rendered = TGraphics::renderCausticsWithMetalBackend(
+        outputRaster->getLx(), outputRaster->getLy(), outputToWorld, color,
+        time);
+  } else {
+    rendered = TGraphics::renderSunflareWithMetalBackend(
+        outputRaster->getLx(), outputRaster->getLy(), outputToWorld, color,
+        blades, intensity, angle, bias, sharpness);
+  }
   if (!rendered) return false;
 
   outputRaster->copy(rendered);
@@ -1047,7 +1061,8 @@ void ShaderFx::doCompute(TTile &tile, double frame,
   };  // locals
 
   if (getInputPortCount() == 0 &&
-      renderSunflareWithMetal(m_shaderInterface, m_params, tile, frame, info))
+      renderProceduralShaderWithMetal(m_shaderInterface, m_params, tile, frame,
+                                      info))
     return;
 
   ShadingContextManager *manager = ShadingContextManager::instance();
@@ -1281,14 +1296,20 @@ void loadShaderInterfaces(const TFilePath &shadersFolder) {
   }
 }
 
-bool renderSunflareShaderFxForProbe(TTile &tile, double frame,
-                                    const TRenderSettings &info) {
-  std::unique_ptr<TFx> fx(TFx::create("SHADER_sunflare"));
+bool renderShaderFxForProbe(const char *shaderName, TTile &tile, double frame,
+                            const TRenderSettings &info) {
+  if (!shaderName) return false;
+  std::unique_ptr<TFx> fx(TFx::create(shaderName));
   ShaderFx *shaderFx = dynamic_cast<ShaderFx *>(fx.get());
   if (!shaderFx) return false;
 
   shaderFx->doCompute(tile, frame, info);
   return true;
+}
+
+bool renderSunflareShaderFxForProbe(TTile &tile, double frame,
+                                    const TRenderSettings &info) {
+  return renderShaderFxForProbe("SHADER_sunflare", tile, frame, info);
 }
 
 bool renderSunflareShaderFxWithMetalForProbe(TTile &tile, double frame,
