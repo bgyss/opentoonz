@@ -102,15 +102,6 @@ void hardRenderVectorImage_MESA(const TVectorRenderData &rd, TRaster32P &ras,
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
   glTranslatef(0.375, 0.375, 0.0);
-  /*
-glClearColor(0.0f,0.0f,0.0f,0.0f);
-glClear(GL_COLOR_BUFFER_BIT);
-
-// draw background
-glRasterPos2d(0, 0);
-glDrawPixels( ras->getLx(),ras->getLy(), GL_BGRA_EXT, GL_UNSIGNED_BYTE,
-ras->getRawData());
-*/
   // do OpenGL draw
   assert(vimg);
   tglDraw(rd, vimg.getPointer());
@@ -236,9 +227,9 @@ void hardRenderVectorImage(const TVectorRenderData &rd, TRaster32P &ras,
   glClear(GL_COLOR_BUFFER_BIT);
 
   // draw background
-  glRasterPos2d(0, 0);
-  glDrawPixels(ras->getLx(), ras->getLy(), GL_BGRA_EXT, GL_UNSIGNED_BYTE,
-               ras->getRawData());
+  ras->unlock();
+  tglDraw(TRectD(0, 0, ras->getLx(), ras->getLy()), ras, false);
+  ras->lock();
 #endif
   // do OpenGL draw
   assert(vimg);
@@ -415,9 +406,9 @@ void hardRenderVectorImage(const TVectorRenderData &rd, TRaster32P &ras,
   glClear(GL_COLOR_BUFFER_BIT);
 
   // draw background
-  glRasterPos2d(0, 0);
-  glDrawPixels(ras->getLx(), ras->getLy(), GL_RGBA, GL_UNSIGNED_BYTE,
-               ras->getRawData());
+  ras->unlock();
+  tglDraw(TRectD(0, 0, ras->getLx(), ras->getLy()), ras, false);
+  ras->lock();
 
   // do OpenGL draw
   assert(vimg);

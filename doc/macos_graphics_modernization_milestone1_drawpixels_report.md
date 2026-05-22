@@ -38,6 +38,10 @@ model needed for a future Metal backend.
   keeps the existing CPU composition path and preserves
   `GL_ONE, GL_ONE_MINUS_SRC_ALPHA` blending while moving the presentation step
   from direct pixel upload to texture-backed drawing.
+- Follow-up: replaced active `hardRenderVectorImage(...)` offscreen background
+  uploads in `toonz/sources/common/tvectorrenderer.cpp` with the existing
+  `tglDraw(TRectD, TRaster32P, false)` texture helper, and removed an inactive
+  commented `glDrawPixels` block from the disabled Mesa experiment.
 
 ## Inventory Before and After
 
@@ -98,17 +102,32 @@ glDrawPixels                       files=    3 matches=     8
 OpenGL selection                   files=    5 matches=    95
 ```
 
+Current source-like inventory after the vector-renderer background follow-up:
+
+```text
+OpenToonz graphics API inventory
+source_root=toonz/sources
+
+all graphics markers               files=  121 matches=  2857
+Qt legacy QGL                      files=    0 matches=     0
+Qt QOpenGL                         files=   32 matches=   218
+GLU                                files=    5 matches=    53
+GLEW or GLUT                       files=   10 matches=    30
+fixed-function drawing             files=   85 matches=  2009
+fixed-function matrix              files=   56 matches=   447
+glDrawPixels                       files=    2 matches=     5
+OpenGL selection                   files=    5 matches=    95
+```
+
 Remaining `glDrawPixels` sites:
 
 - `toonz/sources/toonz/sceneviewer.cpp`
 - `toonz/sources/toonzlib/imagepainter.cpp`
-- `toonz/sources/common/tvectorrenderer.cpp`
 
 These remaining sites should be handled with additional visual validation
-because they involve 3D side/top views, channel/bit-depth paths, stage
-visitation, and platform-specific vector render backgrounds. The 3D scene
-viewer buttons still need a screen-space texture helper because the existing
-code positions the raster with `glRasterPos3f`.
+because they involve 3D side/top views and channel/bit-depth paths. The 3D
+scene viewer buttons still need a screen-space texture helper because the
+existing code positions the raster with `glRasterPos3f`.
 
 ## Validation Run
 
@@ -160,6 +179,30 @@ Result: passed. The fallback build recompiled `stagevisitor.cpp` and linked
 Metal-enabled rebuild emitted existing unrelated warnings in image/trop code,
 but the changed `stagevisitor.cpp` compiled cleanly.
 
+Vector-renderer background follow-up validation:
+
+```sh
+bash scripts/graphics_inventory.sh
+git diff --check
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tnzcore OpenToonz --parallel 3
+nix develop path:. --command cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=ON
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tgraphics_metal_probe OpenToonz --parallel 3
+nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
+nix develop path:. --command cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=OFF
+```
+
+Result: passed. The source-like inventory now reports `glDrawPixels` at 2
+files / 5 matches. The fallback build linked `OpenToonz.app`; the
+Metal-enabled build found no additional work for `OpenToonz.app`, and
+`tgraphics_metal_probe` reported `ok on Apple M1 Max`. The fallback rebuild
+emitted existing unrelated warnings in image/trop/tool/viewer code.
+
+Current CMake target lists do not compile
+`toonz/sources/common/tvectorrenderer.cpp`, so this follow-up is validated as
+legacy source-inventory cleanup rather than as an active macOS application code
+path. If that renderer is reintroduced into a target, its background upload
+will use the shared texture draw helper instead of direct `glDrawPixels`.
+
 ## Manual Smoke
 
 Manual GUI smoke was not run in this checkpoint. These workflows should be
@@ -175,5 +218,5 @@ exercised before merging this milestone:
 ## Remaining Milestone 1 Work
 
 - Replace or isolate the remaining `glDrawPixels` paths in scene viewer,
-  image-painter, stage visitor, and vector renderer code.
+  and image-painter code.
 - Start reducing `GL_SELECT` picking usage.
