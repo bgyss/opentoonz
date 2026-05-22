@@ -5,6 +5,7 @@
 #include "tstream.h"
 #include "trenderer.h"
 #include "trasterfx.h"
+#include "trasterimage.h"
 #include "tthread.h"
 #include "ttile.h"
 #include "toonz/fxdag.h"
@@ -14,6 +15,9 @@
 #include "toonz/tcolumnfx.h"
 #include "toonz/tcolumnfxset.h"
 #include "toonz/toonzscene.h"
+#include "toonz/txshcell.h"
+#include "toonz/txshleveltypes.h"
+#include "toonz/txshsimplelevel.h"
 #include "toonz/txsheet.h"
 
 #include <QCoreApplication>
@@ -299,6 +303,24 @@ TRaster32P makeHSLProbeRaster(int width, int height, const TPointD& pos,
   return raster;
 }
 
+TRaster32P makeHSLProbeSceneRaster(int width, int height, bool foreground) {
+  TRaster32P raster(width, height);
+  const int xOffset = width / 2;
+  const int yOffset = height / 2;
+  raster->lock();
+  for (int y = 0; y < height; ++y) {
+    TPixel32* row = raster->pixels(y);
+    for (int x = 0; x < width; ++x) {
+      const int worldX = x - xOffset;
+      const int worldY = y - yOffset;
+      row[x] = foreground ? hslProbeForegroundPixel(worldX, worldY)
+                          : hslProbeBackgroundPixel(worldX, worldY);
+    }
+  }
+  raster->unlock();
+  return raster;
+}
+
 class HSLProbeRasterFx final : public TRasterFx {
   FX_DECLARATION(HSLProbeRasterFx)
 
@@ -461,9 +483,57 @@ TRaster32P renderWithRendererForProbe(const Options& options, const TTile& tile,
       settings);
 }
 
+TLevelColumnFx* addProbeRasterColumn(ToonzScene& scene, int columnIndex,
+                                     int row,
+                                     const std::wstring& levelName,
+                                     TRaster32P raster) {
+  TXshSimpleLevel* level = new TXshSimpleLevel(levelName);
+  level->setScene(&scene);
+  level->setType(OVL_XSHLEVEL);
+  scene.getLevelSet()->insertLevel(level);
+  level->setFrame(TFrameId(1), TImageP(new TRasterImage(raster)));
+
+  TXsheet* xsheet = scene.getXsheet();
+  if (!xsheet) return nullptr;
+
+  if (!xsheet->setCell(row, columnIndex,
+                       TXshCell(TXshLevelP(level), TFrameId(1))))
+    return nullptr;
+
+  TXshColumn* column = xsheet->getColumn(columnIndex);
+  if (!column || !column->getCellColumn()) return nullptr;
+  return dynamic_cast<TLevelColumnFx*>(column->getCellColumn()->getFx());
+}
+
+TRaster32P renderHSLSceneForProbe(const Options& options, const TTile& tile,
+                                  double frame,
+                                  const TRenderSettings& settings) {
+  ToonzScene scene;
+  const int width  = tile.getRaster()->getLx() * 3;
+  const int height = tile.getRaster()->getLy() * 3;
+
+  TLevelColumnFx* foregroundFx = addProbeRasterColumn(
+      scene, 0, tfloor(frame), L"HSLProbeForeground",
+      makeHSLProbeSceneRaster(width, height, true));
+  TLevelColumnFx* backgroundFx = addProbeRasterColumn(
+      scene, 1, tfloor(frame), L"HSLProbeBackground",
+      makeHSLProbeSceneRaster(width, height, false));
+  if (!foregroundFx || !backgroundFx) return TRaster32P();
+
+  TFxP root = makeProbeShaderFx(options, TFxP(foregroundFx), TFxP(backgroundFx));
+  if (!root) return TRaster32P();
+
+  TFxP builtFx = buildSceneFx(&scene, frame, scene.getXsheet(), root,
+                              BSFX_DEFAULT_TR, true);
+  return renderRasterFxWithRenderer(builtFx, tile, frame, settings);
+}
+
 TRaster32P renderSceneForProbe(const Options& options, const TTile& tile,
                                double frame, const TRenderSettings& settings,
                                TFxP foregroundFx, TFxP backgroundFx) {
+  if (options.shaderName == "SHADER_HSLBlendGPU")
+    return renderHSLSceneForProbe(options, tile, frame, settings);
+
   TFxP root = makeProbeShaderFx(options, foregroundFx, backgroundFx);
   if (!root) return TRaster32P();
 
@@ -612,8 +682,15 @@ int main(int argc, char* argv[]) {
 
   bool rendered = false;
   if (options.renderWithScene) {
-    if (options.shaderName == "SHADER_HSLBlendGPU")
-      return fail("SHADER_HSLBlendGPU scene-render probe is not supported yet")
+    if (options.shaderName == "SHADER_HSLBlendGPU" &&
+        TGraphics::activeBackendType() != TGraphics::BackendType::Metal)
+      return fail("SHADER_HSLBlendGPU scene-render probe requires the Metal "
+                  "backend")
+                 ? 0
+                 : 1;
+    if (options.shaderName == "SHADER_HSLBlendGPU" &&
+        !options.saveLoadScenePath.empty())
+      return fail("SHADER_HSLBlendGPU saved-scene probe is not supported yet")
                  ? 0
                  : 1;
     TRaster32P renderedRaster;

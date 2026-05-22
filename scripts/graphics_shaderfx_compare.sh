@@ -82,6 +82,10 @@ fi
     --shader SHADER_HSLBlendGPU \
     --renderer \
     --write-pam "$artifact_dir/HSLBlendGPU-metal-renderer.pam"
+  OPENTOONZ_GRAPHICS_BACKEND=metal "$probe" \
+    --shader SHADER_HSLBlendGPU \
+    --scene-render \
+    --write-pam "$artifact_dir/HSLBlendGPU-metal-scene.pam"
 )
 
 echo "graphics_shaderfx_compare: ok"
