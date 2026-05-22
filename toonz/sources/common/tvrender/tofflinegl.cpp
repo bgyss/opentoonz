@@ -578,10 +578,8 @@ TOfflineGL::TOfflineGL(const TRaster32P &raster, const TOfflineGL *shared) {
 
   initMatrix();
 
-  glRasterPos2d(0, 0);
   raster->lock();
-  glDrawPixels(raster->getLx(), raster->getLy(), GL_BGRA_EXT, GL_UNSIGNED_BYTE,
-               raster->getRawData());
+  tglDraw(TRectD(0, 0, raster->getLx(), raster->getLy()), raster, false);
   raster->unlock();
 }
 

@@ -596,10 +596,7 @@ TRaster32P PlaneViewer::rasterBuffer() {
 void PlaneViewer::flushRasterBuffer() {
   assert(m_rasterBuffer);
 
-  glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-  glRasterPos2d(0, 0);
-  glDrawPixels(width(), height(), TGL_FMT, TGL_TYPE,
-               m_rasterBuffer->getRawData());
+  tglDraw(TRectD(0, 0, width(), height()), m_rasterBuffer, false);
 }
 
 //=========================================================================================

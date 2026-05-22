@@ -45,6 +45,7 @@
 #include "tools/cursors.h"
 #include "tools/strokeselection.h"
 
+#include <cmath>
 #include <QPainter>
 #include <QPainterPath>
 #include <QImage>
@@ -59,6 +60,69 @@ namespace {
 
 QImage convertToGLDrawPixelsFormat(const QImage &image) {
   return image.convertToFormat(QImage::Format_RGBA8888).mirrored();
+}
+
+int nextPowerOfTwo(int value) {
+  int result = 1;
+  while (result < value) result <<= 1;
+  return result;
+}
+
+void drawImageTexture(const QImage &source, const TPointD &pos,
+                      double xOffsetPx, double yOffsetPx) {
+  QImage texture = convertToGLDrawPixelsFormat(source);
+  const int texWidth = nextPowerOfTwo(texture.width());
+  const int texHeight = nextPowerOfTwo(texture.height());
+  double u = 1.0;
+  double v = 1.0;
+
+  if (texWidth != texture.width() || texHeight != texture.height()) {
+    QImage padded(texWidth, texHeight, QImage::Format_RGBA8888);
+    padded.fill(Qt::transparent);
+    QPainter painter(&padded);
+    painter.drawImage(0, 0, texture);
+    painter.end();
+    texture = padded;
+    u = source.width() / (double)texWidth;
+    v = source.height() / (double)texHeight;
+  }
+
+  const double pixelSize = std::sqrt(tglGetPixelSize2());
+  const double x0        = pos.x + xOffsetPx * pixelSize;
+  const double y0        = pos.y + yOffsetPx * pixelSize;
+  const double x1        = x0 + source.width() * pixelSize;
+  const double y1        = y0 + source.height() * pixelSize;
+
+  GLuint texId = 0;
+  glPushAttrib(GL_ENABLE_BIT | GL_TEXTURE_BIT | GL_COLOR_BUFFER_BIT |
+               GL_CURRENT_BIT | GL_PIXEL_MODE_BIT);
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  glEnable(GL_TEXTURE_2D);
+  glGenTextures(1, &texId);
+  glBindTexture(GL_TEXTURE_2D, texId);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+  glPixelStorei(GL_UNPACK_ROW_LENGTH, texture.bytesPerLine() / 4);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texture.width(), texture.height(), 0,
+               GL_RGBA, GL_UNSIGNED_BYTE, texture.bits());
+
+  glBegin(GL_QUADS);
+  glTexCoord2d(0.0, 0.0);
+  glVertex2d(x0, y0);
+  glTexCoord2d(u, 0.0);
+  glVertex2d(x1, y0);
+  glTexCoord2d(u, v);
+  glVertex2d(x1, y1);
+  glTexCoord2d(0.0, v);
+  glVertex2d(x0, y1);
+  glEnd();
+
+  glDeleteTextures(1, &texId);
+  glPopAttrib();
 }
 
 //! Riempie il vettore \b theVect con gli indici degli stroke contenuti nel
@@ -1688,15 +1752,7 @@ void ToolUtils::drawBalloon(const TPointD &pos, std::string text,
   p.setFont(font);
   p.drawText(textRect, Qt::AlignCenter | Qt::TextDontClip, qText);
 
-  QImage texture = convertToGLDrawPixelsFormat(label);
-
-  glRasterPos2f(pos.x, pos.y);
-  glBitmap(0, 0, 0, 0, 0, -size.height() + (y + delta.y), NULL);  //
-  glEnable(GL_BLEND);
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  glDrawPixels(texture.width(), texture.height(), GL_RGBA, GL_UNSIGNED_BYTE,
-               texture.bits());
-  glDisable(GL_BLEND);
+  drawImageTexture(label, pos, 0, -size.height() + (y + delta.y));
   glColor3d(0, 0, 0);
 }
 
@@ -1742,14 +1798,7 @@ void ToolUtils::drawHook(const TPointD &pos, ToolUtils::HookType type,
     painter.drawLine(r, 0, r, d);
   }
 
-  QImage texture = convertToGLDrawPixelsFormat(image);
-  glRasterPos2f(pos.x, pos.y);
-  glBitmap(0, 0, 0, 0, -r * devPixRatio, -r * devPixRatio, NULL);
-  glEnable(GL_BLEND);
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  glDrawPixels(texture.width(), texture.height(), GL_RGBA, GL_UNSIGNED_BYTE,
-               texture.bits());
-  glDisable(GL_BLEND);
+  drawImageTexture(image, pos, -r * devPixRatio, -r * devPixRatio);
 }
 
 //---------------------------------------------------------------------------------------------

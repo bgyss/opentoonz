@@ -36,6 +36,8 @@
 #include "tools/cursors.h"
 #include "tools/toolutils.h"
 
+#include <cmath>
+
 // Qt includes
 #include <QCoreApplication>  // Qt translation support
 #include <QPainter>
@@ -66,6 +68,69 @@ using SkeletonSubtools::HookData;
 
 static QImage convertToGLDrawPixelsFormat(const QImage &image) {
   return image.convertToFormat(QImage::Format_RGBA8888).mirrored();
+}
+
+static int nextPowerOfTwo(int value) {
+  int result = 1;
+  while (result < value) result <<= 1;
+  return result;
+}
+
+static void drawImageTexture(const QImage &source, const TPointD &pos,
+                             double xOffsetPx, double yOffsetPx) {
+  QImage texture = convertToGLDrawPixelsFormat(source);
+  const int texWidth = nextPowerOfTwo(texture.width());
+  const int texHeight = nextPowerOfTwo(texture.height());
+  double u = 1.0;
+  double v = 1.0;
+
+  if (texWidth != texture.width() || texHeight != texture.height()) {
+    QImage padded(texWidth, texHeight, QImage::Format_RGBA8888);
+    padded.fill(Qt::transparent);
+    QPainter painter(&padded);
+    painter.drawImage(0, 0, texture);
+    painter.end();
+    texture = padded;
+    u = source.width() / (double)texWidth;
+    v = source.height() / (double)texHeight;
+  }
+
+  const double pixelSize = std::sqrt(tglGetPixelSize2());
+  const double x0        = pos.x + xOffsetPx * pixelSize;
+  const double y0        = pos.y + yOffsetPx * pixelSize;
+  const double x1        = x0 + source.width() * pixelSize;
+  const double y1        = y0 + source.height() * pixelSize;
+
+  GLuint texId = 0;
+  glPushAttrib(GL_ENABLE_BIT | GL_TEXTURE_BIT | GL_COLOR_BUFFER_BIT |
+               GL_CURRENT_BIT | GL_PIXEL_MODE_BIT);
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  glEnable(GL_TEXTURE_2D);
+  glGenTextures(1, &texId);
+  glBindTexture(GL_TEXTURE_2D, texId);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+  glPixelStorei(GL_UNPACK_ROW_LENGTH, texture.bytesPerLine() / 4);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texture.width(), texture.height(), 0,
+               GL_RGBA, GL_UNSIGNED_BYTE, texture.bits());
+
+  glBegin(GL_QUADS);
+  glTexCoord2d(0.0, 0.0);
+  glVertex2d(x0, y0);
+  glTexCoord2d(u, 0.0);
+  glVertex2d(x1, y0);
+  glTexCoord2d(u, v);
+  glVertex2d(x1, y1);
+  glTexCoord2d(0.0, v);
+  glVertex2d(x0, y1);
+  glEnd();
+
+  glDeleteTextures(1, &texId);
+  glPopAttrib();
 }
 
 //============================================================
@@ -1356,15 +1421,7 @@ void SkeletonTool::drawDrawingBrowser(const TXshCell &cell,
       imgPainter.drawPath(dnArrow);
     }
 
-    QImage texture = convertToGLDrawPixelsFormat(img);
-
-    glRasterPos2f(p.x, p.y);
-    // glBitmap(0,0,0,0,  0,-size.height()+(y+delta.y),  NULL); //
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glDrawPixels(texture.width(), texture.height(), GL_RGBA, GL_UNSIGNED_BYTE,
-                 texture.bits());
-    glDisable(GL_BLEND);
+    drawImageTexture(img, p, 0, 0);
     glColor3d(0, 0, 0);
 
     assert(glGetError() == 0);
@@ -1416,16 +1473,10 @@ void SkeletonTool::drawMainGadget(const TPointD &center) {
 
   p.setBrush(QColor(54, 213, 54));
   p.drawRect(6, 6, 6, 6);
-  QImage texture = convertToGLDrawPixelsFormat(img);
   // texture.save("c:\\urka.png");
 
-  glRasterPos2f(center.x + r * 1.1, center.y - r * 1.1);
-  glBitmap(0, 0, 0, 0, -9, -9, NULL);
-  glEnable(GL_BLEND);
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  glDrawPixels(texture.width(), texture.height(), GL_RGBA, GL_UNSIGNED_BYTE,
-               texture.bits());
-  glDisable(GL_BLEND);
+  drawImageTexture(img, TPointD(center.x + r * 1.1, center.y - r * 1.1), -9,
+                   -9);
   glColor3d(0, 0, 0);
 
   assert(glGetError() == GL_NO_ERROR);
