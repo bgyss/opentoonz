@@ -302,6 +302,11 @@ and the `ToolUtils::drawRectWhitArrow(...)` rectangular body from immediate
 OpenGL line/polygon drawing to `DrawList2D` color-line/color-rect commands.
 Triangle arrowheads remain on legacy OpenGL until triangle/fan primitives are
 represented in `tgraphics`.
+The shared stippled rectangle checkpoint moves non-contrast
+`ToolUtils::drawRect(...)` stippled outlines from `glLineStipple(...)` and
+immediate-mode `GL_LINE_STRIP` drawing to explicit `DrawList2D` color-line
+segments. Contrast-blended rectangle outlines remain on legacy OpenGL until
+the contrast blend mode is represented in `tgraphics`.
 
 ## Files Changed
 
@@ -778,7 +783,8 @@ emit `tgraphics` color-line commands instead of immediate-mode `GL_LINES`.
 Shared plain tool rectangles, filled rectangles, and square outlines now also
 emit `tgraphics` color commands, and shared current-color tool point, cross,
 line, arrow-shaft, and arrow-rectangle primitives now also emit `tgraphics`
-color commands. Geometric
+color commands. Shared non-contrast stippled tool rectangles now also emit
+`tgraphics` color-line segments. Geometric
 rectangle, line, arc construction, and polygon outline previews now also emit
 `tgraphics` color-line commands.
 Geometric multiline Bezier speed-handle connector segments now also emit

@@ -67,9 +67,47 @@ void appendRectOutline(TGraphics::DrawList2D &drawList, const TRectD &rect,
   drawList.addColorLine(rect.getP10(), rect.getP00(), color, false);
 }
 
+void appendStippledLine(TGraphics::DrawList2D &drawList, const TPointD &p0,
+                        const TPointD &p1, const TPixel32 &color,
+                        unsigned short stipple) {
+  const double dx     = p1.x - p0.x;
+  const double dy     = p1.y - p0.y;
+  const double length = std::sqrt(dx * dx + dy * dy);
+  if (length <= 1e-6) return;
+
+  const double pixelSize = std::sqrt(tglGetPixelSize2());
+  if (pixelSize <= 1e-12) return;
+
+  const TPointD unit(dx / length, dy / length);
+  for (double start = 0.0; start < length; start += pixelSize) {
+    const int bit = ((int)std::floor(start / pixelSize)) & 15;
+    if ((stipple & (1u << bit)) == 0) continue;
+
+    const double end = std::min(start + pixelSize, length);
+    drawList.addColorLine(p0 + unit * start, p0 + unit * end, color, false);
+  }
+}
+
+void appendStippledRectOutline(TGraphics::DrawList2D &drawList,
+                               const TRectD &rect, const TPixel32 &color,
+                               unsigned short stipple) {
+  appendStippledLine(drawList, rect.getP00(), rect.getP01(), color, stipple);
+  appendStippledLine(drawList, rect.getP01(), rect.getP11(), color, stipple);
+  appendStippledLine(drawList, rect.getP11(), rect.getP10(), color, stipple);
+  appendStippledLine(drawList, rect.getP10(), rect.getP00(), color, stipple);
+}
+
 void drawRectOutlineWithTGraphics(const TRectD &rect, const TPixel32 &color) {
   TGraphics::DrawList2D drawList;
   appendRectOutline(drawList, rect, color);
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
+
+void drawStippledRectOutlineWithTGraphics(const TRectD &rect,
+                                          const TPixel32 &color,
+                                          unsigned short stipple) {
+  TGraphics::DrawList2D drawList;
+  appendStippledRectOutline(drawList, rect, color, stipple);
   TGraphics::drawWithOpenGLBackend(drawList);
 }
 
@@ -275,8 +313,11 @@ TFrameId ToolUtils::getFrameId() {
 
 void ToolUtils::drawRect(const TRectD &rect, const TPixel32 &color,
                          unsigned short stipple, bool doContrast) {
-  if (!doContrast && stipple == 0xffff) {
-    drawRectOutlineWithTGraphics(rect, color);
+  if (!doContrast) {
+    if (stipple == 0xffff)
+      drawRectOutlineWithTGraphics(rect, color);
+    else
+      drawStippledRectOutlineWithTGraphics(rect, color, stipple);
     return;
   }
 
