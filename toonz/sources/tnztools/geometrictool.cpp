@@ -40,6 +40,7 @@
 #include "toonz/tcamera.h"
 #include "toonz/stage.h"
 #include "toonz/tlog.h"
+#include "tgraphics.h"
 // For Qt translation support
 #include <QCoreApplication>
 #include <QKeyEvent>
@@ -91,6 +92,22 @@ const double SNAPPING_HIGH   = 100.0;
 //----------------------------------------------------------------------------------
 
 namespace {
+
+void drawLineWithTGraphics(const TPointD &p0, const TPointD &p1,
+                           const TPixel32 &color) {
+  TGraphics::DrawList2D drawList;
+  drawList.addColorLine(p0, p1, color, false);
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
+
+void drawRectOutlineWithTGraphics(const TRectD &rect, const TPixel32 &color) {
+  TGraphics::DrawList2D drawList;
+  drawList.addColorLine(rect.getP00(), rect.getP01(), color, false);
+  drawList.addColorLine(rect.getP01(), rect.getP11(), color, false);
+  drawList.addColorLine(rect.getP11(), rect.getP10(), color, false);
+  drawList.addColorLine(rect.getP10(), rect.getP00(), color, false);
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
 
 //-----------------------------------------------------------------------------
 class FullColorMyPaintGeometryUndo final
@@ -1974,13 +1991,8 @@ void RectanglePrimitive::draw() {
   if (m_isEditing || m_isPrompting ||
       areAlmostEqual(m_selectingRect.x0, m_selectingRect.x1) ||
       areAlmostEqual(m_selectingRect.y0, m_selectingRect.y1)) {
-    tglColor(m_isEditing ? m_color : TPixel32::Green);
-    glBegin(GL_LINE_LOOP);
-    tglVertex(m_selectingRect.getP00());
-    tglVertex(m_selectingRect.getP01());
-    tglVertex(m_selectingRect.getP11());
-    tglVertex(m_selectingRect.getP10());
-    glEnd();
+    drawRectOutlineWithTGraphics(m_selectingRect,
+                                 m_isEditing ? m_color : TPixel32::Green);
   }
 }
 
@@ -2593,15 +2605,8 @@ void LinePrimitive::draw() {
   // remove unused variable 'size' // UINT size = m_vertex.size();
   drawSnap();
 
-  tglColor(TPixel32::Red);
-
-  if (m_isEditing || m_isPrompting) {
-    glBegin(GL_LINE_STRIP);
-    tglVertex(m_vertex[0]);
-
-    tglVertex(m_mousePosition);
-    glEnd();
-  }
+  if (m_isEditing || m_isPrompting)
+    drawLineWithTGraphics(m_vertex[0], m_mousePosition, TPixel32::Red);
 }
 
 //-----------------------------------------------------------------------------

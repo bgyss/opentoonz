@@ -273,6 +273,11 @@ outlines, filled handles, and selected-vertex square outlines from OpenGL
 square drawing and line-width state to `DrawList2D` color rect/line-width
 commands. Stippled highlighted vertex squares remain on legacy OpenGL until
 stipple semantics are represented in `tgraphics`.
+The geometric tool preview checkpoint moves the rectangle primitive selection
+outline and line primitive live preview from immediate-mode OpenGL
+line-loop/line-strip drawing to `DrawList2D` color-line commands. Circle,
+ellipse, arc, polygon, and snap preview drawing remain on legacy OpenGL until
+curve/circle primitives are represented in `tgraphics`.
 
 ## Files Changed
 
@@ -288,6 +293,7 @@ stipple semantics are represented in `tgraphics`.
 - `toonz/sources/tnzcore/CMakeLists.txt`
 - `toonz/sources/tnztools/controlpointeditortool.cpp`
 - `toonz/sources/tnztools/edittool.cpp`
+- `toonz/sources/tnztools/geometrictool.cpp`
 - `toonz/sources/tnztools/hooktool.cpp`
 - `toonz/sources/tnztools/plastictool.cpp`
 - `toonz/sources/tnztools/plastictool_meshedit.cpp`
@@ -747,8 +753,9 @@ emit `tgraphics` color-line commands instead of direct `GL_LINES` and
 emit `tgraphics` color-line commands instead of immediate-mode `GL_LINES`.
 Shared plain tool rectangles, filled rectangles, and square outlines now also
 emit `tgraphics` color commands, and shared current-color tool point, cross,
-and line primitives now also emit `tgraphics` color commands. Edit-tool
-shear-handle visible outlines now also emit `tgraphics` color-line commands.
+and line primitives now also emit `tgraphics` color commands. Geometric
+rectangle and line previews now also emit `tgraphics` color-line commands.
+Edit-tool shear-handle visible outlines now also emit `tgraphics` color-line commands.
 Edit-tool camera and Z-translation icons now also emit `tgraphics` color-line
 commands. Scene-viewer FPS graph panels now emit `tgraphics` color commands
 instead of direct immediate-mode drawing. Scene-viewer spline/motion-path
