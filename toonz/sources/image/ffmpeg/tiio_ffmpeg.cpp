@@ -11,6 +11,7 @@
 #include "trop.h"
 
 #include <QImage>
+#include <QElapsedTimer>
 #include <QProcess>
 #include <QRegularExpression>
 #include <QUuid>
@@ -20,6 +21,43 @@
 #include <QCryptographicHash>  // For MD5 hash
 #include "tmsgcore.h"
 #include "thirdparty.h"
+
+namespace {
+
+QString readFFmpegFormats() {
+  QStringList args;
+  args << "-hide_banner"
+       << "-formats";
+
+  QProcess ffmpeg;
+  ffmpeg.setProcessChannelMode(QProcess::MergedChannels);
+  ThirdParty::runFFmpeg(ffmpeg, args);
+
+  if (!ffmpeg.waitForStarted(1000)) return QString();
+
+  QByteArray output;
+  QElapsedTimer timer;
+  timer.start();
+
+  while (!ffmpeg.waitForFinished(100)) {
+    output += ffmpeg.readAll();
+
+    if (timer.elapsed() > 8000) {
+      ffmpeg.terminate();
+      if (!ffmpeg.waitForFinished(500)) ffmpeg.kill();
+      output += ffmpeg.readAll();
+      return QString();
+    }
+  }
+
+  output += ffmpeg.readAll();
+  if (ffmpeg.exitStatus() != QProcess::NormalExit || ffmpeg.exitCode() != 0)
+    return QString();
+
+  return QString::fromUtf8(output);
+}
+
+}  // namespace
 
 Ffmpeg::Ffmpeg() {
   int userTimeoutSec = ThirdParty::getFFmpegTimeout();
@@ -44,20 +82,7 @@ bool Ffmpeg::checkFormat(std::string format) {
 
   QDateTime now = QDateTime::currentDateTime();
   if (!hasCachedFormats || lastCheck.secsTo(now) > 3600) {  // 1 hour
-    QStringList args;
-    args << "-formats";
-
-    QProcess ffmpeg;
-    ThirdParty::runFFmpeg(ffmpeg, args);
-    if (!ffmpeg.waitForFinished(8000)) {
-      ffmpeg.terminate();
-      if (!ffmpeg.waitForFinished(500)) ffmpeg.kill();
-    }
-
-    cachedFormats =
-        ffmpeg.readAllStandardError() + ffmpeg.readAllStandardOutput();
-    ffmpeg.close();
-
+    cachedFormats    = readFFmpegFormats();
     lastCheck        = now;
     hasCachedFormats = true;
   }
