@@ -71,6 +71,18 @@ struct StarskyUniforms {
   float brightness;
 };
 
+struct WavyUniforms {
+  float a11;
+  float a12;
+  float a13;
+  float a21;
+  float a22;
+  float a23;
+  float4 color1;
+  float4 color2;
+  float time;
+};
+
 fragment float4 tgraphicsSunflareFragment(
     VertexOut in [[stage_in]],
     constant SunflareUniforms &u [[buffer(0)]]) {
@@ -172,4 +184,50 @@ fragment float4 tgraphicsStarskyFragment(
   outRgb += clamp((1.0 - 2.0 * length(uv)) * cellBrightness, 0.0, 1.0);
 
   return float4(outRgb, 1.0);
+}
+
+float2 wavyDistort(float2 p) {
+  float theta = atan2(p.y, p.x);
+  float radius = pow(length(p), 1.3);
+  p.x = radius * cos(theta);
+  p.y = radius * sin(theta);
+  return 0.5 * (p + 1.0);
+}
+
+float4 wavyPattern(float2 p) {
+  float2 v = p + p.x + p.y;
+  float2 m = v - 2.0 * floor(v / 2.0) - 1.0;
+  return float4(length(m));
+}
+
+float wavyHash(float n) { return fract(sin(n) * 43758.5453); }
+
+float wavyNoise(float3 x) {
+  float3 p = floor(x);
+  float3 f = fract(x);
+  f = f * f * (3.0 - 2.0 * f);
+  float n = p.x + p.y * 57.0 + p.z * 43.0;
+  float r1 =
+      mix(mix(wavyHash(n + 0.0), wavyHash(n + 1.0), f.x),
+          mix(wavyHash(n + 57.0), wavyHash(n + 58.0), f.x), f.y);
+  float r2 = mix(
+      mix(wavyHash(n + 43.0), wavyHash(n + 44.0), f.x),
+      mix(wavyHash(n + 100.0), wavyHash(n + 101.0), f.x), f.y);
+  return mix(r1, r2, f.z);
+}
+
+fragment float4 tgraphicsWavyFragment(
+    VertexOut in [[stage_in]], constant WavyUniforms &u [[buffer(0)]]) {
+  float2 position =
+      0.01 * float2(in.position.x * u.a11 + in.position.y * u.a12 + u.a13,
+                    in.position.x * u.a21 + in.position.y * u.a22 + u.a23);
+  float off = wavyNoise(float3(position.x, position.y, position.x) +
+                        float3(u.time));
+  float4 c = wavyPattern(wavyDistort(position + off));
+  c.xy = wavyDistort(c.xy);
+  float4 col1 = float4(u.color1.rgb * u.color1.a, u.color1.a);
+  float4 col2 = float4(u.color2.rgb * u.color2.a, u.color2.a);
+  float coeff1 = c.x - off;
+  float coeff2 = cos(c.z);
+  return (coeff1 * col1 + coeff2 * col2) / (coeff1 + coeff2);
 }

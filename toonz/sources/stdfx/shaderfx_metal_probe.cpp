@@ -246,6 +246,11 @@ TRaster32P renderExpectedMetalHelper(const Options& options, int width,
     return TGraphics::renderStarskyWithMetalBackend(
         width, height, outputToWorld, TPixel32(128, 0, 255, 255), 0.0, 1.0);
   }
+  if (options.shaderName == "SHADER_wavy") {
+    return TGraphics::renderWavyWithMetalBackend(width, height, outputToWorld,
+                                                 TPixel32(0, 0, 255, 255),
+                                                 TPixel32(255, 0, 0, 255), 0.0);
+  }
   return TRaster32P();
 }
 

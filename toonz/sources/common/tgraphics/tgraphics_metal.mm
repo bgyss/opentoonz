@@ -102,6 +102,9 @@ NSString *shaderSource() {
           "struct StarskyUniforms { float a11; float a12; float a13; float "
           "a21; float a22; float a23; float4 color; float time; float "
           "brightness; };\n"
+          "struct WavyUniforms { float a11; float a12; float a13; float "
+          "a21; float a22; float a23; float4 color1; float4 color2; float "
+          "time; };\n"
           "fragment float4 tgraphicsSunflareFragment(VertexOut in "
           "[[stage_in]], constant SunflareUniforms &u [[buffer(0)]]) {\n"
           "  float2 world = float2(in.position.x * u.a11 + in.position.y * "
@@ -196,6 +199,47 @@ NSString *shaderSource() {
           "  outRgb += clamp((1.0 - 2.0 * length(uv)) * cellBrightness, "
           "0.0, 1.0);\n"
           "  return float4(outRgb, 1.0);\n"
+          "}\n"
+          "float2 wavyDistort(float2 p) {\n"
+          "  float theta = atan2(p.y, p.x);\n"
+          "  float radius = pow(length(p), 1.3);\n"
+          "  p.x = radius * cos(theta);\n"
+          "  p.y = radius * sin(theta);\n"
+          "  return 0.5 * (p + 1.0);\n"
+          "}\n"
+          "float4 wavyPattern(float2 p) {\n"
+          "  float2 v = p + p.x + p.y;\n"
+          "  float2 m = v - 2.0 * floor(v / 2.0) - 1.0;\n"
+          "  return float4(length(m));\n"
+          "}\n"
+          "float wavyHash(float n) { return fract(sin(n) * 43758.5453); }\n"
+          "float wavyNoise(float3 x) {\n"
+          "  float3 p = floor(x);\n"
+          "  float3 f = fract(x);\n"
+          "  f = f * f * (3.0 - 2.0 * f);\n"
+          "  float n = p.x + p.y * 57.0 + p.z * 43.0;\n"
+          "  float r1 = mix(mix(wavyHash(n + 0.0), wavyHash(n + 1.0), "
+          "f.x), mix(wavyHash(n + 57.0), wavyHash(n + 57.0 + 1.0), f.x), "
+          "f.y);\n"
+          "  float r2 = mix(mix(wavyHash(n + 43.0), wavyHash(n + 43.0 + "
+          "1.0), f.x), mix(wavyHash(n + 43.0 + 57.0), wavyHash(n + 43.0 "
+          "+ 57.0 + 1.0), f.x), f.y);\n"
+          "  return mix(r1, r2, f.z);\n"
+          "}\n"
+          "fragment float4 tgraphicsWavyFragment(VertexOut in [[stage_in]], "
+          "constant WavyUniforms &u [[buffer(0)]]) {\n"
+          "  float2 position = 0.01 * float2(in.position.x * u.a11 + "
+          "in.position.y * u.a12 + u.a13, in.position.x * u.a21 + "
+          "in.position.y * u.a22 + u.a23);\n"
+          "  float off = wavyNoise(float3(position.x, position.y, position.x) "
+          "+ float3(u.time));\n"
+          "  float4 c = wavyPattern(wavyDistort(position + off));\n"
+          "  c.xy = wavyDistort(c.xy);\n"
+          "  float4 col1 = float4(u.color1.rgb * u.color1.a, u.color1.a);\n"
+          "  float4 col2 = float4(u.color2.rgb * u.color2.a, u.color2.a);\n"
+          "  float coeff1 = c.x - off;\n"
+          "  float coeff2 = cos(c.z);\n"
+          "  return (coeff1 * col1 + coeff2 * col2) / (coeff1 + coeff2);\n"
           "}\n";
 }
 
@@ -311,6 +355,19 @@ struct StarskyUniforms {
   float m_padding1[2]  = {0.0f, 0.0f};
 };
 
+struct WavyUniforms {
+  float m_a11         = 1.0f;
+  float m_a12         = 0.0f;
+  float m_a13         = 0.0f;
+  float m_a21         = 0.0f;
+  float m_a22         = 1.0f;
+  float m_a23         = 0.0f;
+  float m_padding0[2] = {0.0f, 0.0f};
+  float m_color1[4]   = {0.0f, 0.0f, 1.0f, 1.0f};
+  float m_color2[4]   = {1.0f, 0.0f, 0.0f, 1.0f};
+  float m_time        = 0.0f;
+};
+
 id<MTLRenderPipelineState> proceduralShaderPipelineState(id<MTLRenderPipelineState> &pipeline,
                                                          bool &attempted, NSString *label,
                                                          NSString *fragmentFunctionName) {
@@ -369,6 +426,13 @@ id<MTLRenderPipelineState> starskyPipelineState() {
   static bool attempted                      = false;
   return proceduralShaderPipelineState(pipeline, attempted, @"create starsky pipeline",
                                        @"tgraphicsStarskyFragment");
+}
+
+id<MTLRenderPipelineState> wavyPipelineState() {
+  static id<MTLRenderPipelineState> pipeline = nil;
+  static bool attempted                      = false;
+  return proceduralShaderPipelineState(pipeline, attempted, @"create wavy pipeline",
+                                       @"tgraphicsWavyFragment");
 }
 
 class MetalCommandEncoder final : public CommandEncoder {
@@ -989,6 +1053,66 @@ TRaster32P renderNativeMetalStarsky(int width, int height, const TAffine &output
   uniforms.m_color[3]   = color.m / 255.0f;
   uniforms.m_time       = static_cast<float>(time);
   uniforms.m_brightness = static_cast<float>(brightness);
+
+  [encoder setRenderPipelineState:pipeline];
+  [encoder setVertexBytes:vertices length:sizeof(vertices) atIndex:0];
+  [encoder setFragmentBytes:&uniforms length:sizeof(uniforms) atIndex:0];
+  [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+  [encoder endEncoding];
+  [commandBuffer commit];
+  [commandBuffer waitUntilCompleted];
+
+  return readNativeMetalRenderTarget(&target);
+}
+
+TRaster32P renderNativeMetalWavy(int width, int height, const TAffine &outputToWorld,
+                                 const TPixel32 &color1, const TPixel32 &color2,
+                                 double time) {
+  if (!probeMetalDevice() || width <= 0 || height <= 0) return TRaster32P();
+
+  MetalTextureRenderTarget target(width, height);
+  if (!target.texture()) return TRaster32P();
+
+  id<MTLRenderPipelineState> pipeline = wavyPipelineState();
+  if (!pipeline) return TRaster32P();
+
+  MetalState &state = metalState();
+
+  MTLRenderPassDescriptor *pass        = [MTLRenderPassDescriptor renderPassDescriptor];
+  pass.colorAttachments[0].texture     = target.texture();
+  pass.colorAttachments[0].loadAction  = MTLLoadActionClear;
+  pass.colorAttachments[0].storeAction = MTLStoreActionStore;
+  pass.colorAttachments[0].clearColor  = MTLClearColorMake(0.0, 0.0, 0.0, 0.0);
+
+  id<MTLCommandBuffer> commandBuffer  = [state.m_commandQueue commandBuffer];
+  commandBuffer.label                 = @"OpenToonz TGraphics Wavy";
+  id<MTLRenderCommandEncoder> encoder = [commandBuffer renderCommandEncoderWithDescriptor:pass];
+  encoder.label                       = @"Wavy";
+
+  const float left              = -1.0f;
+  const float right             = 1.0f;
+  const float top               = 1.0f;
+  const float bottom            = -1.0f;
+  const MetalVertex vertices[6] = {{left, top, 0.0f, 0.0f},     {right, top, 1.0f, 0.0f},
+                                   {left, bottom, 0.0f, 1.0f},  {right, top, 1.0f, 0.0f},
+                                   {right, bottom, 1.0f, 1.0f}, {left, bottom, 0.0f, 1.0f}};
+
+  WavyUniforms uniforms;
+  uniforms.m_a11       = static_cast<float>(outputToWorld.a11);
+  uniforms.m_a12       = static_cast<float>(outputToWorld.a12);
+  uniforms.m_a13       = static_cast<float>(outputToWorld.a13);
+  uniforms.m_a21       = static_cast<float>(outputToWorld.a21);
+  uniforms.m_a22       = static_cast<float>(outputToWorld.a22);
+  uniforms.m_a23       = static_cast<float>(outputToWorld.a23);
+  uniforms.m_color1[0] = color1.r / 255.0f;
+  uniforms.m_color1[1] = color1.g / 255.0f;
+  uniforms.m_color1[2] = color1.b / 255.0f;
+  uniforms.m_color1[3] = color1.m / 255.0f;
+  uniforms.m_color2[0] = color2.r / 255.0f;
+  uniforms.m_color2[1] = color2.g / 255.0f;
+  uniforms.m_color2[2] = color2.b / 255.0f;
+  uniforms.m_color2[3] = color2.m / 255.0f;
+  uniforms.m_time      = static_cast<float>(time);
 
   [encoder setRenderPipelineState:pipeline];
   [encoder setVertexBytes:vertices length:sizeof(vertices) atIndex:0];

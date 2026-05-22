@@ -947,11 +947,14 @@ bool renderProceduralShaderWithMetal(const ShaderInterface *shaderInterface,
   const bool isSunflare    = shaderName == QStringLiteral("SHADER_sunflare");
   const bool isCaustics    = shaderName == QStringLiteral("SHADER_caustics");
   const bool isStarsky     = shaderName == QStringLiteral("SHADER_starsky");
-  if (!isSunflare && !isCaustics && !isStarsky) return false;
+  const bool isWavy        = shaderName == QStringLiteral("SHADER_wavy");
+  if (!isSunflare && !isCaustics && !isStarsky && !isWavy) return false;
 
   TPixel32 color = TPixel32(255, 170, 75, 255);
   if (isCaustics) color = TPixel32(0, 120, 255, 255);
   if (isStarsky) color = TPixel32(128, 0, 255, 255);
+  TPixel32 color1  = TPixel32(0, 0, 255, 255);
+  TPixel32 color2  = TPixel32(255, 0, 0, 255);
   int blades       = 6;
   double intensity = 1.0;
   double angle     = 0.0;
@@ -973,6 +976,14 @@ bool renderProceduralShaderWithMetal(const ShaderInterface *shaderInterface,
         const TPixelParamP &param =
             *boost::unsafe_any_cast<TPixelParamP>(&params[i]);
         color = param->getValue(frame);
+      } else if (name == QStringLiteral("color1")) {
+        const TPixelParamP &param =
+            *boost::unsafe_any_cast<TPixelParamP>(&params[i]);
+        color1 = param->getValue(frame);
+      } else if (name == QStringLiteral("color2")) {
+        const TPixelParamP &param =
+            *boost::unsafe_any_cast<TPixelParamP>(&params[i]);
+        color2 = param->getValue(frame);
       }
       break;
     case ShaderInterface::INT:
@@ -1014,6 +1025,10 @@ bool renderProceduralShaderWithMetal(const ShaderInterface *shaderInterface,
     rendered = TGraphics::renderStarskyWithMetalBackend(
         outputRaster->getLx(), outputRaster->getLy(), outputToWorld, color,
         time, brightness);
+  } else if (isWavy) {
+    rendered = TGraphics::renderWavyWithMetalBackend(
+        outputRaster->getLx(), outputRaster->getLy(), outputToWorld, color1,
+        color2, time);
   } else {
     rendered = TGraphics::renderSunflareWithMetalBackend(
         outputRaster->getLx(), outputRaster->getLy(), outputToWorld, color,

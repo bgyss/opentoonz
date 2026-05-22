@@ -44,6 +44,10 @@ TRaster32P renderNativeMetalStarsky(int width, int height,
                                     const TAffine& outputToWorld,
                                     const TPixel32& color, double time,
                                     double brightness);
+TRaster32P renderNativeMetalWavy(int width, int height,
+                                 const TAffine& outputToWorld,
+                                 const TPixel32& color1, const TPixel32& color2,
+                                 double time);
 #endif
 
 namespace {
@@ -777,6 +781,24 @@ TRaster32P renderStarskyWithMetalBackend(int width, int height,
   (void)color;
   (void)time;
   (void)brightness;
+  return TRaster32P();
+#endif
+}
+
+TRaster32P renderWavyWithMetalBackend(int width, int height,
+                                      const TAffine& outputToWorld,
+                                      const TPixel32& color1,
+                                      const TPixel32& color2, double time) {
+#ifdef OPENTOONZ_WITH_GRAPHICS_METAL
+  return renderNativeMetalWavy(width, height, outputToWorld, color1, color2,
+                               time);
+#else
+  (void)width;
+  (void)height;
+  (void)outputToWorld;
+  (void)color1;
+  (void)color2;
+  (void)time;
   return TRaster32P();
 #endif
 }
