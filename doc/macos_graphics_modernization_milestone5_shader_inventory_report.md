@@ -209,6 +209,11 @@ from direct `GL_LINES`, `glLineStipple(...)`, and per-line OpenGL color state to
 ruler guide dashes are emitted as explicit line segments scaled by the current
 viewer zoom to better match the former screen-space stipple behavior.
 
+The field-guide checkpoint moves `ViewerDraw::drawFieldGuide()` grid and
+diagonal guide lines from direct immediate-mode `GL_LINES` to `DrawList2D`
+color-line commands under the existing guide transform. Field-number text labels
+remain on the legacy `tglDrawText(...)` path.
+
 ## Files Changed
 
 - `scripts/graphics_shader_inventory.sh`
@@ -676,7 +681,8 @@ commands instead of direct immediate-mode `GL_LINES`. Skeleton bone and IK-bone
 outline segments now also emit `tgraphics` color-line commands instead of direct
 immediate-mode line drawing. Viewer grid axes, grid lines, and ruler guides now
 emit `tgraphics` color-line commands instead of direct `GL_LINES` and
-`glLineStipple(...)` state.
+`glLineStipple(...)` state. Viewer field-guide grid and diagonal lines now also
+emit `tgraphics` color-line commands instead of immediate-mode `GL_LINES`.
 Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
 effects and by moving the remaining preview/export and style-editor surfaces
 through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene

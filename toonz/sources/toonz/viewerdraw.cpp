@@ -737,20 +737,20 @@ void ViewerDraw::drawFieldGuide() {
   glScaled(f, f, 1);
   double ux = lx / n;
   double uy = ly / n;
-  glColor3d(.4, .4, .4);
-  glBegin(GL_LINES);
+  TGraphics::DrawList2D drawList;
+  const TPixel32 guideColor(102, 102, 102);
   int i;
   for (i = -n; i <= n; i++) {
-    glVertex2d(i * ux, -n * uy);
-    glVertex2d(i * ux, n * uy);
-    glVertex2d(-n * ux, i * uy);
-    glVertex2d(n * ux, i * uy);
+    drawList.addColorLine(TPointD(i * ux, -n * uy), TPointD(i * ux, n * uy),
+                          guideColor, false);
+    drawList.addColorLine(TPointD(-n * ux, i * uy), TPointD(n * ux, i * uy),
+                          guideColor, false);
   }
-  glVertex2d(-n * ux, -n * uy);
-  glVertex2d(n * ux, n * uy);
-  glVertex2d(-n * ux, n * uy);
-  glVertex2d(n * ux, -n * uy);
-  glEnd();
+  drawList.addColorLine(TPointD(-n * ux, -n * uy), TPointD(n * ux, n * uy),
+                        guideColor, false);
+  drawList.addColorLine(TPointD(-n * ux, n * uy), TPointD(n * ux, -n * uy),
+                        guideColor, false);
+  TGraphics::drawWithOpenGLBackend(drawList);
   for (i = 1; i <= n; i++) {
     TPointD delta = 0.03 * TPointD(ux, uy);
     std::string s = std::to_string(i);
