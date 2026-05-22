@@ -115,6 +115,13 @@ border used by `ImageViewer` while an FX preview is remaking from direct
 identity-projection, axis-aligned overlay, so it avoids the transformed and
 stippled guide-line cases that still need a stronger `tgraphics` line contract.
 
+The cleanup-preview camera-test checkpoint moves the cleanup camera and closest
+field camera outline/cross primitives from direct immediate-mode line strips and
+segments to `DrawList2D` color-quad commands sized by the existing pixel-size
+argument. Text labels and handle drawing remain on the legacy tool drawing path,
+but the preview camera frame geometry now has an OpenGL-compatible draw-list
+shape that can be mirrored by Metal.
+
 ## Files Changed
 
 - `scripts/graphics_shader_inventory.sh`
@@ -128,6 +135,7 @@ stippled guide-line cases that still need a stronger `tgraphics` line contract.
 - `toonz/sources/common/tvrender/tofflinegl_probe.cpp`
 - `toonz/sources/tnzcore/CMakeLists.txt`
 - `toonz/sources/toonz/CMakeLists.txt`
+- `toonz/sources/toonz/cleanuppreview.cpp`
 - `toonz/sources/toonz/imageviewer.cpp`
 - `toonz/sources/toonz/sceneviewer.cpp`
 - `toonz/sources/toonz/viewerdraw.cpp`
@@ -534,7 +542,9 @@ camera-frame fills also now use a `tgraphics` color-rect command in the OpenGL
 compatibility path, matching the existing Metal overlay shape. Viewer camera
 masks and color-card fills now also emit `tgraphics` color-rect commands on the
 OpenGL compatibility path. Image-viewer FX preview-remake double borders now
-emit `tgraphics` color-line commands for their screen-space overlay.
+emit `tgraphics` color-line commands for their screen-space overlay. Cleanup
+preview camera-test frame/cross outlines now emit `tgraphics` color-quad
+commands sized by the current pixel size.
 Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
 effects and by moving the remaining preview/export and style-editor surfaces
 through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene

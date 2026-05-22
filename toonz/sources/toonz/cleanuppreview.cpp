@@ -3,6 +3,7 @@
 // TnzCore
 #include "timagecache.h"
 #include "tcurveutil.h"
+#include "tgraphics.h"
 
 // ToonzLib
 #include "toonz/stage2.h"
@@ -33,6 +34,8 @@
 // Qt includes
 #include <QTimer>
 
+#include <cmath>
+
 #include "cleanuppreview.h"
 
 // TODO: Avoid rebuilding the preview as long as parameters are untouched. Use a
@@ -47,6 +50,38 @@ namespace {
 
 PreviewToggleCommand previewToggle;
 CameraTestToggleCommand cameraTestToggle;
+
+void appendStrokedLine(TGraphics::DrawList2D &drawList, const TPointD &p0,
+                       const TPointD &p1, double width,
+                       const TPixel32 &color) {
+  const double dx     = p1.x - p0.x;
+  const double dy     = p1.y - p0.y;
+  const double length = std::sqrt(dx * dx + dy * dy);
+  if (length <= 1e-6 || width <= 0.0) return;
+
+  const double halfWidth = width * 0.5;
+  const TPointD tangent(dx / length * halfWidth, dy / length * halfWidth);
+  const TPointD normal(-dy / length * halfWidth, dx / length * halfWidth);
+  const TPointD q0 = p0 - tangent;
+  const TPointD q1 = p1 + tangent;
+
+  drawList.addColorQuad(q0 + normal, q1 + normal, q1 - normal, q0 - normal,
+                        color, false);
+}
+
+void appendCameraRectOutline(TGraphics::DrawList2D &drawList,
+                             const TRectD &rect, double pixelSize,
+                             const TPixel32 &color) {
+  const TPointD p00(rect.x0, rect.y0);
+  const TPointD p01(rect.x0, rect.y1 - pixelSize);
+  const TPointD p11(rect.x1 - pixelSize, rect.y1 - pixelSize);
+  const TPointD p10(rect.x1 - pixelSize, rect.y0);
+
+  appendStrokedLine(drawList, p00, p01, pixelSize, color);
+  appendStrokedLine(drawList, p01, p11, pixelSize, color);
+  appendStrokedLine(drawList, p11, p10, pixelSize, color);
+  appendStrokedLine(drawList, p10, p00, pixelSize, color);
+}
 
 }  // namespace
 
@@ -545,27 +580,19 @@ void CameraTestTool::drawCleanupCamera(double pixelSize) {
       CleanupSettingsModel::instance()->getCurrentParameters();
 
   TRectD rect = cp->m_camera.getStageRect();
+  const TPixel32 color = TPixel32::Red;
 
-  glColor3d(1.0, 0.0, 0.0);
-  glLineStipple(1, 0xFFFF);
-  glEnable(GL_LINE_STIPPLE);
-
-  // box
-  glBegin(GL_LINE_STRIP);
-  glVertex2d(rect.x0, rect.y0);
-  glVertex2d(rect.x0, rect.y1 - pixelSize);
-  glVertex2d(rect.x1 - pixelSize, rect.y1 - pixelSize);
-  glVertex2d(rect.x1 - pixelSize, rect.y0);
-  glVertex2d(rect.x0, rect.y0);
-  glEnd();
+  TGraphics::DrawList2D drawList;
+  appendCameraRectOutline(drawList, rect, pixelSize, color);
 
   // central cross
   double dx = 0.05 * rect.getP00().x;
   double dy = 0.05 * rect.getP00().y;
-  tglDrawSegment(TPointD(-dx, -dy), TPointD(dx, dy));
-  tglDrawSegment(TPointD(-dx, dy), TPointD(dx, -dy));
-
-  glDisable(GL_LINE_STIPPLE);
+  appendStrokedLine(drawList, TPointD(-dx, -dy), TPointD(dx, dy), pixelSize,
+                    color);
+  appendStrokedLine(drawList, TPointD(-dx, dy), TPointD(dx, -dy), pixelSize,
+                    color);
+  TGraphics::drawWithOpenGLBackend(drawList);
 
   // camera name
   TPointD pos = rect.getP01() + TPointD(0, 4);
@@ -589,20 +616,9 @@ void CameraTestTool::drawClosestFieldCamera(double pixelSize) {
   rect = rect.enlarge((zoom - 1) * (rect.x1 - rect.x0 + 1) / 2.0,
                       (zoom - 1) * (rect.y1 - rect.y0 + 1) / 2.0);
 
-  glColor3d(0.0, 0.0, 1.0);
-  glLineStipple(1, 0xFFFF);
-  glEnable(GL_LINE_STIPPLE);
-
-  // box
-  glBegin(GL_LINE_STRIP);
-  glVertex2d(rect.x0, rect.y0);
-  glVertex2d(rect.x0, rect.y1 - pixelSize);
-  glVertex2d(rect.x1 - pixelSize, rect.y1 - pixelSize);
-  glVertex2d(rect.x1 - pixelSize, rect.y0);
-  glVertex2d(rect.x0, rect.y0);
-  glEnd();
-
-  glDisable(GL_LINE_STIPPLE);
+  TGraphics::DrawList2D drawList;
+  appendCameraRectOutline(drawList, rect, pixelSize, TPixel32::Blue);
+  TGraphics::drawWithOpenGLBackend(drawList);
 
   // camera name
   TPointD pos = rect.getP01() + TPointD(0, 4);
