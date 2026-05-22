@@ -88,9 +88,9 @@ When the Metal backend exists, repeat the same captures with:
 OPENTOONZ_GRAPHICS_BACKEND=metal <path-to-built-OpenToonz-app-or-binary>
 ```
 
-For a narrow direct-Metal scene-viewer smoke on simple full-color raster scenes,
-the experimental Metal path can skip the final OpenGL framebuffer snapshot when
-direct raster scene content was emitted:
+For a narrow direct-Metal scene-viewer smoke on simple full-color raster scenes
+or `TRaster32P` preview rasters, the experimental Metal path can skip the final
+OpenGL framebuffer snapshot when direct Metal content was emitted:
 
 ```sh
 OPENTOONZ_GRAPHICS_BACKEND=metal \
@@ -99,9 +99,9 @@ OPENTOONZ_GRAPHICS_METAL_DIRECT_ONLY=1 \
 ```
 
 This is intentionally not the default. If the current frame has no eligible
-direct Metal scene content, the viewer still presents the compatibility OpenGL
-snapshot so unsupported vector, onion-skin, editing, effect, and overlay cases
-remain visible.
+direct Metal scene or preview content, the viewer still presents the
+compatibility OpenGL snapshot so unsupported vector, onion-skin, editing,
+effect, and overlay cases remain visible.
 
 Compare against the OpenGL baseline. A future automated harness can use
 ImageMagick, perceptualdiff, or a small Python image comparison script, but the

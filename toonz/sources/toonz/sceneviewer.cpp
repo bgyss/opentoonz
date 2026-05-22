@@ -2022,11 +2022,13 @@ void SceneViewer::drawPreview() {
     if (shouldPresentWithMetal()) {
       TRaster32P ras32 = ras;
       if (ras32) {
-        presentRasterQuadWithMetal(
-            ras32, finalAff * TPointD(0.0, 0.0),
-            finalAff * TPointD(ras->getLx(), 0.0),
-            finalAff * TPointD(ras->getLx(), ras->getLy()),
-            finalAff * TPointD(0.0, ras->getLy()), true);
+        if (presentRasterQuadWithMetal(
+                ras32, finalAff * TPointD(0.0, 0.0),
+                finalAff * TPointD(ras->getLx(), 0.0),
+                finalAff * TPointD(ras->getLx(), ras->getLy()),
+                finalAff * TPointD(0.0, ras->getLy()), true)) {
+          m_metalPresentedDirectContent = true;
+        }
       }
     }
     m_visualSettings.m_useTexture = !Preferences::instance()->useDrawPixel();
@@ -2464,7 +2466,7 @@ void SceneViewer::paintGL() {
 
   drawBuildVars();
 
-  m_metalPresentedDirectSceneContent = false;
+  m_metalPresentedDirectContent = false;
   if (shouldPresentWithMetal()) presentBackgroundWithMetal();
 
   // This seems not to be necessary for now.
@@ -2504,7 +2506,7 @@ void SceneViewer::paintGL() {
     m_lutCalibrator->onEndDraw(m_fbo);
 
   if (!shouldSkipMetalCompatibilitySnapshot() ||
-      !m_metalPresentedDirectSceneContent) {
+      !m_metalPresentedDirectContent) {
     presentCurrentOpenGLFrameWithMetal();
   }
 }
@@ -2702,7 +2704,7 @@ void SceneViewer::drawScene() {
       painter.appendDirectRasterTextureQuads(
           drawList, std::max(1, height() * getDevPixRatio()));
       if (!drawList.empty() && presentDrawListWithMetal(drawList))
-        m_metalPresentedDirectSceneContent = true;
+        m_metalPresentedDirectContent = true;
     }
     painter.flushRasterImages();
 

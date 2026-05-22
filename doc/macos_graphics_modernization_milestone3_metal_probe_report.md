@@ -38,7 +38,7 @@ falls back to the existing CPU raster composition and OpenGL upload. Those
 direct texture quads now also carry a per-quad color scale so the Metal path can
 match OpenGL-style texture modulation and represent column opacity. A further
 experimental direct-only smoke mode can skip the final OpenGL framebuffer
-snapshot after direct Metal raster scene content has been presented.
+snapshot after direct Metal raster scene or preview content has been presented.
 
 This is not yet a full native Metal scene renderer. Scene composition still
 comes from the existing OpenGL viewer path, then the captured viewer framebuffer
@@ -204,10 +204,11 @@ before porting scene internals.
   texture color scale for otherwise eligible `TRaster32P` nodes.
 - Added the opt-in `OPENTOONZ_GRAPHICS_METAL_DIRECT_ONLY=1` /
   `OPENTOONZ_GRAPHICS_METAL_SKIP_COMPAT_SNAPSHOT` smoke mode. When Metal is
-  requested and the direct raster scene bridge presented at least one draw-list
-  command, `SceneViewer::paintGL()` skips the final OpenGL framebuffer upload so
-  simple eligible raster frames can be inspected through direct Metal content.
-  Unsupported frames still keep the compatibility snapshot.
+  requested and the direct raster scene bridge or preview-raster path presented
+  at least one draw-list command, `SceneViewer::paintGL()` skips the final
+  OpenGL framebuffer upload so simple eligible raster frames/previews can be
+  inspected through direct Metal content. Unsupported frames still keep the
+  compatibility snapshot.
 - Linked `tnzcore` against `Metal.framework` only when
   `WITH_GRAPHICS_METAL=ON`.
 - Linked `tnzcore` against `QuartzCore.framework` only when
@@ -298,7 +299,8 @@ inside the full UI.
   rectangle, camera outline lines, preview raster, and eligible normal scene
   raster nodes are superseded by the compatibility OpenGL framebuffer snapshot
   in the default Metal paint pass. The experimental direct-only smoke mode can
-  skip that snapshot only after eligible raster scene content was presented.
+  skip that snapshot only after eligible raster scene or preview content was
+  presented.
 - The direct preview-raster path only handles `TRaster32P` preview rasters for
   now. Other raster formats still rely on the existing OpenGL path and final
   compatibility snapshot.
@@ -317,8 +319,8 @@ inside the full UI.
 - Scene drawing, picking, overlays, and interaction still originate from the
   existing OpenGL viewer path.
 - Direct-only smoke mode is not a full viewer replacement. It is meant for
-  simple raster-scene validation and will still need full screenshot comparison
-  before becoming a user-facing mode.
+  simple raster-scene and preview-raster validation and will still need full
+  screenshot comparison before becoming a user-facing mode.
 - Metal shader source is present in the build tree, but the experimental
   backend still compiles the same small shader source at runtime; app-bundle
   shader packaging is a later Milestone 5/6 concern.

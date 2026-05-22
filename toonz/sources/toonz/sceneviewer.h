@@ -354,7 +354,7 @@ protected:
                                   const TPointD& p01, bool blending);
   bool presentRasterWithMetal(const TRaster32P& raster);
   bool presentCurrentOpenGLFrameWithMetal();
-  bool m_metalPresentedDirectSceneContent = false;
+  bool m_metalPresentedDirectContent = false;
 
 protected:
   void mult3DMatrix();
