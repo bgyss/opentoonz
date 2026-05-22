@@ -23,14 +23,26 @@ on:
 
 jobs:
   macOS:
-    name: Apple Silicon arm64
+    name: Apple Silicon arm64 (${{ matrix.graphics }})
     timeout-minutes: 180
     runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - graphics: opengl-fallback
+            cmake_extra_args: -DWITH_GRAPHICS_METAL=OFF
+            run_metal_smoke: '0'
+          - graphics: metal
+            cmake_extra_args: -DWITH_GRAPHICS_METAL=ON
+            run_metal_smoke: '1'
     env:
       OPENTOONZ_APP: toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app
       OPENTOONZ_DMG: toonz/build/nix-relwithdebinfo/toonz/OpenToonz.dmg
       OPENTOONZ_REQUIRED_ARCH: arm64
       OPENTOONZ_ALLOW_UNIVERSAL: '0'
+      OPENTOONZ_CI_BUILD_LABEL: macos-arm64-${{ matrix.graphics }}
+      OPENTOONZ_CMAKE_EXTRA_ARGS: ${{ matrix.cmake_extra_args }}
       CCACHE_DIR: ${{ github.workspace }}/.ccache
       CCACHE_MAXSIZE: 1G
       MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
@@ -71,16 +83,27 @@ jobs:
         uses: actions/cache@v5
         with:
           path: .ccache
-          key: macos-arm64-ccache-${{ github.sha }}
+          key: macos-arm64-${{ matrix.graphics }}-ccache-${{ github.sha }}
           restore-keys: |
-            macos-arm64-ccache-
+            macos-arm64-${{ matrix.graphics }}-ccache-
+            macos-arm64-
 
       - name: Build OpenToonz
-        run: mise run build
+        run: scripts/macos/ci-build-summary.sh
 
       - name: Show ccache stats
         if: always()
         run: nix develop path:. --command ccache --show-stats
+
+      - name: Capture graphics API inventory
+        if: always()
+        run: bash scripts/graphics_inventory.sh
+
+      - name: Run Metal graphics probes
+        if: ${{ matrix.run_metal_smoke == '1' }}
+        run: |
+          nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
+          nix develop path:. --command bash scripts/graphics_shaderfx_compare.sh "$RUNNER_TEMP/opentoonz-shaderfx-compare"
 
       - name: Bundle app
         run: mise run package-macos
@@ -88,8 +111,15 @@ jobs:
       - name: Verify arm64 bundle
         run: mise run check-macos-arm64
 
+      - name: Verify Metal shader resources
+        if: ${{ matrix.run_metal_smoke == '1' }}
+        run: |
+          test -f "$OPENTOONZ_APP/Contents/Resources/tgraphics_metal_shaders.metal"
+          test -x toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
+          test -x toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe
+
       - name: Import Apple signing certificate
-        if: ${{ github.event_name == 'release' && env.MACOS_CERTIFICATE_P12_BASE64 != '' && env.MACOS_CERTIFICATE_PASSWORD != '' }}
+        if: ${{ github.event_name == 'release' && matrix.graphics == 'opengl-fallback' && env.MACOS_CERTIFICATE_P12_BASE64 != '' && env.MACOS_CERTIFICATE_PASSWORD != '' }}
         run: |
           keychain_password="${MACOS_KEYCHAIN_PASSWORD:-temporary-ci-keychain-password}"
           certificate_path="$RUNNER_TEMP/developer-id.p12"
@@ -113,17 +143,25 @@ jobs:
             "$keychain_path"
 
       - name: Sign app for release
-        if: ${{ github.event_name == 'release' }}
+        if: ${{ github.event_name == 'release' && matrix.graphics == 'opengl-fallback' }}
         run: scripts/macos/sign-notarize.sh
 
       - name: Create DMG
         run: mise run dmg-macos
 
       - name: Sign and notarize DMG for release
-        if: ${{ github.event_name == 'release' }}
+        if: ${{ github.event_name == 'release' && matrix.graphics == 'opengl-fallback' }}
         run: scripts/macos/sign-notarize.sh
+
+      - name: Upload CI build summaries
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: OpenToonz-macos-arm64-${{ matrix.graphics }}-ci-summary-${{ github.sha }}
+          path: ${{ runner.temp }}/opentoonz-ci/*
+          if-no-files-found: ignore
 
       - uses: actions/upload-artifact@v6
         with:
-          name: OpenToonz-macos-arm64-${{ github.sha }}
+          name: OpenToonz-macos-arm64-${{ matrix.graphics }}-${{ github.sha }}
           path: toonz/build/nix-relwithdebinfo/toonz/OpenToonz.dmg

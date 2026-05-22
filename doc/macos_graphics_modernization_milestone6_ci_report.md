@@ -1,0 +1,193 @@
+# macOS Graphics Modernization Milestone 6 CI Checkpoint
+
+Status: first macOS arm64 CI gate split for OpenGL-fallback and
+Metal-enabled builds added locally on 2026-05-22.
+
+## Objective
+
+This checkpoint starts Milestone 6 by making the macOS GitHub Actions workflow
+collect the evidence needed for a future Metal default-backend decision. The
+workflow now builds both the OpenGL-fallback configuration and the
+Metal-enabled configuration on Apple Silicon, records build timing and warning
+counts, preserves ccache summaries, runs Metal graphics probes for the
+Metal-enabled leg, bundles the app, verifies arm64 Mach-O contents, and checks
+that Metal shader resources are present in the app bundle.
+
+This is not the full Milestone 6 completion. The workflow changes still need a
+live GitHub Actions run on the fork before the CI gate can be treated as proven,
+and the default backend remains OpenGL while viewer, editing, preview/export,
+saved-scene input ShaderFx, and broader offscreen parity gaps remain open.
+
+## Files Changed
+
+- `.github/workflows/workflow_macos.yml`
+- `scripts/macos/ci-build-summary.sh`
+- `doc/macos_graphics_modernization_milestone6_ci_report.md`
+
+## Changes
+
+- Converted the macOS workflow into an Apple Silicon matrix with:
+  - `opengl-fallback`, configured with `-DWITH_GRAPHICS_METAL=OFF`
+  - `metal`, configured with `-DWITH_GRAPHICS_METAL=ON`
+- Added `scripts/macos/ci-build-summary.sh`, a reusable CI wrapper that:
+  - prepares bundled libtiff
+  - configures the existing Nix `nix-relwithdebinfo` preset with optional
+    CMake arguments
+  - builds OpenToonz through the Nix shell
+  - records elapsed build seconds
+  - counts total warning lines
+  - counts Apple OpenGL deprecation warning lines
+  - counts Qt `QGL*` warning lines
+  - counts deprecated `QOpenGL*` warning lines
+  - captures `WITH_GRAPHICS_METAL` from `CMakeCache.txt`
+  - captures `ccache --show-stats`
+  - writes a Markdown summary to `$GITHUB_STEP_SUMMARY` when running in GitHub
+    Actions
+- Updated macOS ccache keys to include the matrix graphics mode while still
+  allowing broad `macos-arm64-` fallback restores.
+- Added CI graphics inventory output with `scripts/graphics_inventory.sh`.
+- Added Metal CI probes for the Metal-enabled leg:
+  - `tgraphics_metal_probe`
+  - `scripts/graphics_shaderfx_compare.sh`
+- Added Metal app-bundle resource checks for:
+  - `Contents/Resources/tgraphics_metal_shaders.metal`
+  - `tnzcore/tgraphics_metal_probe`
+  - `stdfx/shaderfx_metal_probe`
+- Added upload of per-leg CI build-summary artifacts.
+- Kept release signing and notarization scoped to the `opengl-fallback` leg so
+  the release path does not notarize two DMGs until maintainers explicitly
+  choose a Metal release artifact policy.
+
+## Milestone 6 Coverage
+
+Covered by this checkpoint:
+
+- OpenGL-fallback macOS arm64 build coverage.
+- Metal-enabled macOS arm64 build coverage.
+- App bundle packaging coverage for both matrix legs.
+- arm64 Mach-O validation for both matrix legs.
+- Graphics inventory output.
+- Warning count summary.
+- ccache summary.
+- Metal backend smoke probes for the Metal-enabled leg.
+- Metal shader resource presence in the app bundle.
+
+Still open:
+
+- Live GitHub Actions run evidence from the fork.
+- Failed-log triage from `gh run view --log-failed` if the new matrix exposes
+  runner-only issues.
+- Build-time comparison against the pre-matrix single-leg workflow.
+- A documented default-backend decision after the remaining parity gaps close.
+- Headless or scripted GUI smoke for actual app launch, viewer interaction,
+  preview/export, and editing workflows.
+
+## Validation Run
+
+Local static validation:
+
+```sh
+bash -n scripts/macos/ci-build-summary.sh
+git diff --check
+```
+
+Local Metal build/package validation:
+
+```sh
+OPENTOONZ_CI_BUILD_LABEL=macos-arm64-metal-local \
+OPENTOONZ_CMAKE_EXTRA_ARGS=-DWITH_GRAPHICS_METAL=ON \
+OPENTOONZ_BUILD_PARALLEL=3 \
+scripts/macos/ci-build-summary.sh
+
+nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
+nix develop path:. --command bash scripts/graphics_shaderfx_compare.sh /private/tmp/opentoonz-shaderfx-compare-ci
+nix develop path:. --command bash scripts/macos/package-nix-app.sh
+nix develop path:. --command bash scripts/macos/assert-arm64-bundle.sh
+test -f toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app/Contents/Resources/tgraphics_metal_shaders.metal
+```
+
+Observed local Metal build summary:
+
+```text
+status: 0
+elapsed_seconds: 14
+WITH_GRAPHICS_METAL: ON
+total_warnings: 2
+apple_opengl_deprecation_warnings: 0
+qt_qgl_warning_lines: 0
+qt_qopengl_deprecation_warning_lines: 0
+ccache hit rate: 21378 / 24577 (86.98%)
+```
+
+Observed local Metal probe/package output:
+
+```text
+tgraphics_metal_probe: ok on Apple M1 Max
+graphics_shaderfx_compare: ok
+Packaged .../toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app
+Checked 281 Mach-O files for arm64.
+```
+
+Local OpenGL-fallback restore validation:
+
+```sh
+nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=OFF && cmake --build toonz/build/nix-relwithdebinfo --target OpenToonz --parallel 3'
+rg -n "^WITH_GRAPHICS_METAL:BOOL=" toonz/build/nix-relwithdebinfo/CMakeCache.txt
+```
+
+Observed result:
+
+```text
+WITH_GRAPHICS_METAL:BOOL=OFF
+OpenToonz target rebuilt successfully.
+```
+
+Graphics inventory after this checkpoint:
+
+```text
+all graphics markers               files=  121 matches=  2865
+Qt legacy QGL                      files=    0 matches=     0
+Qt QOpenGL                         files=   32 matches=   218
+GLU                                files=    5 matches=    53
+GLEW or GLUT                       files=   10 matches=    30
+fixed-function drawing             files=   85 matches=  2009
+fixed-function matrix              files=   56 matches=   450
+glDrawPixels                       files=    4 matches=    10
+OpenGL selection                   files=    5 matches=    95
+```
+
+GitHub Actions validation:
+
+```sh
+gh workflow run workflow_macos.yml
+gh run watch <run-id>
+gh run view <run-id> --log-failed
+```
+
+If `gh` authentication is stale:
+
+```sh
+gh auth refresh -h github.com -s repo -s workflow
+gh auth status
+```
+
+## Known Gaps
+
+- The Metal-enabled CI leg proves the build and command-line probes, not full
+  GUI parity.
+- The Metal shader source is currently packaged as a runtime resource; the
+  shader inventory report still tracks the later `.metallib` packaging path.
+- Saved/reloaded input-texture ShaderFx fixtures for `HSLBlendGPU` and
+  `radialblurGPU` are explicitly guarded because the current render-worker path
+  is unstable.
+- Release signing still follows the OpenGL-fallback artifact. This is
+  deliberate until maintainers decide whether release DMGs should be
+  Metal-enabled before Metal becomes the default backend.
+
+## Next Recommendation
+
+Run the new `workflow_macos.yml` matrix on the fork, record the run IDs and
+timing/warning summaries, then use any failures to tighten the macOS CI gate.
+After CI is repeatable, continue Milestone 5 parity work on preview/export,
+saved-scene input ShaderFx, and broader offscreen rendering before revisiting
+the default-backend decision.
