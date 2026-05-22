@@ -263,6 +263,11 @@ elseif(BUILD_TARGET_APPLE)
     if(WITH_GRAPHICS_METAL)
         set(SOURCES ${SOURCES}
             ../common/tgraphics/tgraphics_metal.mm
+            ../common/tgraphics/tgraphics_metal_shaders.metal
+        )
+        set_source_files_properties(
+            ../common/tgraphics/tgraphics_metal_shaders.metal
+            PROPERTIES HEADER_FILE_ONLY TRUE
         )
     endif()
 elseif(BUILD_TARGET_UNIX)

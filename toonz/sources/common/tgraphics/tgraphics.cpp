@@ -12,6 +12,7 @@
 namespace TGraphics {
 
 #ifdef OPENTOONZ_WITH_GRAPHICS_METAL
+Device &nativeMetalDevice();
 bool probeMetalDevice();
 const char *probeMetalDeviceName();
 std::unique_ptr<RenderTarget> createNativeMetalLayerRenderTarget(
@@ -112,6 +113,14 @@ public:
 Device &openGLDevice() {
   static OpenGLDevice device;
   return device;
+}
+
+Device &metalDevice() {
+#ifdef OPENTOONZ_WITH_GRAPHICS_METAL
+  return nativeMetalDevice();
+#else
+  return openGLDevice();
+#endif
 }
 
 bool isMetalBuildEnabled() {

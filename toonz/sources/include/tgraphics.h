@@ -103,6 +103,7 @@ public:
 };
 
 DVAPI Device &openGLDevice();
+DVAPI Device &metalDevice();
 DVAPI bool isMetalBuildEnabled();
 DVAPI bool isMetalDeviceAvailable();
 DVAPI const char *metalDeviceName();
