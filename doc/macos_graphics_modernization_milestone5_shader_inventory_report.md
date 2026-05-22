@@ -81,6 +81,13 @@ targets. The raster presentation probe intentionally covers full-size raster
 buffers, matching `PlaneViewer`'s CPU render-buffer contract; texture resampling
 parity remains covered separately by the existing texture cases.
 
+The scene-viewer overlay checkpoint moves the contained
+`drawProjectedRasterOverlay(...)` helper from a direct `tglDraw(...)` call to
+`TGraphics::makeRasterRectDrawList(...)`. This keeps the current OpenGL widget
+presentation path and existing projection setup, but routes the projected 3D
+corner raster labels through the same backend-neutral raster-rect command that
+is validated by `tgraphics_metal_probe`.
+
 ## Files Changed
 
 - `scripts/graphics_shader_inventory.sh`
@@ -94,6 +101,7 @@ parity remains covered separately by the existing texture cases.
 - `toonz/sources/common/tvrender/tofflinegl_probe.cpp`
 - `toonz/sources/tnzcore/CMakeLists.txt`
 - `toonz/sources/toonz/CMakeLists.txt`
+- `toonz/sources/toonz/sceneviewer.cpp`
 - `toonz/sources/toonzqt/planeviewer.cpp`
 - `toonz/sources/include/stdfx/shaderfx.h`
 - `toonz/sources/stdfx/CMakeLists.txt`
@@ -489,10 +497,12 @@ a direct OpenGL widget/FBO path; it now uses QWidget/QImage rendering with
 software LUT application. Preview-swatch checker backgrounds now go through a
 shared `tgraphics` draw-list helper with OpenGL/Metal offscreen validation, and
 preview-swatch CPU raster-buffer presentation now goes through a matching
-`tgraphics` helper. Continue by broadening input-texture ShaderFx coverage
-beyond these hand-routed effects and by moving the remaining preview/export and
-style-editor surfaces through `tgraphics`. Keep OpenGL `ShaderFx` as the
-default until full scene parity is broader.
+`tgraphics` helper. Scene-viewer projected raster overlays now also emit a
+`tgraphics` raster-rect command instead of calling `tglDraw(...)` directly.
+Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
+effects and by moving the remaining preview/export and style-editor surfaces
+through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene
+parity is broader.
 
 ## Validation Run
 
@@ -537,6 +547,9 @@ nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_me
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target toonzqt --parallel 3
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tgraphics_metal_probe toonzqt --parallel 3
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tgraphics_metal_probe --parallel 3
+nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target OpenToonz --parallel 3
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tgraphics_metal_probe OpenToonz --parallel 3
 nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=OFF'
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target OpenToonz --parallel 3
@@ -598,6 +611,7 @@ toonzqt/libtoonzqt.dylib linked after style editor color wheel migration
 styleeditor_colorwheel_probe: ok
 tofflinegl_probe: ok backend=opengl
 tofflinegl_probe: ok backend=metal
+tgraphics_metal_probe: ok on Apple M1 Max
 tgraphics_metal_probe: ok on Apple M1 Max
 tgraphics_metal_probe: ok on Apple M1 Max
 tgraphics_metal_probe: ok on Apple M1 Max

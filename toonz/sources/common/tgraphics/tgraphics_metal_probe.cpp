@@ -894,6 +894,32 @@ int main(int argc, char* argv[]) {
   }
 
   {
+    const TPixel32 overlayColor(231, 123, 29, 192);
+    const int overlayX0 = 2;
+    const int overlayY0 = 1;
+    const int overlayX1 = 6;
+    const int overlayY1 = 5;
+    TGraphics::DrawList2D drawList = TGraphics::makeRasterRectDrawList(
+        makeSolidRaster(overlayX1 - overlayX0, overlayY1 - overlayY0,
+                        overlayColor),
+        TRectD(overlayX0, overlayY0, overlayX1, overlayY1), true);
+
+    TRaster32P readback = renderMetal(drawList, width, height);
+    if (!readback)
+      return fail("could not read back raster rect Metal target");
+    if (!requireDimensions(readback, width, height)) {
+      return fail("raster rect readback dimensions do not match render target");
+    }
+
+    TRaster32P openGLReadback = renderOpenGL(drawList, width, height);
+    if (!openGLReadback)
+      return fail("could not read back raster rect OpenGL baseline");
+    if (!compareRasters(readback, openGLReadback, "raster rect", artifactDir)) {
+      return EXIT_FAILURE;
+    }
+  }
+
+  {
     const int shaderWidth      = 16;
     const int shaderHeight     = 12;
     const bool blendHue        = true;

@@ -285,9 +285,12 @@ void drawProjectedRasterOverlay(const T3DPointD& start3DPos,
   glLoadIdentity();
   glPushAttrib(GL_ENABLE_BIT);
   glDisable(GL_DEPTH_TEST);
-  tglDraw(TRectD(rasterPos.x, rasterPos.y, rasterPos.x + raster->getLx(),
-                 rasterPos.y + raster->getLy()),
-          raster, true);
+  TGraphics::DrawList2D drawList = TGraphics::makeRasterRectDrawList(
+      raster,
+      TRectD(rasterPos.x, rasterPos.y, rasterPos.x + raster->getLx(),
+             rasterPos.y + raster->getLy()),
+      true);
+  TGraphics::drawWithOpenGLBackend(drawList);
   glPopAttrib();
 
   glPopMatrix();
