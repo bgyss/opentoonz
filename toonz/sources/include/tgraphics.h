@@ -103,7 +103,13 @@ public:
 };
 
 DVAPI Device &openGLDevice();
+DVAPI bool isMetalBuildEnabled();
+DVAPI bool isMetalBackendAvailable();
+DVAPI BackendType requestedBackendType();
+DVAPI BackendType activeBackendType();
+DVAPI Device &activeDevice();
 DVAPI void drawWithOpenGLBackend(const DrawList2D &drawList);
+DVAPI void drawWithActiveBackend(const DrawList2D &drawList);
 
 }  // namespace TGraphics
 

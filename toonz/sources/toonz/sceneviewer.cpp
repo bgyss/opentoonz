@@ -2206,7 +2206,7 @@ void SceneViewer::paintGL() {
     drawList.addTexture(
         TRectD(0, 0, m_viewGrabImage->getLx(), m_viewGrabImage->getLy()),
         m_viewGrabImage, false);
-    TGraphics::drawWithOpenGLBackend(drawList);
+    TGraphics::drawWithActiveBackend(drawList);
 
     glPopMatrix();
 

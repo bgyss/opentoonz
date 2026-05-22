@@ -2,9 +2,39 @@
 
 #include "tgl.h"
 
+#include <algorithm>
 #include <cassert>
+#include <cctype>
+#include <cstdlib>
+#include <iostream>
+#include <string>
 
 namespace TGraphics {
+namespace {
+
+std::string normalizedBackendName() {
+  const char *value = std::getenv("OPENTOONZ_GRAPHICS_BACKEND");
+  if (!value) return std::string();
+
+  std::string name(value);
+  std::transform(name.begin(), name.end(), name.begin(), [](unsigned char ch) {
+    return static_cast<char>(std::tolower(ch));
+  });
+  return name;
+}
+
+void warnMetalUnavailableOnce() {
+  static bool alreadyWarned = false;
+  if (alreadyWarned) return;
+
+  std::cerr << "OPENTOONZ_GRAPHICS_BACKEND=metal was requested, but the "
+               "Metal backend is not available in this build. Falling back "
+               "to OpenGL."
+            << std::endl;
+  alreadyWarned = true;
+}
+
+}  // namespace
 
 RenderTarget::~RenderTarget() {}
 Texture::~Texture() {}
@@ -66,9 +96,50 @@ Device &openGLDevice() {
   return device;
 }
 
+bool isMetalBuildEnabled() {
+#ifdef OPENTOONZ_WITH_GRAPHICS_METAL
+  return true;
+#else
+  return false;
+#endif
+}
+
+bool isMetalBackendAvailable() {
+  return false;
+}
+
+BackendType requestedBackendType() {
+  const std::string backendName = normalizedBackendName();
+  if (backendName == "metal") return BackendType::Metal;
+  return BackendType::OpenGL;
+}
+
+BackendType activeBackendType() {
+  if (requestedBackendType() == BackendType::Metal &&
+      isMetalBackendAvailable()) {
+    return BackendType::Metal;
+  }
+  return BackendType::OpenGL;
+}
+
+Device &activeDevice() {
+  if (requestedBackendType() == BackendType::Metal &&
+      !isMetalBackendAvailable()) {
+    warnMetalUnavailableOnce();
+  }
+
+  return openGLDevice();
+}
+
 void drawWithOpenGLBackend(const DrawList2D &drawList) {
   std::unique_ptr<CommandEncoder> encoder =
       openGLDevice().createCommandEncoder();
+  encoder->draw(drawList);
+}
+
+void drawWithActiveBackend(const DrawList2D &drawList) {
+  std::unique_ptr<CommandEncoder> encoder =
+      activeDevice().createCommandEncoder();
   encoder->draw(drawList);
 }
 

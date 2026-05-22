@@ -270,6 +270,10 @@ qt5_wrap_cpp(SOURCES ${MOC_HEADERS})
 
 add_library(tnzcore SHARED ${HEADERS} ${SOURCES})
 
+if(WITH_GRAPHICS_METAL)
+    target_compile_definitions(tnzcore PRIVATE OPENTOONZ_WITH_GRAPHICS_METAL)
+endif()
+
 if(WITH_TRANSLATION)
     add_translation(tnzcore ${HEADERS} ${SOURCES})
     add_compile_translations_command(tnzcore tnzcore)

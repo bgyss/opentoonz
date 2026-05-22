@@ -13,6 +13,7 @@ backend encoder shape that can be backed by Metal later.
 
 - `toonz/sources/include/tgraphics.h`
 - `toonz/sources/common/tgraphics/tgraphics.cpp`
+- `toonz/sources/CMakeLists.txt`
 - `toonz/sources/tnzcore/CMakeLists.txt`
 - `toonz/sources/toonz/sceneviewer.cpp`
 
@@ -33,8 +34,14 @@ backend encoder shape that can be backed by Metal later.
   payload.
 - Added an `OpenGLDevice`/`OpenGLCommandEncoder` implementation that submits
   `DrawList2D` texture quads through the existing `tglDraw(...)` path.
+- Added the macOS-only `WITH_GRAPHICS_METAL` CMake option as the first build
+  gate for the experimental backend.
+- Added runtime parsing for `OPENTOONZ_GRAPHICS_BACKEND`.
+  - unset or `opengl`: use OpenGL
+  - `metal`: request Metal, then fall back to OpenGL until a Metal backend is
+    available
 - Converted the frozen scene viewer grab-image path to build a `DrawList2D`
-  and submit it through the OpenGL backend.
+  and submit it through the active backend selector.
 - Added the new `tgraphics` files to `tnzcore` so downstream app code can use
   the abstraction without adding another library boundary yet.
 
@@ -63,6 +70,10 @@ Commands run:
 bash scripts/graphics_inventory.sh
 git diff --check
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --parallel 3
+nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=ON'
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --parallel 3
+nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=OFF'
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --parallel 3
 ```
 
 Result: passed.
@@ -70,6 +81,10 @@ Result: passed.
 The build re-ran CMake, compiled the new `tgraphics.cpp` source in `tnzcore`,
 rebuilt dependent libraries, recompiled `sceneviewer.cpp`, and linked
 `OpenToonz.app`.
+
+The Metal-enabled configuration also built successfully. The compile definition
+for `OPENTOONZ_WITH_GRAPHICS_METAL` is scoped to `tnzcore` so toggling the flag
+does not permanently require a repo-wide rebuild once the build tree has settled.
 
 ## Manual Smoke
 
@@ -85,7 +100,9 @@ baseline:
 
 ## Known Limitations
 
-- The Metal backend is not implemented in this checkpoint.
+- The Metal backend is not implemented in this checkpoint. `WITH_GRAPHICS_METAL`
+  and `OPENTOONZ_GRAPHICS_BACKEND=metal` are now accepted setup points, but
+  runtime drawing still falls back to OpenGL.
 - `OpenGLDevice` only supports raster texture quad commands.
 - `RenderTarget`, `Buffer`, `Pipeline`, `HitTest`, and `ShaderLibrary` are
   intentionally minimal interface placeholders until migrated call sites need
@@ -96,6 +113,6 @@ baseline:
 
 - Convert another contained viewer or style-editor path to `DrawList2D`.
 - Add optional command capture or frame debug labels.
-- Add the macOS-only `WITH_GRAPHICS_METAL` option after the abstraction has a
-  slightly larger draw surface.
+- Implement the first native macOS Metal device/command encoder behind
+  `WITH_GRAPHICS_METAL`.
 - Keep OpenGL as the default and compatibility backend.
