@@ -134,6 +134,14 @@ void drawShearHandleOutlineWithTGraphics(const TPointD &p, double unit,
   TGraphics::drawWithOpenGLBackend(drawList);
 }
 
+void appendPolyline(TGraphics::DrawList2D &drawList, const TPointD *points,
+                    int count, const TPixel32 &color, bool closed = false) {
+  if (count < 2) return;
+  for (int i = 1; i < count; ++i)
+    drawList.addColorLine(points[i - 1], points[i], color, false);
+  if (closed) drawList.addColorLine(points[count - 1], points[0], color, false);
+}
+
 }  // namespace
 
 TEnv::IntVar LockCenterX("EditToolLockCenterX", 0);
@@ -1197,57 +1205,35 @@ void drawArrow(double r, bool filled) {
 
 //-----------------------------------------------------------------------------
 
-void drawCameraIcon() {
-  glBegin(GL_LINE_STRIP);
-  glVertex2i(5, 0);
-  glVertex2i(16, 0);
-  glVertex2i(16, 3);
-  glVertex2i(16, 3);
-  glVertex2i(22, 0);
-  glVertex2i(22, 9);
-  glVertex2i(16, 6);
-  glVertex2i(16, 9);
-  glVertex2i(14, 9);
-  glVertex2i(16, 11);
-  glVertex2i(16, 14);
-  glVertex2i(14, 16);
-  glVertex2i(11, 16);
-  glVertex2i(9, 14);
-  glVertex2i(9, 11);
-  glVertex2i(11, 9);
-  glVertex2i(7, 9);
-  glVertex2i(7, 11);
-  glVertex2i(5, 13);
-  glVertex2i(2, 13);
-  glVertex2i(0, 11);
-  glVertex2i(0, 8);
-  glVertex2i(2, 6);
-  glVertex2i(5, 6);
-  glVertex2i(5, 0);
-  glEnd();
+void drawCameraIcon(const TPixel32 &color) {
+  const TPointD points[] = {
+      TPointD(5, 0),   TPointD(16, 0),  TPointD(16, 3),
+      TPointD(16, 3),  TPointD(22, 0),  TPointD(22, 9),
+      TPointD(16, 6),  TPointD(16, 9),  TPointD(14, 9),
+      TPointD(16, 11), TPointD(16, 14), TPointD(14, 16),
+      TPointD(11, 16), TPointD(9, 14),  TPointD(9, 11),
+      TPointD(11, 9),  TPointD(7, 9),   TPointD(7, 11),
+      TPointD(5, 13),  TPointD(2, 13),  TPointD(0, 11),
+      TPointD(0, 8),   TPointD(2, 6),   TPointD(5, 6),
+      TPointD(5, 0)};
+  TGraphics::DrawList2D drawList;
+  appendPolyline(drawList, points, sizeof(points) / sizeof(points[0]), color);
+  TGraphics::drawWithOpenGLBackend(drawList);
 }
 
-void drawZArrow() {
+void drawZArrow(const TPixel32 &color) {
   /*-- Arrow --*/
-  glBegin(GL_LINE_LOOP);
-  glVertex2i(0, 3);
-  glVertex2i(2, 2);
-  glVertex2i(1, 2);
-  glVertex2i(2, -3);
-  glVertex2i(4, -3);
-  glVertex2i(0, -6);
-  glVertex2i(-4, -3);
-  glVertex2i(-2, -3);
-  glVertex2i(-1, 2);
-  glVertex2i(-2, 2);
-  glEnd();
+  const TPointD arrow[] = {TPointD(0, 3),  TPointD(2, 2),  TPointD(1, 2),
+                           TPointD(2, -3), TPointD(4, -3), TPointD(0, -6),
+                           TPointD(-4, -3), TPointD(-2, -3),
+                           TPointD(-1, 2), TPointD(-2, 2)};
   /*-- Letter Z --*/
-  glBegin(GL_LINE_STRIP);
-  glVertex2i(3, 4);
-  glVertex2i(5, 4);
-  glVertex2i(3, 1);
-  glVertex2i(5, 1);
-  glEnd();
+  const TPointD z[] = {TPointD(3, 4), TPointD(5, 4), TPointD(3, 1),
+                       TPointD(5, 1)};
+  TGraphics::DrawList2D drawList;
+  appendPolyline(drawList, arrow, sizeof(arrow) / sizeof(arrow[0]), color, true);
+  appendPolyline(drawList, z, sizeof(z) / sizeof(z[0]), color);
+  TGraphics::drawWithOpenGLBackend(drawList);
 }
 
 //-----------------------------------------------------------------------------
@@ -1327,7 +1313,7 @@ void EditTool::drawMainHandle() {
     tglDrawText(TPointD(0, 0), name);
   } else if (objId.isCamera()) {
     glScaled(unit, unit, 1);
-    drawCameraIcon();
+    drawCameraIcon(normalColor);
   }
   glPopMatrix();
 
@@ -1490,7 +1476,7 @@ void EditTool::draw() {
     tglMultMatrix(camParentAff.inv() *
                   TTranslation(camAff * TPointD(0.0, 0.0)));
     glScaled(unit * 8, unit * 8, 1);
-    drawZArrow();
+    drawZArrow(normalColor);
     glPopMatrix();
   } else if (m_activeAxis.getValue() == L"Rotation" ||
              m_activeAxis.getValue() == L"Position") {
@@ -1536,7 +1522,7 @@ void EditTool::draw() {
     tglDrawText(TPointD(12, 0), name);
     glPopMatrix();
     glScaled(unit, unit, 1);
-    drawCameraIcon();
+    drawCameraIcon(normalColor);
   }
   glPopMatrix();
 
