@@ -32,6 +32,7 @@
 
 // TnzCore includes
 #include "tgl.h"
+#include "tgraphics.h"
 
 // Qt includes
 #include <QMenu>
@@ -55,6 +56,21 @@ extern void getSafeAreaSizeList(QList<QList<double>> &_sizeList);
 //------------------------------
 
 namespace {
+void appendScreenRectOutline(TGraphics::DrawList2D &drawList,
+                             const TRectD &rect, const TPixel32 &color) {
+  const TPointD p00(rect.x0, rect.y0);
+  const TPointD p01(rect.x0, rect.y1);
+  const TPointD p11(rect.x1, rect.y1);
+  const TPointD p10(rect.x1, rect.y0);
+
+  drawList.addColorLine(p00, p01, color, false);
+  drawList.addColorLine(p01, p11, color, false);
+  drawList.addColorLine(p11, p10, color, false);
+  drawList.addColorLine(p10, p00, color, false);
+}
+
+//-----------------------------------------------------------------------------
+
 // enable to choose safe area from a list, and enable to draw multiple lines
 void drawSafeArea(const TRectD box) {
   glPushMatrix();
@@ -546,21 +562,13 @@ void ImageViewer::paintGL() {
   if (m_isRemakingPreviewFx) {
     glPushMatrix();
     glLoadIdentity();
-    glColor3d(1.0, 0.0, 0.0);
-
-    glBegin(GL_LINE_LOOP);
-    glVertex2d(5, 5);
-    glVertex2d(5, height() - 5);
-    glVertex2d(width() - 5, height() - 5);
-    glVertex2d(width() - 5, 5);
-    glEnd();
-
-    glBegin(GL_LINE_LOOP);
-    glVertex2d(10, 10);
-    glVertex2d(10, height() - 10);
-    glVertex2d(width() - 10, height() - 10);
-    glVertex2d(width() - 10, 10);
-    glEnd();
+    TGraphics::DrawList2D drawList;
+    const TPixel32 red(255, 0, 0, 255);
+    appendScreenRectOutline(
+        drawList, TRectD(5, 5, width() - 5, height() - 5), red);
+    appendScreenRectOutline(
+        drawList, TRectD(10, 10, width() - 10, height() - 10), red);
+    TGraphics::drawWithOpenGLBackend(drawList);
     glPopMatrix();
   }
 

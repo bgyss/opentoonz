@@ -109,6 +109,12 @@ These functions feed `SceneViewer` camera-mask and color-card overlays; line and
 guide drawing in `ViewerDraw` remains on legacy OpenGL until line primitives
 can match OpenGL hairline behavior.
 
+The image-viewer preview-remake checkpoint moves the screen-space red double
+border used by `ImageViewer` while an FX preview is remaking from direct
+`GL_LINE_LOOP` calls to `DrawList2D` color-line commands. This is limited to an
+identity-projection, axis-aligned overlay, so it avoids the transformed and
+stippled guide-line cases that still need a stronger `tgraphics` line contract.
+
 ## Files Changed
 
 - `scripts/graphics_shader_inventory.sh`
@@ -122,6 +128,7 @@ can match OpenGL hairline behavior.
 - `toonz/sources/common/tvrender/tofflinegl_probe.cpp`
 - `toonz/sources/tnzcore/CMakeLists.txt`
 - `toonz/sources/toonz/CMakeLists.txt`
+- `toonz/sources/toonz/imageviewer.cpp`
 - `toonz/sources/toonz/sceneviewer.cpp`
 - `toonz/sources/toonz/viewerdraw.cpp`
 - `toonz/sources/toonzqt/planeviewer.cpp`
@@ -526,7 +533,8 @@ scene-viewer OpenGL compatibility background clears now emit the same
 camera-frame fills also now use a `tgraphics` color-rect command in the OpenGL
 compatibility path, matching the existing Metal overlay shape. Viewer camera
 masks and color-card fills now also emit `tgraphics` color-rect commands on the
-OpenGL compatibility path.
+OpenGL compatibility path. Image-viewer FX preview-remake double borders now
+emit `tgraphics` color-line commands for their screen-space overlay.
 Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
 effects and by moving the remaining preview/export and style-editor surfaces
 through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene
