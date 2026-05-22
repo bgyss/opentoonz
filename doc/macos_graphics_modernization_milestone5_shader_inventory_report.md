@@ -49,12 +49,14 @@ the first matching `tgraphics` offscreen target. It constructs an offscreen
 target, clears it through the existing OpenGL path, verifies readback pixels,
 then renders the same clear/readback through the active `tgraphics` backend. It
 also exercises the legacy `TOfflineGL::draw(TRasterImageP, TAffine)` raster
-draw path and compares the observed offscreen placement against a matching
-`DrawList2D` rectangle. With `OPENTOONZ_GRAPHICS_BACKEND=metal`, the probe
-proves the Metal image render target matches the legacy OpenGL baseline for
-these narrow offscreen cases. This does not remove the OpenGL dependency from
-mixed vector/stage rendering callers yet, but it creates a focused regression
-target for replacing those paths with `tgraphics` and Metal.
+draw path and compares the observed offscreen placement against the reusable
+`TGraphics::renderLegacyOfflineRasterPlacementWithActiveBackend(...)` helper.
+With `OPENTOONZ_GRAPHICS_BACKEND=metal`, the probe proves the Metal image
+render target matches the legacy OpenGL baseline for these narrow offscreen
+cases. This helper is a narrow legacy-compatible placement bridge; it does not
+remove the OpenGL dependency from mixed vector/stage rendering callers yet, but
+it creates a focused regression target for replacing those paths with
+`tgraphics` and Metal.
 
 The style-editor checkpoint removes the `HexagonalColorWheel` dependency on
 `QOpenGLWidget`, `QOpenGLFramebufferObject`, and `QOpenGLPaintDevice`. The
@@ -608,7 +610,10 @@ a macOS desktop. The `TOfflineGL` offscreen validation now compares the legacy
 OpenGL clear/readback baseline to `tgraphics` OpenGL and Metal image-render
 targets for the first narrow offscreen case, and it compares the legacy
 `TOfflineGL::draw(TRasterImageP, TAffine)` raster placement behavior to a
-matching `DrawList2D` render under both OpenGL and Metal. A follow-up must move
+matching
+`TGraphics::renderLegacyOfflineRasterPlacementWithActiveBackend(...)` render
+under both OpenGL and Metal. This helper preserves the currently observed
+legacy-compatible placement behavior for the probe case; a follow-up must move
 mixed vector/stage preview-export drawing off direct
 `TOfflineGL::makeCurrent()` raw OpenGL calls and onto `DrawList2D`/Metal before
 the broader preview/export surface can be considered migrated.

@@ -753,6 +753,15 @@ TRaster32P renderDrawListWithActiveBackend(const DrawList2D& drawList,
   return renderDrawListWithOpenGLBackend(drawList, width, height);
 }
 
+TRaster32P renderLegacyOfflineRasterPlacementWithActiveBackend(
+    int width, int height, const TPixel32& clearColor,
+    const TRectD& placement) {
+  DrawList2D drawList;
+  drawList.setClearColor(clearColor);
+  drawList.addColorRect(placement, TPixel32::White, false);
+  return renderDrawListWithActiveBackend(drawList, width, height);
+}
+
 TRaster32P renderSunflareWithMetalBackend(int width, int height,
                                           const TAffine& outputToWorld,
                                           const TPixel32& color, int blades,

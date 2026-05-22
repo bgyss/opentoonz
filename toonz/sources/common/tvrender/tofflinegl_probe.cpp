@@ -105,10 +105,8 @@ TRaster32P renderLegacyRasterDraw(const TDimension &size,
 TRaster32P renderTGraphicsRasterDraw(const TDimension &size,
                                      const TPixel32 &clearColor,
                                      const TRectD &placement) {
-  TGraphics::DrawList2D drawList;
-  drawList.setClearColor(clearColor);
-  drawList.addColorRect(placement, TPixel32::White, false);
-  return TGraphics::renderDrawListWithActiveBackend(drawList, size.lx, size.ly);
+  return TGraphics::renderLegacyOfflineRasterPlacementWithActiveBackend(
+      size.lx, size.ly, clearColor, placement);
 }
 
 }  // namespace

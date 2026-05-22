@@ -177,6 +177,9 @@ DVAPI TRaster32P renderDrawListWithMetalBackend(const DrawList2D& drawList,
                                                 int width, int height);
 DVAPI TRaster32P renderDrawListWithActiveBackend(const DrawList2D& drawList,
                                                  int width, int height);
+DVAPI TRaster32P renderLegacyOfflineRasterPlacementWithActiveBackend(
+    int width, int height, const TPixel32& clearColor,
+    const TRectD& placement);
 DVAPI TRaster32P renderSunflareWithMetalBackend(
     int width, int height, const TAffine& outputToWorld, const TPixel32& color,
     int blades, double intensity, double angle, double bias, double sharpness);
