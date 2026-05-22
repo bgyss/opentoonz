@@ -88,6 +88,13 @@ presentation path and existing projection setup, but routes the projected 3D
 corner raster labels through the same backend-neutral raster-rect command that
 is validated by `tgraphics_metal_probe`.
 
+The scene-viewer background checkpoint routes the OpenGL compatibility
+framebuffer clear in `SceneViewer::drawBackground()` through
+`TGraphics::DrawList2D::setClearColor(...)` and `drawWithOpenGLBackend(...)`.
+The Metal presenter already emits a matching clear command, so this narrows the
+remaining raw OpenGL in the viewer background path to framebuffer status/error
+handling and downstream legacy drawing.
+
 ## Files Changed
 
 - `scripts/graphics_shader_inventory.sh`
@@ -498,7 +505,9 @@ software LUT application. Preview-swatch checker backgrounds now go through a
 shared `tgraphics` draw-list helper with OpenGL/Metal offscreen validation, and
 preview-swatch CPU raster-buffer presentation now goes through a matching
 `tgraphics` helper. Scene-viewer projected raster overlays now also emit a
-`tgraphics` raster-rect command instead of calling `tglDraw(...)` directly.
+`tgraphics` raster-rect command instead of calling `tglDraw(...)` directly, and
+scene-viewer OpenGL compatibility background clears now emit the same
+`tgraphics` clear command shape used by the Metal presenter.
 Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
 effects and by moving the remaining preview/export and style-editor surfaces
 through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene

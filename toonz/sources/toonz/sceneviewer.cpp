@@ -2107,22 +2107,21 @@ void SceneViewer::drawDisableScissor() {
 //-----------------------------------------------------------------------------
 
 void SceneViewer::drawBackground() {
-  TApp* app         = TApp::instance();
-  ToonzScene* scene = app->getCurrentScene()->getScene();
+  TPixel32 bgColor;
 
   if (m_visualSettings.m_colorMask == 0) {
-    TPixel32 bgColor;
-
     if (isPreviewEnabled())
       bgColor = Preferences::instance()->getPreviewBgColor();
     else
       bgColor = Preferences::instance()->getViewerBgColor();
-    glClearColor(bgColor.r / 255.0f, bgColor.g / 255.0f, bgColor.b / 255.0f,
-                 1.0);
+    bgColor.m = 255;
   } else
-    glClearColor(0, 0, 0, 1.0);
+    bgColor = TPixel32(0, 0, 0, 255);
 
-  glClear(GL_COLOR_BUFFER_BIT);
+  TGraphics::DrawList2D drawList;
+  drawList.setClearColor(bgColor);
+  TGraphics::drawWithOpenGLBackend(drawList);
+
   if (glGetError() == GL_INVALID_FRAMEBUFFER_OPERATION) {
     /* At first startup, for some reason we get invalid operation even though
        GL_FRAMEBUFFER_COMPLETE */
