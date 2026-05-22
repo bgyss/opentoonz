@@ -8,6 +8,7 @@
 #include <math.h>
 
 #include "tgl.h"
+#include "tgraphics.h"
 
 TEnv::IntVar RotateOnCameraCenter("RotateOnCameraCenter", 0);
 TEnv::IntVar RotateByStep("RotateByStep", 1);
@@ -71,20 +72,15 @@ public:
     TPointD center   = m_viewer->winToWorld(m_center);
     double pixelSize = getPixelSize();
     double unit      = pixelSize;
-    glPushMatrix();
-    glTranslated(center.x, center.y, 0);
-    glScaled(unit, unit, unit);
-    glColor3f(1, 0, 0);
 
-    double u = 4;
-    glBegin(GL_LINES);
-    glVertex2d(0, -10);
-    glVertex2d(0, 10);
-    glVertex2d(-10, 0);
-    glVertex2d(10, 0);
-    glEnd();
-
-    glPopMatrix();
+    TGraphics::DrawList2D drawList;
+    drawList.addColorLine(center + TPointD(0, -10 * unit),
+                          center + TPointD(0, 10 * unit), TPixel32::Red,
+                          false);
+    drawList.addColorLine(center + TPointD(-10 * unit, 0),
+                          center + TPointD(10 * unit, 0), TPixel32::Red,
+                          false);
+    TGraphics::drawWithOpenGLBackend(drawList);
   }
 
   int getCursorId() const override { return ToolCursor::ZoomCursor; }

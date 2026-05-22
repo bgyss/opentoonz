@@ -169,6 +169,9 @@ The selection-tool checkpoint moves the polyline selection preview from a direct
 contrast-blended rectangular selection frame remain on the existing drawing path
 until `tgraphics` has a contrast-blend line mode.
 
+The view-tools checkpoint moves the zoom tool drag cross from immediate-mode
+`GL_LINES` to two `DrawList2D` color-line commands in world coordinates.
+
 ## Files Changed
 
 - `scripts/graphics_shader_inventory.sh`
@@ -186,6 +189,7 @@ until `tgraphics` has a contrast-blend line mode.
 - `toonz/sources/tnztools/selectiontool.cpp`
 - `toonz/sources/tnztools/setsaveboxtool.cpp`
 - `toonz/sources/tnztools/trackertool.cpp`
+- `toonz/sources/tnztools/viewtools.cpp`
 - `toonz/sources/toonz/CMakeLists.txt`
 - `toonz/sources/toonz/cleanuppreview.cpp`
 - `toonz/sources/toonz/imageviewer.cpp`
@@ -618,7 +622,8 @@ visible scale-handle outlines and non-active camera guides now also emit
 Viewer safe-area guides now emit explicit dashed `tgraphics` color-line
 commands instead of OpenGL line stipple and direct `tglDrawRect(...)` calls.
 Polyline selection previews now emit `tgraphics` color-line commands instead of
-a direct `GL_LINE_STRIP`.
+a direct `GL_LINE_STRIP`. Zoom tool drag crosses now emit `tgraphics` color-line
+commands instead of immediate-mode `GL_LINES`.
 Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
 effects and by moving the remaining preview/export and style-editor surfaces
 through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene
