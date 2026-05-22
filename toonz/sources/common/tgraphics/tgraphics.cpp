@@ -53,6 +53,11 @@ TRaster32P renderNativeMetalFireball(int width, int height,
                                      const TPixel32& color1,
                                      const TPixel32& color2, double detail,
                                      double time);
+TRaster32P renderNativeMetalHSLBlend(
+    int width, int height, const TRaster32P& foreground,
+    const TRaster32P& background, const TAffine& outputToForeground,
+    const TAffine& outputToBackground, bool blendHue, bool blendSaturation,
+    bool blendLuminosity, double blendAlpha, bool baseMask);
 #endif
 
 namespace {
@@ -808,10 +813,11 @@ TRaster32P renderWavyWithMetalBackend(int width, int height,
 #endif
 }
 
-TRaster32P renderFireballWithMetalBackend(
-    int width, int height, const TAffine& outputToWorld,
-    const TPixel32& color1, const TPixel32& color2, double detail,
-    double time) {
+TRaster32P renderFireballWithMetalBackend(int width, int height,
+                                          const TAffine& outputToWorld,
+                                          const TPixel32& color1,
+                                          const TPixel32& color2, double detail,
+                                          double time) {
 #ifdef OPENTOONZ_WITH_GRAPHICS_METAL
   return renderNativeMetalFireball(width, height, outputToWorld, color1, color2,
                                    detail, time);
@@ -823,6 +829,32 @@ TRaster32P renderFireballWithMetalBackend(
   (void)color2;
   (void)detail;
   (void)time;
+  return TRaster32P();
+#endif
+}
+
+TRaster32P renderHSLBlendWithMetalBackend(
+    int width, int height, const TRaster32P& foreground,
+    const TRaster32P& background, const TAffine& outputToForeground,
+    const TAffine& outputToBackground, bool blendHue, bool blendSaturation,
+    bool blendLuminosity, double blendAlpha, bool baseMask) {
+#ifdef OPENTOONZ_WITH_GRAPHICS_METAL
+  return renderNativeMetalHSLBlend(width, height, foreground, background,
+                                   outputToForeground, outputToBackground,
+                                   blendHue, blendSaturation, blendLuminosity,
+                                   blendAlpha, baseMask);
+#else
+  (void)width;
+  (void)height;
+  (void)foreground;
+  (void)background;
+  (void)outputToForeground;
+  (void)outputToBackground;
+  (void)blendHue;
+  (void)blendSaturation;
+  (void)blendLuminosity;
+  (void)blendAlpha;
+  (void)baseMask;
   return TRaster32P();
 #endif
 }

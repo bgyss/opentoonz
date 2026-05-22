@@ -193,10 +193,16 @@ DVAPI TRaster32P renderWavyWithMetalBackend(int width, int height,
                                             const TPixel32& color1,
                                             const TPixel32& color2,
                                             double time);
-DVAPI TRaster32P renderFireballWithMetalBackend(
-    int width, int height, const TAffine& outputToWorld,
-    const TPixel32& color1, const TPixel32& color2, double detail,
-    double time);
+DVAPI TRaster32P renderFireballWithMetalBackend(int width, int height,
+                                                const TAffine& outputToWorld,
+                                                const TPixel32& color1,
+                                                const TPixel32& color2,
+                                                double detail, double time);
+DVAPI TRaster32P renderHSLBlendWithMetalBackend(
+    int width, int height, const TRaster32P& foreground,
+    const TRaster32P& background, const TAffine& outputToForeground,
+    const TAffine& outputToBackground, bool blendHue, bool blendSaturation,
+    bool blendLuminosity, double blendAlpha, bool baseMask);
 
 }  // namespace TGraphics
 

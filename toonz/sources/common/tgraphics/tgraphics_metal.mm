@@ -94,6 +94,66 @@ NSString *shaderSource() {
           "constant float4 &color [[buffer(0)]]) {\n"
           "  return color;\n"
           "}\n"
+          "struct HSLBlendUniforms { float fgA11; float fgA12; float fgA13; "
+          "float fgA21; float fgA22; float fgA23; float bgA11; float bgA12; "
+          "float bgA13; float bgA21; float bgA22; float bgA23; float "
+          "blendHue; float blendSat; float blendLum; float blendAlpha; "
+          "float baseMask; float3 padding; };\n"
+          "float hslMin3(float3 c) { return min(min(c.r, c.g), c.b); }\n"
+          "float hslMax3(float3 c) { return max(max(c.r, c.g), c.b); }\n"
+          "float hslLum3(float3 c) { return dot(c, float3(0.30, 0.59, "
+          "0.11)); }\n"
+          "float hslSat3(float3 c) { return hslMax3(c) - hslMin3(c); }\n"
+          "float3 hslClipColor(float3 color) {\n"
+          "  float lum = hslLum3(color);\n"
+          "  float mincol = hslMin3(color);\n"
+          "  float maxcol = hslMax3(color);\n"
+          "  if (mincol < 0.0) color = lum + ((color - lum) * lum) / "
+          "(lum - mincol);\n"
+          "  if (maxcol > 1.0) color = lum + ((color - lum) * (1.0 - "
+          "lum)) / (maxcol - lum);\n"
+          "  return color;\n"
+          "}\n"
+          "float3 hslSetLum(float3 cbase, float3 clum) {\n"
+          "  float lbase = hslLum3(cbase);\n"
+          "  float llum = hslLum3(clum);\n"
+          "  return hslClipColor(cbase + float3(llum - lbase));\n"
+          "}\n"
+          "float3 hslSetLumSat(float3 cbase, float3 csat, float3 clum) {\n"
+          "  float minbase = hslMin3(cbase);\n"
+          "  float sbase = hslSat3(cbase);\n"
+          "  float ssat = hslSat3(csat);\n"
+          "  float3 color = sbase > 0.0 ? (cbase - minbase) * ssat / "
+          "sbase : float3(0.0);\n"
+          "  return hslSetLum(color, clum);\n"
+          "}\n"
+          "fragment float4 tgraphicsHSLBlendFragment(VertexOut in "
+          "[[stage_in]], texture2d<float> fgTexture [[texture(0)]], "
+          "texture2d<float> bgTexture [[texture(1)]], sampler colorSampler "
+          "[[sampler(0)]], constant HSLBlendUniforms &u [[buffer(0)]]) {\n"
+          "  float2 fgTex = float2(in.position.x * u.fgA11 + in.position.y "
+          "* u.fgA12 + u.fgA13, in.position.x * u.fgA21 + in.position.y * "
+          "u.fgA22 + u.fgA23);\n"
+          "  float2 bgTex = float2(in.position.x * u.bgA11 + in.position.y "
+          "* u.bgA12 + u.bgA13, in.position.x * u.bgA21 + in.position.y * "
+          "u.bgA22 + u.bgA23);\n"
+          "  float4 fg = fgTexture.sample(colorSampler, fgTex);\n"
+          "  float4 bg = bgTexture.sample(colorSampler, bgTex);\n"
+          "  float3 fgPix = fg.a > 0.0 ? fg.rgb / fg.a : float3(0.0);\n"
+          "  float3 bgPix = bg.a > 0.0 ? bg.rgb / bg.a : float3(0.0);\n"
+          "  float fgAlpha = fg.a * u.blendAlpha;\n"
+          "  float bgAlpha = bg.a;\n"
+          "  float outAlpha = u.baseMask != 0.0 ? bgAlpha : bgAlpha + "
+          "fgAlpha * (1.0 - bgAlpha);\n"
+          "  if (outAlpha <= 0.0) discard_fragment();\n"
+          "  float3 oPix = hslSetLumSat(u.blendHue != 0.0 ? fgPix : bgPix, "
+          "u.blendSat != 0.0 ? fgPix : bgPix, u.blendLum != 0.0 ? fgPix : "
+          "bgPix);\n"
+          "  float3 bPix = u.baseMask != 0.0 ? float3(0.0) : fgPix;\n"
+          "  float3 outRgb = bgPix * bgAlpha * (1.0 - fgAlpha) + "
+          "mix(bPix, oPix, bgAlpha) * fgAlpha;\n"
+          "  return float4(outRgb, outAlpha);\n"
+          "}\n"
           "struct SunflareUniforms { float a11; float a12; float a13; float "
           "a21; float a22; float a23; float4 color; float blades; float "
           "intensity; float angle; float bias; float sharpness; };\n"
@@ -294,7 +354,7 @@ NSURL *packagedShaderLibraryURL() {
 
 id<MTLLibrary> newShaderLibrary(MetalState &state, NSError **error) {
   if (NSURL *url = packagedShaderLibraryURL()) {
-    NSError *loadError      = nil;
+    NSError *loadError     = nil;
     id<MTLLibrary> library = [state.m_device newLibraryWithURL:url error:&loadError];
     if (library) return library;
 
@@ -404,17 +464,17 @@ struct CausticsUniforms {
 };
 
 struct StarskyUniforms {
-  float m_a11          = 1.0f;
-  float m_a12          = 0.0f;
-  float m_a13          = 0.0f;
-  float m_a21          = 0.0f;
-  float m_a22          = 1.0f;
-  float m_a23          = 0.0f;
-  float m_padding0[2]  = {0.0f, 0.0f};
-  float m_color[4]     = {128.0f / 255.0f, 0.0f, 1.0f, 1.0f};
-  float m_time         = 0.0f;
-  float m_brightness   = 1.0f;
-  float m_padding1[2]  = {0.0f, 0.0f};
+  float m_a11         = 1.0f;
+  float m_a12         = 0.0f;
+  float m_a13         = 0.0f;
+  float m_a21         = 0.0f;
+  float m_a22         = 1.0f;
+  float m_a23         = 0.0f;
+  float m_padding0[2] = {0.0f, 0.0f};
+  float m_color[4]    = {128.0f / 255.0f, 0.0f, 1.0f, 1.0f};
+  float m_time        = 0.0f;
+  float m_brightness  = 1.0f;
+  float m_padding1[2] = {0.0f, 0.0f};
 };
 
 struct WavyUniforms {
@@ -442,6 +502,27 @@ struct FireballUniforms {
   float m_color2[4]   = {225.0f / 255.0f, 200.0f / 255.0f, 0.0f, 1.0f};
   float m_detail      = 12.0f;
   float m_time        = 0.0f;
+};
+
+struct HSLBlendUniforms {
+  float m_fgA11      = 1.0f;
+  float m_fgA12      = 0.0f;
+  float m_fgA13      = 0.0f;
+  float m_fgA21      = 0.0f;
+  float m_fgA22      = 1.0f;
+  float m_fgA23      = 0.0f;
+  float m_bgA11      = 1.0f;
+  float m_bgA12      = 0.0f;
+  float m_bgA13      = 0.0f;
+  float m_bgA21      = 0.0f;
+  float m_bgA22      = 1.0f;
+  float m_bgA23      = 0.0f;
+  float m_blendHue   = 1.0f;
+  float m_blendSat   = 1.0f;
+  float m_blendLum   = 0.0f;
+  float m_blendAlpha = 1.0f;
+  float m_baseMask   = 0.0f;
+  float m_padding[3] = {0.0f, 0.0f, 0.0f};
 };
 
 id<MTLRenderPipelineState> proceduralShaderPipelineState(id<MTLRenderPipelineState> &pipeline,
@@ -514,6 +595,64 @@ id<MTLRenderPipelineState> fireballPipelineState() {
   static bool attempted                      = false;
   return proceduralShaderPipelineState(pipeline, attempted, @"create fireball pipeline",
                                        @"tgraphicsFireballFragment");
+}
+
+id<MTLRenderPipelineState> hslBlendPipelineState() {
+  static id<MTLRenderPipelineState> pipeline = nil;
+  static bool attempted                      = false;
+  return proceduralShaderPipelineState(pipeline, attempted, @"create HSL blend pipeline",
+                                       @"tgraphicsHSLBlendFragment");
+}
+
+id<MTLSamplerState> sharedSamplerState() {
+  static id<MTLSamplerState> sampler = nil;
+  if (sampler) return sampler;
+
+  MetalState &state                = metalState();
+  MTLSamplerDescriptor *descriptor = [[MTLSamplerDescriptor alloc] init];
+  descriptor.minFilter             = MTLSamplerMinMagFilterLinear;
+  descriptor.magFilter             = MTLSamplerMinMagFilterLinear;
+  descriptor.sAddressMode          = MTLSamplerAddressModeClampToEdge;
+  descriptor.tAddressMode          = MTLSamplerAddressModeClampToEdge;
+  sampler                          = [state.m_device newSamplerStateWithDescriptor:descriptor];
+
+#if !__has_feature(objc_arc)
+  [descriptor release];
+#endif
+
+  return sampler;
+}
+
+id<MTLTexture> uploadRasterTexture(const TRaster32P &raster) {
+  if (!raster) return nil;
+
+  MetalState &state = metalState();
+  const int width   = raster->getLx();
+  const int height  = raster->getLy();
+  if (width <= 0 || height <= 0) return nil;
+
+  MTLTextureDescriptor *descriptor =
+      [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+                                                         width:width
+                                                        height:height
+                                                     mipmapped:NO];
+  descriptor.usage       = MTLTextureUsageShaderRead;
+  id<MTLTexture> texture = [state.m_device newTextureWithDescriptor:descriptor];
+  if (!texture) return nil;
+
+  raster->lock();
+  const MTLRegion region = MTLRegionMake2D(0, 0, width, height);
+  [texture replaceRegion:region
+             mipmapLevel:0
+               withBytes:raster->pixels(0)
+             bytesPerRow:raster->getWrap() * sizeof(TPixel32)];
+  raster->unlock();
+
+#if !__has_feature(objc_arc)
+  return [texture autorelease];
+#else
+  return texture;
+#endif
 }
 
 class MetalCommandEncoder final : public CommandEncoder {
@@ -747,54 +886,9 @@ private:
     return pipeline;
   }
 
-  id<MTLSamplerState> samplerState() {
-    static id<MTLSamplerState> sampler = nil;
-    if (sampler) return sampler;
+  id<MTLSamplerState> samplerState() { return sharedSamplerState(); }
 
-    MetalState &state                = metalState();
-    MTLSamplerDescriptor *descriptor = [[MTLSamplerDescriptor alloc] init];
-    descriptor.minFilter             = MTLSamplerMinMagFilterLinear;
-    descriptor.magFilter             = MTLSamplerMinMagFilterLinear;
-    descriptor.sAddressMode          = MTLSamplerAddressModeClampToEdge;
-    descriptor.tAddressMode          = MTLSamplerAddressModeClampToEdge;
-    sampler                          = [state.m_device newSamplerStateWithDescriptor:descriptor];
-
-#if !__has_feature(objc_arc)
-    [descriptor release];
-#endif
-
-    return sampler;
-  }
-
-  id<MTLTexture> upload(const TRaster32P &raster) {
-    MetalState &state = metalState();
-    const int width   = raster->getLx();
-    const int height  = raster->getLy();
-    if (width <= 0 || height <= 0) return nil;
-
-    MTLTextureDescriptor *descriptor =
-        [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
-                                                           width:width
-                                                          height:height
-                                                       mipmapped:NO];
-    descriptor.usage       = MTLTextureUsageShaderRead;
-    id<MTLTexture> texture = [state.m_device newTextureWithDescriptor:descriptor];
-    if (!texture) return nil;
-
-    raster->lock();
-    const MTLRegion region = MTLRegionMake2D(0, 0, width, height);
-    [texture replaceRegion:region
-               mipmapLevel:0
-                 withBytes:raster->pixels(0)
-               bytesPerRow:raster->getWrap() * sizeof(TPixel32)];
-    raster->unlock();
-
-#if !__has_feature(objc_arc)
-    return [texture autorelease];
-#else
-    return texture;
-#endif
-  }
+  id<MTLTexture> upload(const TRaster32P &raster) { return uploadRasterTexture(raster); }
 
   std::array<MetalVertex, 6> makeVertices(const TRectD &rect) const {
     const float left   = pixelToClipX(rect.x0);
@@ -1086,8 +1180,7 @@ TRaster32P renderNativeMetalCaustics(int width, int height, const TAffine &outpu
 }
 
 TRaster32P renderNativeMetalStarsky(int width, int height, const TAffine &outputToWorld,
-                                    const TPixel32 &color, double time,
-                                    double brightness) {
+                                    const TPixel32 &color, double time, double brightness) {
   if (!probeMetalDevice() || width <= 0 || height <= 0) return TRaster32P();
 
   MetalTextureRenderTarget target(width, height);
@@ -1143,8 +1236,7 @@ TRaster32P renderNativeMetalStarsky(int width, int height, const TAffine &output
 }
 
 TRaster32P renderNativeMetalWavy(int width, int height, const TAffine &outputToWorld,
-                                 const TPixel32 &color1, const TPixel32 &color2,
-                                 double time) {
+                                 const TPixel32 &color1, const TPixel32 &color2, double time) {
   if (!probeMetalDevice() || width <= 0 || height <= 0) return TRaster32P();
 
   MetalTextureRenderTarget target(width, height);
@@ -1203,8 +1295,8 @@ TRaster32P renderNativeMetalWavy(int width, int height, const TAffine &outputToW
 }
 
 TRaster32P renderNativeMetalFireball(int width, int height, const TAffine &outputToWorld,
-                                     const TPixel32 &color1, const TPixel32 &color2,
-                                     double detail, double time) {
+                                     const TPixel32 &color1, const TPixel32 &color2, double detail,
+                                     double time) {
   if (!probeMetalDevice() || width <= 0 || height <= 0) return TRaster32P();
 
   MetalTextureRenderTarget target(width, height);
@@ -1254,6 +1346,78 @@ TRaster32P renderNativeMetalFireball(int width, int height, const TAffine &outpu
 
   [encoder setRenderPipelineState:pipeline];
   [encoder setVertexBytes:vertices length:sizeof(vertices) atIndex:0];
+  [encoder setFragmentBytes:&uniforms length:sizeof(uniforms) atIndex:0];
+  [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+  [encoder endEncoding];
+  [commandBuffer commit];
+  [commandBuffer waitUntilCompleted];
+
+  return readNativeMetalRenderTarget(&target);
+}
+
+TRaster32P renderNativeMetalHSLBlend(int width, int height, const TRaster32P &foreground,
+                                     const TRaster32P &background,
+                                     const TAffine &outputToForeground,
+                                     const TAffine &outputToBackground, bool blendHue,
+                                     bool blendSaturation, bool blendLuminosity, double blendAlpha,
+                                     bool baseMask) {
+  if (!probeMetalDevice() || width <= 0 || height <= 0 || !foreground || !background)
+    return TRaster32P();
+
+  MetalTextureRenderTarget target(width, height);
+  if (!target.texture()) return TRaster32P();
+
+  id<MTLRenderPipelineState> pipeline = hslBlendPipelineState();
+  id<MTLSamplerState> sampler         = sharedSamplerState();
+  id<MTLTexture> foregroundTexture    = uploadRasterTexture(foreground);
+  id<MTLTexture> backgroundTexture    = uploadRasterTexture(background);
+  if (!pipeline || !sampler || !foregroundTexture || !backgroundTexture) return TRaster32P();
+
+  MetalState &state = metalState();
+
+  MTLRenderPassDescriptor *pass        = [MTLRenderPassDescriptor renderPassDescriptor];
+  pass.colorAttachments[0].texture     = target.texture();
+  pass.colorAttachments[0].loadAction  = MTLLoadActionClear;
+  pass.colorAttachments[0].storeAction = MTLStoreActionStore;
+  pass.colorAttachments[0].clearColor  = MTLClearColorMake(0.0, 0.0, 0.0, 0.0);
+
+  id<MTLCommandBuffer> commandBuffer  = [state.m_commandQueue commandBuffer];
+  commandBuffer.label                 = @"OpenToonz TGraphics HSL Blend";
+  id<MTLRenderCommandEncoder> encoder = [commandBuffer renderCommandEncoderWithDescriptor:pass];
+  encoder.label                       = @"HSL Blend";
+
+  const float left              = -1.0f;
+  const float right             = 1.0f;
+  const float top               = 1.0f;
+  const float bottom            = -1.0f;
+  const MetalVertex vertices[6] = {{left, top, 0.0f, 0.0f},     {right, top, 1.0f, 0.0f},
+                                   {left, bottom, 0.0f, 1.0f},  {right, top, 1.0f, 0.0f},
+                                   {right, bottom, 1.0f, 1.0f}, {left, bottom, 0.0f, 1.0f}};
+
+  HSLBlendUniforms uniforms;
+  uniforms.m_fgA11      = static_cast<float>(outputToForeground.a11);
+  uniforms.m_fgA12      = static_cast<float>(outputToForeground.a12);
+  uniforms.m_fgA13      = static_cast<float>(outputToForeground.a13);
+  uniforms.m_fgA21      = static_cast<float>(outputToForeground.a21);
+  uniforms.m_fgA22      = static_cast<float>(outputToForeground.a22);
+  uniforms.m_fgA23      = static_cast<float>(outputToForeground.a23);
+  uniforms.m_bgA11      = static_cast<float>(outputToBackground.a11);
+  uniforms.m_bgA12      = static_cast<float>(outputToBackground.a12);
+  uniforms.m_bgA13      = static_cast<float>(outputToBackground.a13);
+  uniforms.m_bgA21      = static_cast<float>(outputToBackground.a21);
+  uniforms.m_bgA22      = static_cast<float>(outputToBackground.a22);
+  uniforms.m_bgA23      = static_cast<float>(outputToBackground.a23);
+  uniforms.m_blendHue   = blendHue ? 1.0f : 0.0f;
+  uniforms.m_blendSat   = blendSaturation ? 1.0f : 0.0f;
+  uniforms.m_blendLum   = blendLuminosity ? 1.0f : 0.0f;
+  uniforms.m_blendAlpha = static_cast<float>(blendAlpha);
+  uniforms.m_baseMask   = baseMask ? 1.0f : 0.0f;
+
+  [encoder setRenderPipelineState:pipeline];
+  [encoder setVertexBytes:vertices length:sizeof(vertices) atIndex:0];
+  [encoder setFragmentTexture:foregroundTexture atIndex:0];
+  [encoder setFragmentTexture:backgroundTexture atIndex:1];
+  [encoder setFragmentSamplerState:sampler atIndex:0];
   [encoder setFragmentBytes:&uniforms length:sizeof(uniforms) atIndex:0];
   [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
   [encoder endEncoding];

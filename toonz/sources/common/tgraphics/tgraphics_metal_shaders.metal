@@ -13,7 +13,7 @@ struct VertexOut {
 };
 
 vertex VertexOut tgraphicsVertex(uint vertexId [[vertex_id]],
-                                 constant VertexIn *vertices [[buffer(0)]]) {
+                                 constant VertexIn* vertices [[buffer(0)]]) {
   VertexIn in = vertices[vertexId];
   VertexOut out;
   out.position = float4(in.position, 0.0, 1.0);
@@ -24,13 +24,98 @@ vertex VertexOut tgraphicsVertex(uint vertexId [[vertex_id]],
 fragment float4 tgraphicsFragment(VertexOut in [[stage_in]],
                                   texture2d<float> colorTexture [[texture(0)]],
                                   sampler colorSampler [[sampler(0)]],
-                                  constant float4 &colorScale [[buffer(0)]]) {
+                                  constant float4& colorScale [[buffer(0)]]) {
   return colorTexture.sample(colorSampler, in.texCoord) * colorScale;
 }
 
 fragment float4 tgraphicsColorFragment(VertexOut in [[stage_in]],
-                                       constant float4 &color [[buffer(0)]]) {
+                                       constant float4& color [[buffer(0)]]) {
   return color;
+}
+
+struct HSLBlendUniforms {
+  float fgA11;
+  float fgA12;
+  float fgA13;
+  float fgA21;
+  float fgA22;
+  float fgA23;
+  float bgA11;
+  float bgA12;
+  float bgA13;
+  float bgA21;
+  float bgA22;
+  float bgA23;
+  float blendHue;
+  float blendSat;
+  float blendLum;
+  float blendAlpha;
+  float baseMask;
+  float3 padding;
+};
+
+float hslMin3(float3 c) { return min(min(c.r, c.g), c.b); }
+float hslMax3(float3 c) { return max(max(c.r, c.g), c.b); }
+float hslLum3(float3 c) { return dot(c, float3(0.30, 0.59, 0.11)); }
+float hslSat3(float3 c) { return hslMax3(c) - hslMin3(c); }
+
+float3 hslClipColor(float3 color) {
+  float lum    = hslLum3(color);
+  float mincol = hslMin3(color);
+  float maxcol = hslMax3(color);
+  if (mincol < 0.0) {
+    color = lum + ((color - lum) * lum) / (lum - mincol);
+  }
+  if (maxcol > 1.0) {
+    color = lum + ((color - lum) * (1.0 - lum)) / (maxcol - lum);
+  }
+  return color;
+}
+
+float3 hslSetLum(float3 cbase, float3 clum) {
+  float lbase = hslLum3(cbase);
+  float llum  = hslLum3(clum);
+  return hslClipColor(cbase + float3(llum - lbase));
+}
+
+float3 hslSetLumSat(float3 cbase, float3 csat, float3 clum) {
+  float minbase = hslMin3(cbase);
+  float sbase   = hslSat3(cbase);
+  float ssat    = hslSat3(csat);
+  float3 color  = sbase > 0.0 ? (cbase - minbase) * ssat / sbase : float3(0.0);
+  return hslSetLum(color, clum);
+}
+
+fragment float4 tgraphicsHSLBlendFragment(
+    VertexOut in [[stage_in]], texture2d<float> fgTexture [[texture(0)]],
+    texture2d<float> bgTexture [[texture(1)]],
+    sampler colorSampler [[sampler(0)]],
+    constant HSLBlendUniforms& u [[buffer(0)]]) {
+  float2 fgTex =
+      float2(in.position.x * u.fgA11 + in.position.y * u.fgA12 + u.fgA13,
+             in.position.x * u.fgA21 + in.position.y * u.fgA22 + u.fgA23);
+  float2 bgTex =
+      float2(in.position.x * u.bgA11 + in.position.y * u.bgA12 + u.bgA13,
+             in.position.x * u.bgA21 + in.position.y * u.bgA22 + u.bgA23);
+
+  float4 fg = fgTexture.sample(colorSampler, fgTex);
+  float4 bg = bgTexture.sample(colorSampler, bgTex);
+
+  float3 fgPix  = fg.a > 0.0 ? fg.rgb / fg.a : float3(0.0);
+  float3 bgPix  = bg.a > 0.0 ? bg.rgb / bg.a : float3(0.0);
+  float fgAlpha = fg.a * u.blendAlpha;
+  float bgAlpha = bg.a;
+  float outAlpha =
+      u.baseMask != 0.0 ? bgAlpha : bgAlpha + fgAlpha * (1.0 - bgAlpha);
+  if (outAlpha <= 0.0) discard_fragment();
+
+  float3 oPix = hslSetLumSat(u.blendHue != 0.0 ? fgPix : bgPix,
+                             u.blendSat != 0.0 ? fgPix : bgPix,
+                             u.blendLum != 0.0 ? fgPix : bgPix);
+  float3 bPix = u.baseMask != 0.0 ? float3(0.0) : fgPix;
+  float3 outRgb =
+      bgPix * bgAlpha * (1.0 - fgAlpha) + mix(bPix, oPix, bgAlpha) * fgAlpha;
+  return float4(outRgb, outAlpha);
 }
 
 struct SunflareUniforms {
@@ -96,33 +181,32 @@ struct FireballUniforms {
   float time;
 };
 
-fragment float4 tgraphicsSunflareFragment(
-    VertexOut in [[stage_in]],
-    constant SunflareUniforms &u [[buffer(0)]]) {
-  float2 world =
-      float2(in.position.x * u.a11 + in.position.y * u.a12 + u.a13,
-             in.position.x * u.a21 + in.position.y * u.a22 + u.a23);
-  float2 p = 0.03 * world;
+fragment float4 tgraphicsSunflareFragment(VertexOut in [[stage_in]],
+                                          constant SunflareUniforms& u
+                                          [[buffer(0)]]) {
+  float2 world = float2(in.position.x * u.a11 + in.position.y * u.a12 + u.a13,
+                        in.position.x * u.a21 + in.position.y * u.a22 + u.a23);
+  float2 p     = 0.03 * world;
   float shiftedAngle = atan2(p.y, p.x) - u.angle * 0.017453292519943295;
-  float bladeBase = sin(shiftedAngle * u.blades) + 0.01 * u.bias;
+  float bladeBase    = sin(shiftedAngle * u.blades) + 0.01 * u.bias;
   float blade = u.intensity * clamp(pow(bladeBase, u.sharpness), 0.0, 1.0);
   float4 premultiplied = float4(u.color.rgb * u.color.a, u.color.a);
   return premultiplied * (1.0 + blade) / max(length(p), 1.0e-6);
 }
 
 float4 causticsTextureRND2D(float2 uv, float time) {
-  uv = floor(uv);
-  float v = uv.x + uv.y * 1.0e3;
-  float4 res = fract(1.0e5 * sin(float4(v * 1.0e-2, (v + 1.0) * 1.0e-2,
-                                          (v + 1.0e3) * 1.0e-2,
-                                          (v + 1.0e3 + 1.0) * 1.0e-2)));
+  uv         = floor(uv);
+  float v    = uv.x + uv.y * 1.0e3;
+  float4 res = fract(
+      1.0e5 * sin(float4(v * 1.0e-2, (v + 1.0) * 1.0e-2, (v + 1.0e3) * 1.0e-2,
+                         (v + 1.0e3 + 1.0) * 1.0e-2)));
   return 2.0 * abs(fract(res + float4(time * 0.03)) - 0.5);
 }
 
 float causticsNoise(float2 p, float time) {
   float4 r = causticsTextureRND2D(p, time);
   float2 f = fract(p);
-  f = f * f * (3.0 - 2.0 * f);
+  f        = f * f * (3.0 - 2.0 * f);
   return mix(mix(r.x, r.y, f.x), mix(r.z, r.w, f.x), f.y);
 }
 
@@ -131,16 +215,17 @@ float causticsBuildColor(float2 p, float time) {
   return 1.0 - abs(pow(abs(causticsNoise(p, time) - 0.5), 0.75)) * 1.7;
 }
 
-fragment float4 tgraphicsCausticsFragment(
-    VertexOut in [[stage_in]], constant CausticsUniforms &u [[buffer(0)]]) {
-  float2 p = float2(in.position.x * u.a11 + in.position.y * u.a12 + u.a13,
-                    in.position.x * u.a21 + in.position.y * u.a22 + u.a23);
+fragment float4 tgraphicsCausticsFragment(VertexOut in [[stage_in]],
+                                          constant CausticsUniforms& u
+                                          [[buffer(0)]]) {
+  float2 p    = float2(in.position.x * u.a11 + in.position.y * u.a12 + u.a13,
+                       in.position.x * u.a21 + in.position.y * u.a22 + u.a23);
   float speed = 0.15;
-  float c1 = causticsBuildColor(p * 0.03 + u.time * speed, u.time);
-  float c2 = causticsBuildColor(p * 0.03 - u.time * speed, u.time);
-  float c3 = causticsBuildColor(p * 0.02 - u.time * speed, u.time);
-  float c4 = causticsBuildColor(p * 0.02 + u.time * speed, u.time);
-  float cf = pow(c1 * c2 * c3 * c4 + 0.5, 6.0);
+  float c1    = causticsBuildColor(p * 0.03 + u.time * speed, u.time);
+  float c2    = causticsBuildColor(p * 0.03 - u.time * speed, u.time);
+  float c3    = causticsBuildColor(p * 0.02 - u.time * speed, u.time);
+  float c4    = causticsBuildColor(p * 0.02 + u.time * speed, u.time);
+  float cf    = pow(c1 * c2 * c3 * c4 + 0.5, 6.0);
   float4 outColor = float4(float3(cf), 0.0) + u.color;
   outColor.rgb *= outColor.a;
   return outColor;
@@ -155,8 +240,8 @@ float starskyRand(float2 co) {
 float starskyNoise(float2 x) {
   float2 p = floor(x);
   float2 f = fract(x);
-  f = f * f * (3.0 - 2.0 * f);
-  float n = p.x + p.y * 57.0;
+  f        = f * f * (3.0 - 2.0 * f);
+  float n  = p.x + p.y * 57.0;
   return mix(mix(starskyHash(n + 0.0), starskyHash(n + 1.0), f.x),
              mix(starskyHash(n + 57.0), starskyHash(n + 58.0), f.x), f.y);
 }
@@ -172,20 +257,20 @@ float3 starskyCloud(float2 p, float4 color) {
   return color.rgb * color.a * f * 0.6;
 }
 
-fragment float4 tgraphicsStarskyFragment(
-    VertexOut in [[stage_in]], constant StarskyUniforms &u [[buffer(0)]]) {
+fragment float4 tgraphicsStarskyFragment(VertexOut in [[stage_in]],
+                                         constant StarskyUniforms& u
+                                         [[buffer(0)]]) {
   float2 pos =
       0.01 * float2(in.position.x * u.a11 + in.position.y * u.a12 + u.a13,
                     in.position.x * u.a21 + in.position.y * u.a22 + u.a23);
 
   float3 outRgb = starskyCloud(pos, u.color);
 
-  float dist = length(pos);
+  float dist   = length(pos);
   float2 coord = float2(dist, atan2(pos.y, pos.x));
 
-  float2 p =
-      40.0 * float2(coord.x, floor(coord.x + 1.0) * coord.y +
-                                 starskyHash(floor(40.0 * coord.x)));
+  float2 p = 40.0 * float2(coord.x, floor(coord.x + 1.0) * coord.y +
+                                        starskyHash(floor(40.0 * coord.x)));
 
   float2 uv = 2.0 * fract(p) - 1.0;
 
@@ -200,10 +285,10 @@ fragment float4 tgraphicsStarskyFragment(
 }
 
 float2 wavyDistort(float2 p) {
-  float theta = atan2(p.y, p.x);
+  float theta  = atan2(p.y, p.x);
   float radius = pow(length(p), 1.3);
-  p.x = radius * cos(theta);
-  p.y = radius * sin(theta);
+  p.x          = radius * cos(theta);
+  p.y          = radius * sin(theta);
   return 0.5 * (p + 1.0);
 }
 
@@ -218,28 +303,26 @@ float wavyHash(float n) { return fract(sin(n) * 43758.5453); }
 float wavyNoise(float3 x) {
   float3 p = floor(x);
   float3 f = fract(x);
-  f = f * f * (3.0 - 2.0 * f);
-  float n = p.x + p.y * 57.0 + p.z * 43.0;
-  float r1 =
-      mix(mix(wavyHash(n + 0.0), wavyHash(n + 1.0), f.x),
-          mix(wavyHash(n + 57.0), wavyHash(n + 58.0), f.x), f.y);
-  float r2 = mix(
-      mix(wavyHash(n + 43.0), wavyHash(n + 44.0), f.x),
-      mix(wavyHash(n + 100.0), wavyHash(n + 101.0), f.x), f.y);
+  f        = f * f * (3.0 - 2.0 * f);
+  float n  = p.x + p.y * 57.0 + p.z * 43.0;
+  float r1 = mix(mix(wavyHash(n + 0.0), wavyHash(n + 1.0), f.x),
+                 mix(wavyHash(n + 57.0), wavyHash(n + 58.0), f.x), f.y);
+  float r2 = mix(mix(wavyHash(n + 43.0), wavyHash(n + 44.0), f.x),
+                 mix(wavyHash(n + 100.0), wavyHash(n + 101.0), f.x), f.y);
   return mix(r1, r2, f.z);
 }
 
-fragment float4 tgraphicsWavyFragment(
-    VertexOut in [[stage_in]], constant WavyUniforms &u [[buffer(0)]]) {
+fragment float4 tgraphicsWavyFragment(VertexOut in [[stage_in]],
+                                      constant WavyUniforms& u [[buffer(0)]]) {
   float2 position =
       0.01 * float2(in.position.x * u.a11 + in.position.y * u.a12 + u.a13,
                     in.position.x * u.a21 + in.position.y * u.a22 + u.a23);
-  float off = wavyNoise(float3(position.x, position.y, position.x) +
-                        float3(u.time));
-  float4 c = wavyPattern(wavyDistort(position + off));
-  c.xy = wavyDistort(c.xy);
-  float4 col1 = float4(u.color1.rgb * u.color1.a, u.color1.a);
-  float4 col2 = float4(u.color2.rgb * u.color2.a, u.color2.a);
+  float off =
+      wavyNoise(float3(position.x, position.y, position.x) + float3(u.time));
+  float4 c     = wavyPattern(wavyDistort(position + off));
+  c.xy         = wavyDistort(c.xy);
+  float4 col1  = float4(u.color1.rgb * u.color1.a, u.color1.a);
+  float4 col2  = float4(u.color2.rgb * u.color2.a, u.color2.a);
   float coeff1 = c.x - off;
   float coeff2 = cos(c.z);
   return (coeff1 * col1 + coeff2 * col2) / (coeff1 + coeff2);
@@ -256,43 +339,41 @@ float fireballSnoise(float3 uv, float res) {
   float3 uv1 = floor(fireballMod(uv + float3(1.0), res)) * s;
 
   float3 f = fract(uv);
-  f = f * f * (3.0 - 2.0 * f);
+  f        = f * f * (3.0 - 2.0 * f);
 
-  float4 v =
-      float4(uv0.x + uv0.y + uv0.z, uv1.x + uv0.y + uv0.z,
-             uv0.x + uv1.y + uv0.z, uv1.x + uv1.y + uv0.z);
+  float4 v = float4(uv0.x + uv0.y + uv0.z, uv1.x + uv0.y + uv0.z,
+                    uv0.x + uv1.y + uv0.z, uv1.x + uv1.y + uv0.z);
 
   float4 r = fract(sin(v * 1.0e-3) * 1.0e5);
   float r0 = mix(mix(r.x, r.y, f.x), mix(r.z, r.w, f.x), f.y);
 
-  r = fract(sin((v + uv1.z - uv0.z) * 1.0e-3) * 1.0e5);
+  r        = fract(sin((v + uv1.z - uv0.z) * 1.0e-3) * 1.0e5);
   float r1 = mix(mix(r.x, r.y, f.x), mix(r.z, r.w, f.x), f.y);
 
   return 2.0 * mix(r0, r1, f.z) - 1.0;
 }
 
-fragment float4 tgraphicsFireballFragment(
-    VertexOut in [[stage_in]],
-    constant FireballUniforms &u [[buffer(0)]]) {
+fragment float4 tgraphicsFireballFragment(VertexOut in [[stage_in]],
+                                          constant FireballUniforms& u
+                                          [[buffer(0)]]) {
   constexpr float piTwice = 6.283185307;
   float2 p =
       0.002 * float2(in.position.x * u.a11 + in.position.y * u.a12 + u.a13,
                      in.position.x * u.a21 + in.position.y * u.a22 + u.a23);
 
-  float color = 3.0 * (1.0 - 2.0 * length(p));
-  float3 coord =
-      float3(atan2(p.y, p.x) / piTwice, length(p) * 0.4, 0.0);
+  float color  = 3.0 * (1.0 - 2.0 * length(p));
+  float3 coord = float3(atan2(p.y, p.x) / piTwice, length(p) * 0.4, 0.0);
 
   for (int i = 1; i <= 7; ++i) {
-    float power = pow(2.0, float(i));
+    float power  = pow(2.0, float(i));
     float3 timed = float3(0.0, -u.time * 0.02, u.time * 0.01);
     color += 1.5 * fireballSnoise(coord + timed, power * u.detail) / power;
   }
 
   color = max(color, 0.0);
 
-  float4 col1 = u.color1 * u.color1.a;
-  float4 col2 = u.color2 * u.color2.a;
+  float4 col1     = u.color1 * u.color1.a;
+  float4 col2     = u.color2 * u.color2.a;
   float4 outColor = mix(col1, col2, color / 3.0);
   outColor.a *= smoothstep(0.0, 1.0, color);
   outColor.rgb *= outColor.a;

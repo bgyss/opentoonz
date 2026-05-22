@@ -328,6 +328,129 @@ int toByte(double value) {
                   std::min(255, static_cast<int>(std::lround(value * 255.0))));
 }
 
+struct RgbD {
+  double r = 0.0;
+  double g = 0.0;
+  double b = 0.0;
+};
+
+double min3(const RgbD& c) { return std::min({c.r, c.g, c.b}); }
+double max3(const RgbD& c) { return std::max({c.r, c.g, c.b}); }
+double lum3(const RgbD& c) { return c.r * 0.30 + c.g * 0.59 + c.b * 0.11; }
+double sat3(const RgbD& c) { return max3(c) - min3(c); }
+
+RgbD clipColor(RgbD color) {
+  const double lum    = lum3(color);
+  const double mincol = min3(color);
+  const double maxcol = max3(color);
+  if (mincol < 0.0) {
+    color.r = lum + ((color.r - lum) * lum) / (lum - mincol);
+    color.g = lum + ((color.g - lum) * lum) / (lum - mincol);
+    color.b = lum + ((color.b - lum) * lum) / (lum - mincol);
+  }
+  if (maxcol > 1.0) {
+    color.r = lum + ((color.r - lum) * (1.0 - lum)) / (maxcol - lum);
+    color.g = lum + ((color.g - lum) * (1.0 - lum)) / (maxcol - lum);
+    color.b = lum + ((color.b - lum) * (1.0 - lum)) / (maxcol - lum);
+  }
+  return color;
+}
+
+RgbD setLum(const RgbD& cbase, const RgbD& clum) {
+  const double diff = lum3(clum) - lum3(cbase);
+  return clipColor({cbase.r + diff, cbase.g + diff, cbase.b + diff});
+}
+
+RgbD setLumSat(const RgbD& cbase, const RgbD& csat, const RgbD& clum) {
+  const double minbase = min3(cbase);
+  const double sbase   = sat3(cbase);
+  const double ssat    = sat3(csat);
+  RgbD color;
+  if (sbase > 0.0) {
+    color.r = (cbase.r - minbase) * ssat / sbase;
+    color.g = (cbase.g - minbase) * ssat / sbase;
+    color.b = (cbase.b - minbase) * ssat / sbase;
+  }
+  return setLum(color, clum);
+}
+
+RgbD unpremultiply(const TPixel32& pixel) {
+  const double alpha = pixel.m / 255.0;
+  if (alpha <= 0.0) return RgbD();
+  return {pixel.r / 255.0 / alpha, pixel.g / 255.0 / alpha,
+          pixel.b / 255.0 / alpha};
+}
+
+TPixel32 hslBlendReferencePixel(const TPixel32& foreground,
+                                const TPixel32& background, bool blendHue,
+                                bool blendSaturation, bool blendLuminosity,
+                                double blendAlpha, bool baseMask) {
+  const RgbD fgPix     = unpremultiply(foreground);
+  const RgbD bgPix     = unpremultiply(background);
+  const double fgAlpha = foreground.m / 255.0 * blendAlpha;
+  const double bgAlpha = background.m / 255.0;
+  const double outAlpha =
+      baseMask ? bgAlpha : bgAlpha + fgAlpha * (1.0 - bgAlpha);
+  if (outAlpha <= 0.0) return TPixel32(0, 0, 0, 0);
+
+  const RgbD oPix =
+      setLumSat(blendHue ? fgPix : bgPix, blendSaturation ? fgPix : bgPix,
+                blendLuminosity ? fgPix : bgPix);
+  const RgbD bPix = baseMask ? RgbD() : fgPix;
+  RgbD outRgb;
+  outRgb.r = bgPix.r * bgAlpha * (1.0 - fgAlpha) +
+             (bPix.r * (1.0 - bgAlpha) + oPix.r * bgAlpha) * fgAlpha;
+  outRgb.g = bgPix.g * bgAlpha * (1.0 - fgAlpha) +
+             (bPix.g * (1.0 - bgAlpha) + oPix.g * bgAlpha) * fgAlpha;
+  outRgb.b = bgPix.b * bgAlpha * (1.0 - fgAlpha) +
+             (bPix.b * (1.0 - bgAlpha) + oPix.b * bgAlpha) * fgAlpha;
+  return TPixel32(toByte(outRgb.r), toByte(outRgb.g), toByte(outRgb.b),
+                  toByte(outAlpha));
+}
+
+bool validateHSLBlend(const TRaster32P& readback, const TRaster32P& foreground,
+                      const TRaster32P& background, bool blendHue,
+                      bool blendSaturation, bool blendLuminosity,
+                      double blendAlpha, bool baseMask) {
+  if (!readback || !foreground || !background) return false;
+  if (readback->getSize() != foreground->getSize() ||
+      readback->getSize() != background->getSize())
+    return false;
+
+  readback->lock();
+  foreground->lock();
+  background->lock();
+  for (int y = 0; y < readback->getLy(); ++y) {
+    const TPixel32* actualRow = readback->pixels(y);
+    const TPixel32* fgRow     = foreground->pixels(y);
+    const TPixel32* bgRow     = background->pixels(y);
+    for (int x = 0; x < readback->getLx(); ++x) {
+      const TPixel32 expected =
+          hslBlendReferencePixel(fgRow[x], bgRow[x], blendHue, blendSaturation,
+                                 blendLuminosity, blendAlpha, baseMask);
+      if (std::abs(actualRow[x].r - expected.r) > 2 ||
+          std::abs(actualRow[x].g - expected.g) > 2 ||
+          std::abs(actualRow[x].b - expected.b) > 2 ||
+          std::abs(actualRow[x].m - expected.m) > 2) {
+        background->unlock();
+        foreground->unlock();
+        readback->unlock();
+        std::cerr << "tgraphics_metal_probe: HSL blend pixel mismatch at " << x
+                  << "," << y << " expected ";
+        printPixel(expected);
+        std::cerr << " actual ";
+        printPixel(actualRow[x]);
+        std::cerr << std::endl;
+        return false;
+      }
+    }
+  }
+  background->unlock();
+  foreground->unlock();
+  readback->unlock();
+  return true;
+}
+
 TPixel32 sunflareReferencePixel(double fragmentX, double fragmentY,
                                 const TAffine& outputToWorld,
                                 const TPixel32& color, int blades,
@@ -719,6 +842,35 @@ int main(int argc, char* argv[]) {
     if (!openGLReadback)
       return fail("could not read back alpha OpenGL baseline");
     if (!compareRasters(readback, openGLReadback, "alpha", artifactDir)) {
+      return EXIT_FAILURE;
+    }
+  }
+
+  {
+    const int shaderWidth      = 16;
+    const int shaderHeight     = 12;
+    const bool blendHue        = true;
+    const bool blendSaturation = true;
+    const bool blendLuminosity = false;
+    const double blendAlpha    = 0.65;
+    const bool baseMask        = false;
+    TRaster32P foreground      = makeGradientRaster(shaderWidth, shaderHeight);
+    TRaster32P background =
+        makeSolidRaster(shaderWidth, shaderHeight, TPixel32(36, 120, 210, 255));
+    const TAffine outputToTexture =
+        TScale(1.0 / shaderWidth, 1.0 / shaderHeight);
+
+    TRaster32P readback = TGraphics::renderHSLBlendWithMetalBackend(
+        shaderWidth, shaderHeight, foreground, background, outputToTexture,
+        outputToTexture, blendHue, blendSaturation, blendLuminosity, blendAlpha,
+        baseMask);
+    if (!readback) return fail("could not read back HSL blend Metal shader");
+    if (!requireDimensions(readback, shaderWidth, shaderHeight)) {
+      return fail("HSL blend readback dimensions do not match render target");
+    }
+    if (!validateHSLBlend(readback, foreground, background, blendHue,
+                          blendSaturation, blendLuminosity, blendAlpha,
+                          baseMask)) {
       return EXIT_FAILURE;
     }
   }

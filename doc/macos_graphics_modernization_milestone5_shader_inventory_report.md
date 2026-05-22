@@ -35,6 +35,13 @@ branch now runs before `ShadingContextManager` is instantiated, so migrated
 no-input procedural shaders no longer create the OpenGL shader context before
 returning through Metal.
 
+The input-texture groundwork checkpoint adds a `tgraphics` Metal HSL blend
+helper with two sampled `TRaster32P` inputs, per-input output-to-texture
+affines, shared Metal sampler/texture upload plumbing, and a CPU-reference
+probe case. This does not yet route production `SHADER_HSLBlendGPU` through
+Metal, but it proves the texture-binding primitive needed by the shared
+shader-generation candidates.
+
 ## Files Changed
 
 - `scripts/graphics_shader_inventory.sh`
@@ -156,6 +163,19 @@ the current OpenGL matrix conventions. They should be ported after a
 backend-neutral input texture and coordinate binding path exists in
 `tgraphics`.
 
+Input-texture Metal groundwork:
+
+- `TGraphics::renderHSLBlendWithMetalBackend(...)` renders a two-input HSL
+  blend into an offscreen Metal render target.
+- The helper accepts foreground/background rasters plus separate
+  output-to-texture affines, matching the shape of the GLSL `inputImage[]` and
+  `outputToInput[]` bindings used by `ShaderFx`.
+- `tgraphics_metal_probe` validates the helper against a CPU reference for the
+  same HSL blend formula.
+- Production `SHADER_HSLBlendGPU` still falls back to the OpenGL
+  `ShaderFx` path until the input-port rectangle/affine computation is moved
+  out of OpenGL transform feedback or otherwise bypassed for supported cases.
+
 Blocked by OpenGL-specific transform feedback:
 
 - `HSLBlendGPU_ports.vert`
@@ -241,6 +261,8 @@ broader.
 ```sh
 bash scripts/graphics_shader_inventory.sh
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=ON'
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tgraphics_metal_probe --parallel 3
+nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tgraphics_metal_probe shaderfx_metal_probe OpenToonz --parallel 3
 test -f toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app/Contents/Resources/tgraphics_metal_shaders.metal
 nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
@@ -258,6 +280,7 @@ rg -n "^WITH_GRAPHICS_METAL:BOOL=" toonz/build/nix-relwithdebinfo/CMakeCache.txt
 Validation evidence:
 
 ```text
+tgraphics_metal_probe: ok on Apple M1 Max
 resource present: toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app/Contents/Resources/tgraphics_metal_shaders.metal
 tgraphics_metal_probe: ok on Apple M1 Max
 shaderfx_metal_probe: ok shader=SHADER_fireball backend=metal device=Apple M1 Max
