@@ -89,6 +89,7 @@
 #include <QOpenGLFramebufferObject>
 #include <QMainWindow>
 #include <QWidget>
+#include <QtGlobal>
 
 #include <algorithm>
 #include <cmath>
@@ -1027,6 +1028,17 @@ bool SceneViewer::shouldPresentWithMetal() const {
 
 void SceneViewer::hideMetalLayer() {
   if (m_metalLayerWidget) m_metalLayerWidget->hide();
+}
+
+//-------------------------------------------------------------------------------
+
+bool SceneViewer::shouldSkipMetalCompatibilitySnapshot() const {
+  const bool enabled =
+      qEnvironmentVariableIntValue("OPENTOONZ_GRAPHICS_METAL_DIRECT_ONLY") !=
+          0 ||
+      qEnvironmentVariableIsSet(
+          "OPENTOONZ_GRAPHICS_METAL_SKIP_COMPAT_SNAPSHOT");
+  return enabled && shouldPresentWithMetal();
 }
 
 //-------------------------------------------------------------------------------
@@ -2452,6 +2464,7 @@ void SceneViewer::paintGL() {
 
   drawBuildVars();
 
+  m_metalPresentedDirectSceneContent = false;
   if (shouldPresentWithMetal()) presentBackgroundWithMetal();
 
   // This seems not to be necessary for now.
@@ -2490,7 +2503,10 @@ void SceneViewer::paintGL() {
   if (!m_isPicking && m_lutCalibrator && m_lutCalibrator->isValid())
     m_lutCalibrator->onEndDraw(m_fbo);
 
-  presentCurrentOpenGLFrameWithMetal();
+  if (!shouldSkipMetalCompatibilitySnapshot() ||
+      !m_metalPresentedDirectSceneContent) {
+    presentCurrentOpenGLFrameWithMetal();
+  }
 }
 
 //-----------------------------------------------------------------------------
@@ -2685,7 +2701,8 @@ void SceneViewer::drawScene() {
       TGraphics::DrawList2D drawList;
       painter.appendDirectRasterTextureQuads(
           drawList, std::max(1, height() * getDevPixRatio()));
-      presentDrawListWithMetal(drawList);
+      if (!drawList.empty() && presentDrawListWithMetal(drawList))
+        m_metalPresentedDirectSceneContent = true;
     }
     painter.flushRasterImages();
 

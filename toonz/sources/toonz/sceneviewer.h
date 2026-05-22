@@ -345,6 +345,7 @@ protected:
   void drawToolGadgets();
   bool shouldPresentWithMetal() const;
   void hideMetalLayer();
+  bool shouldSkipMetalCompatibilitySnapshot() const;
   bool ensureMetalLayerTarget(int width, int height);
   bool presentBackgroundWithMetal();
   bool presentDrawListWithMetal(const TGraphics::DrawList2D& drawList);
@@ -353,6 +354,7 @@ protected:
                                   const TPointD& p01, bool blending);
   bool presentRasterWithMetal(const TRaster32P& raster);
   bool presentCurrentOpenGLFrameWithMetal();
+  bool m_metalPresentedDirectSceneContent = false;
 
 protected:
   void mult3DMatrix();
