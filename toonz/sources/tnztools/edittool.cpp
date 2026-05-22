@@ -119,6 +119,21 @@ void drawLinePairWithTGraphics(const TPointD &a0, const TPointD &a1,
   TGraphics::drawWithOpenGLBackend(drawList);
 }
 
+void drawShearHandleOutlineWithTGraphics(const TPointD &p, double unit,
+                                         const TPixel32 &color) {
+  const TPointD p0(p.x - unit * 6, p.y - unit * 3);
+  const TPointD p1(p.x - unit * 3, p.y - unit * 3);
+  const TPointD p2(p.x + unit * 6, p.y + unit * 3);
+  const TPointD p3(p.x + unit * 3, p.y + unit * 3);
+
+  TGraphics::DrawList2D drawList;
+  drawList.addColorLine(p0, p1, color, false);
+  drawList.addColorLine(p1, p2, color, false);
+  drawList.addColorLine(p2, p3, color, false);
+  drawList.addColorLine(p3, p0, color, false);
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
+
 }  // namespace
 
 TEnv::IntVar LockCenterX("EditToolLockCenterX", 0);
@@ -1382,13 +1397,8 @@ void EditTool::drawMainHandle() {
     glVertex2d(p.x - unit * 6, p.y - unit * 3);
     glEnd();
   } else {
-    glBegin(GL_LINE_STRIP);
-    glVertex2d(p.x - unit * 6, p.y - unit * 3);
-    glVertex2d(p.x - unit * 3, p.y - unit * 3);
-    glVertex2d(p.x + unit * 6, p.y + unit * 3);
-    glVertex2d(p.x + unit * 3, p.y + unit * 3);
-    glVertex2d(p.x - unit * 6, p.y - unit * 3);
-    glEnd();
+    drawShearHandleOutlineWithTGraphics(
+        p, unit, m_highlightedDevice == Shear ? highlightedColor : normalColor);
   }
   if (m_highlightedDevice == Shear && !dragging)
     drawText(p + TPointD(0, -unit * 10), unit, "Shear");
