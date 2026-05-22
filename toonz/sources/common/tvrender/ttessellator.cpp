@@ -49,6 +49,71 @@ TglTessellator::GLTess::GLTess() {
 
 TglTessellator::GLTess::~GLTess() { gluDeleteTess(m_tess); }
 
+//------------------------------------------------------------------
+
+void TglTessellator::GLTess::setBeginCallback(Callback callback) {
+  gluTessCallback(m_tess, GLU_TESS_BEGIN, callback);
+}
+
+void TglTessellator::GLTess::setEndCallback(Callback callback) {
+  gluTessCallback(m_tess, GLU_TESS_END, callback);
+}
+
+void TglTessellator::GLTess::setCombineCallback(Callback callback) {
+  gluTessCallback(m_tess, GLU_TESS_COMBINE, callback);
+}
+
+void TglTessellator::GLTess::setVertexCallback(Callback callback) {
+  gluTessCallback(m_tess, GLU_TESS_VERTEX, callback);
+}
+
+void TglTessellator::GLTess::beginPolygon() {
+#ifdef GLU_VERSION_1_2
+  gluTessBeginPolygon(m_tess, NULL);
+  gluTessProperty(m_tess, GLU_TESS_WINDING_RULE, GLU_TESS_WINDING_POSITIVE);
+#else
+#ifdef GLU_VERSION_1_1
+  gluBeginPolygon(m_tess);
+#else
+  assert(false);
+#endif
+#endif
+}
+
+void TglTessellator::GLTess::endPolygon() {
+#ifdef GLU_VERSION_1_2
+  gluTessEndPolygon(m_tess);
+#else
+#ifdef GLU_VERSION_1_1
+  gluEndPolygon(m_tess);
+#else
+  assert(false);
+#endif
+#endif
+}
+
+void TglTessellator::GLTess::beginContour(GLenum type) {
+#ifdef GLU_VERSION_1_2
+  gluTessBeginContour(m_tess);
+#else
+#ifdef GLU_VERSION_1_1
+  gluNextContour(m_tess, type);
+#else
+  assert(false);
+#endif
+#endif
+}
+
+void TglTessellator::GLTess::endContour() {
+#ifdef GLU_VERSION_1_2
+  gluTessEndContour(m_tess);
+#endif
+}
+
+void TglTessellator::GLTess::addVertex(GLdouble *coords) {
+  gluTessVertex(m_tess, coords, coords);
+}
+
 //==================================================================
 
 namespace {
@@ -90,16 +155,6 @@ static void CALLBACK myCombine(GLdouble coords[3], GLdouble *d[4], GLfloat w[4],
 
 //-------------------------------------------------------------------
 
-#ifdef _WIN32
-typedef GLvoid(CALLBACK *GluCallback)(void);
-#endif
-
-#if defined(MACOSX) || defined(LINUX) || defined(FREEBSD) || defined(HAIKU)
-
-typedef GLvoid (*GluCallback)();
-
-#endif
-
 void TglTessellator::doTessellate(GLTess &glTess, const TColorFunction *cf,
                                   const bool antiAliasing,
                                   TRegionOutline outline, const TAffine &aff) {
@@ -108,34 +163,14 @@ void TglTessellator::doTessellate(GLTess &glTess, const TColorFunction *cf,
   Combine_data.clear();
   assert(glTess.m_tess);
 
-  gluTessCallback(glTess.m_tess, GLU_TESS_BEGIN, (GluCallback)glBegin);
-  gluTessCallback(glTess.m_tess, GLU_TESS_END, (GluCallback)glEnd);
-
-  gluTessCallback(glTess.m_tess, GLU_TESS_COMBINE, (GluCallback)myCombine);
-
-#ifdef GLU_VERSION_1_2
-  gluTessBeginPolygon(glTess.m_tess, NULL);
-  gluTessProperty(glTess.m_tess, GLU_TESS_WINDING_RULE,
-                  GLU_TESS_WINDING_POSITIVE);
-#else
-#ifdef GLU_VERSION_1_1
-  gluBeginPolygon(glTess.m_tess);
-#else
-  assert(false);
-#endif
-#endif
+  glTess.setBeginCallback((GLTess::Callback)glBegin);
+  glTess.setEndCallback((GLTess::Callback)glEnd);
+  glTess.setCombineCallback((GLTess::Callback)myCombine);
+  glTess.beginPolygon();
 
   for (TRegionOutline::Boundary::iterator poly_it = outline.m_exterior.begin();
        poly_it != outline.m_exterior.end(); ++poly_it) {
-#ifdef GLU_VERSION_1_2
-    gluTessBeginContour(glTess.m_tess);
-#else
-#ifdef GLU_VERSION_1_1
-    gluNextContour(glTess.m_tess, GLU_EXTERIOR);
-#else
-    assert(false);
-#endif
-#endif
+    glTess.beginContour(GLU_EXTERIOR);
 
     for (TRegionOutline::PointVector::iterator it = poly_it->begin();
          it != poly_it->end(); ++it) {
@@ -143,11 +178,9 @@ void TglTessellator::doTessellate(GLTess &glTess, const TColorFunction *cf,
       it->x = aff.a11 * it->x + aff.a12 * it->y;
       it->y = aff.a21 * it->x + aff.a22 * it->y;
 
-      gluTessVertex(glTess.m_tess, &(it->x), &(it->x));
+      glTess.addVertex(&(it->x));
     }
-#ifdef GLU_VERSION_1_2
-    gluTessEndContour(glTess.m_tess);
-#endif
+    glTess.endContour();
   }
 
   int subRegionNumber = outline.m_interior.size();
@@ -155,15 +188,7 @@ void TglTessellator::doTessellate(GLTess &glTess, const TColorFunction *cf,
     for (TRegionOutline::Boundary::iterator poly_it =
              outline.m_interior.begin();
          poly_it != outline.m_interior.end(); ++poly_it) {
-#ifdef GLU_VERSION_1_2
-      gluTessBeginContour(glTess.m_tess);
-#else
-#ifdef GLU_VERSION_1_1
-      gluNextContour(glTess.m_tess, GLU_INTERIOR);
-#else
-      assert(false);
-#endif
-#endif
+      glTess.beginContour(GLU_INTERIOR);
 
       for (TRegionOutline::PointVector::reverse_iterator rit =
                poly_it->rbegin();
@@ -171,24 +196,14 @@ void TglTessellator::doTessellate(GLTess &glTess, const TColorFunction *cf,
         // T3DPointD p = *rit;
         rit->x = aff.a11 * rit->x + aff.a12 * rit->y;
         rit->y = aff.a21 * rit->x + aff.a22 * rit->y;
-        gluTessVertex(glTess.m_tess, &(rit->x), &(rit->x));
+        glTess.addVertex(&(rit->x));
       }
 
-#ifdef GLU_VERSION_1_2
-      gluTessEndContour(glTess.m_tess);
-#endif
+      glTess.endContour();
     }
   }
 
-#ifdef GLU_VERSION_1_2
-  gluTessEndPolygon(glTess.m_tess);
-#else
-#ifdef GLU_VERSION_1_1
-  gluEndPolygon(glTess.m_tess);
-#else
-  assert(false);
-#endif
-#endif
+  glTess.endPolygon();
 
   std::list<GLdouble *>::iterator beginIt, endIt;
   endIt   = Combine_data.end();
@@ -204,42 +219,20 @@ void TglTessellator::doTessellate(GLTess &glTess, const TColorFunction *cf,
   Combine_data.clear();
   assert(glTess.m_tess);
 
-  gluTessCallback(glTess.m_tess, GLU_TESS_BEGIN, (GluCallback)glBegin);
-  gluTessCallback(glTess.m_tess, GLU_TESS_END, (GluCallback)glEnd);
-
-  gluTessCallback(glTess.m_tess, GLU_TESS_COMBINE, (GluCallback)myCombine);
-
-#ifdef GLU_VERSION_1_2
-  gluTessBeginPolygon(glTess.m_tess, NULL);
-  gluTessProperty(glTess.m_tess, GLU_TESS_WINDING_RULE,
-                  GLU_TESS_WINDING_POSITIVE);
-#else
-#ifdef GLU_VERSION_1_1
-  gluBeginPolygon(glTess.m_tess);
-#else
-  assert(false);
-#endif
-#endif
+  glTess.setBeginCallback((GLTess::Callback)glBegin);
+  glTess.setEndCallback((GLTess::Callback)glEnd);
+  glTess.setCombineCallback((GLTess::Callback)myCombine);
+  glTess.beginPolygon();
 
   for (TRegionOutline::Boundary::iterator poly_it = outline.m_exterior.begin();
        poly_it != outline.m_exterior.end(); ++poly_it) {
-#ifdef GLU_VERSION_1_2
-    gluTessBeginContour(glTess.m_tess);
-#else
-#ifdef GLU_VERSION_1_1
-    gluNextContour(glTess.m_tess, GLU_EXTERIOR);
-#else
-    assert(false);
-#endif
-#endif
+    glTess.beginContour(GLU_EXTERIOR);
 
     for (TRegionOutline::PointVector::iterator it = poly_it->begin();
          it != poly_it->end(); ++it)
-      gluTessVertex(glTess.m_tess, &(it->x), &(it->x));
+      glTess.addVertex(&(it->x));
 
-#ifdef GLU_VERSION_1_2
-    gluTessEndContour(glTess.m_tess);
-#endif
+    glTess.endContour();
   }
 
   int subRegionNumber = outline.m_interior.size();
@@ -247,36 +240,18 @@ void TglTessellator::doTessellate(GLTess &glTess, const TColorFunction *cf,
     for (TRegionOutline::Boundary::iterator poly_it =
              outline.m_interior.begin();
          poly_it != outline.m_interior.end(); ++poly_it) {
-#ifdef GLU_VERSION_1_2
-      gluTessBeginContour(glTess.m_tess);
-#else
-#ifdef GLU_VERSION_1_1
-      gluNextContour(glTess.m_tess, GLU_INTERIOR);
-#else
-      assert(false);
-#endif
-#endif
+      glTess.beginContour(GLU_INTERIOR);
 
       for (TRegionOutline::PointVector::reverse_iterator rit =
                poly_it->rbegin();
            rit != poly_it->rend(); ++rit)
-        gluTessVertex(glTess.m_tess, &(rit->x), &(rit->x));
+        glTess.addVertex(&(rit->x));
 
-#ifdef GLU_VERSION_1_2
-      gluTessEndContour(glTess.m_tess);
-#endif
+      glTess.endContour();
     }
   }
 
-#ifdef GLU_VERSION_1_2
-  gluTessEndPolygon(glTess.m_tess);
-#else
-#ifdef GLU_VERSION_1_1
-  gluEndPolygon(glTess.m_tess);
-#else
-  assert(false);
-#endif
-#endif
+  glTess.endPolygon();
 
   std::list<GLdouble *>::iterator beginIt, endIt;
   endIt   = Combine_data.end();
@@ -302,7 +277,7 @@ void TglTessellator::tessellate(const TColorFunction *cf,
   }
 
   TglTessellator::GLTess glTess;
-  gluTessCallback(glTess.m_tess, GLU_TESS_VERTEX, (GluCallback)glVertex3dv);
+  glTess.setVertexCallback((GLTess::Callback)glVertex3dv);
 
   //------------------------//
   doTessellate(glTess, cf, antiAliasing, outline);
@@ -421,8 +396,7 @@ void TglTessellator::tessellate(const TColorFunction *cf,
   if (texImage != texture) texImage->unlock();
 
   TglTessellator::GLTess glTess;
-  gluTessCallback(glTess.m_tess, GLU_TESS_VERTEX,
-                  (GluCallback)tessellateTexture);
+  glTess.setVertexCallback((GLTess::Callback)tessellateTexture);
   checkErrorsByGL;
 
   //------------------------//

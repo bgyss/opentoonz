@@ -47,6 +47,12 @@ public:
 
   class DVAPI GLTess {
   public:
+#ifdef _WIN32
+    typedef GLvoid(CALLBACK *Callback)(void);
+#else
+    typedef GLvoid (*Callback)();
+#endif
+
 #ifdef GLU_VERSION_1_2
     GLUtesselator *m_tess;
 #else
@@ -59,6 +65,16 @@ public:
 
     GLTess();
     ~GLTess();
+
+    void setBeginCallback(Callback callback);
+    void setEndCallback(Callback callback);
+    void setCombineCallback(Callback callback);
+    void setVertexCallback(Callback callback);
+    void beginPolygon();
+    void endPolygon();
+    void beginContour(GLenum type);
+    void endContour();
+    void addVertex(GLdouble *coords);
   };
 
 private:

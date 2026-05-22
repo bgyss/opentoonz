@@ -6,7 +6,9 @@ Status: partial Milestone 1 completed locally on 2026-05-22.
 
 This checkpoint removes GLU projection, unprojection, orthographic projection,
 pick-matrix, disk, and dead image-scaling usage while preserving the existing
-OpenGL backend. It does not replace GLU tessellation yet.
+OpenGL backend. It also isolates the `ttessellator` GLU tessellation API behind
+`TglTessellator::GLTess` methods so the rendering loops no longer call GLU's
+polygon and contour API directly.
 
 ## Files Changed
 
@@ -15,6 +17,8 @@ OpenGL backend. It does not replace GLU tessellation yet.
 - `toonz/sources/common/tgl/tgl.cpp`
 - `toonz/sources/common/tvectorrenderer.cpp`
 - `toonz/sources/toonzqt/planeviewer.cpp`
+- `toonz/sources/common/tvrender/ttessellator.cpp`
+- `toonz/sources/include/ttessellator.h`
 - `toonz/sources/toonzlib/imagebuilders.cpp`
 - `toonz/sources/toonzlib/plasticdeformerfx.cpp`
 - `toonz/sources/toonzlib/stylemanager.cpp`
@@ -33,6 +37,8 @@ OpenGL backend. It does not replace GLU tessellation yet.
 - Replaced `tglDrawDisk`'s `gluDisk` dependency with a local triangle fan.
 - Removed dead `SCALE_BY_GLU` `gluScaleImage` branches from mipmap generation;
   the active path already used `TRop::resample`.
+- Added GLU-backed adapter methods on `TglTessellator::GLTess` and moved
+  tessellation begin/end/contour/vertex callback calls behind that adapter.
 
 ## Inventory Before and After
 
@@ -51,7 +57,7 @@ source_root=toonz/sources
 all graphics markers               files=  120 matches=  2883
 Qt legacy QGL                      files=    0 matches=     0
 Qt QOpenGL                         files=   31 matches=   206
-GLU                                files=    5 matches=    85
+GLU                                files=    5 matches=    53
 GLEW or GLUT                       files=   10 matches=    30
 fixed-function drawing             files=   85 matches=  2006
 fixed-function matrix              files=   56 matches=   449
@@ -67,7 +73,8 @@ rg -n "glu(Project|UnProject|Ortho2D|PickMatrix|Disk|ScaleImage)" toonz/sources
 
 Result: no matches.
 
-Remaining GLU usage is concentrated in tessellation code:
+Remaining GLU usage is concentrated in tessellation adapters and the separate
+`tcg` triangulation helper:
 
 - `toonz/sources/common/tvrender/ttessellator.cpp`
 - `toonz/sources/include/ttessellator.h`
