@@ -70,6 +70,24 @@ void appendRectOutline(TGraphics::DrawList2D &drawList, const TRectD &rect,
   drawList.addColorLine(rect.getP01(), rect.getP00(), color, false);
 }
 
+void drawSkeletonBoneOutlineWithTGraphics(const TPointD &a, const TPointD &b,
+                                          const TPointD &u) {
+  TGraphics::DrawList2D drawList;
+  const TPixel32 outlineColor(51, 77, 89);
+  drawList.addColorLine(a + u, b, outlineColor, false);
+  drawList.addColorLine(b, a - u, outlineColor, false);
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
+
+void drawSkeletonIKBoneOutlineWithTGraphics(const TPointD &a, const TPointD &b,
+                                            const TPointD &u) {
+  TGraphics::DrawList2D drawList;
+  const TPixel32 outlineColor(51, 77, 89);
+  drawList.addColorLine(a + u, b + u, outlineColor, false);
+  drawList.addColorLine(a - u, b - u, outlineColor, false);
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
+
 }  // namespace
 
 TEnv::IntVar SkeletonGlobalKeyFrame("SkeletonToolGlobalKeyFrame", 0);
@@ -1083,12 +1101,7 @@ void SkeletonTool::drawBone(const TPointD &a, const TPointD &b, bool selected) {
   tglVertex(b);
   tglVertex(a - u);
   glEnd();
-  glColor3d(0.2, 0.3, 0.35);
-  glBegin(GL_LINE_STRIP);
-  tglVertex(a + u);
-  tglVertex(b);
-  tglVertex(a - u);
-  glEnd();
+  drawSkeletonBoneOutlineWithTGraphics(a, b, u);
 }
 
 //-------------------------------------------------------------------
@@ -1105,13 +1118,7 @@ void SkeletonTool::drawIKBone(const TPointD &a, const TPointD &b) {
   tglVertex(b - u);
   tglVertex(a - u);
   glEnd();
-  glColor3d(0.2, 0.3, 0.35);
-  glBegin(GL_LINES);
-  tglVertex(a + u);
-  tglVertex(b + u);
-  tglVertex(a - u);
-  tglVertex(b - u);
-  glEnd();
+  drawSkeletonIKBoneOutlineWithTGraphics(a, b, u);
 }
 
 //-------------------------------------------------------------------

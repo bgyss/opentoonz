@@ -197,6 +197,12 @@ color-line commands under the existing tool transforms. This preserves the
 OpenGL compatibility presentation path while giving the Metal backend the same
 line-command shape for these basic editing overlays.
 
+The skeleton bone-outline checkpoint moves the dark build-skeleton and inverse
+kinematics bone outline segments from immediate-mode `GL_LINE_STRIP`/`GL_LINES`
+to `DrawList2D` color-line commands. The translucent filled bone polygons remain
+on the existing OpenGL path until the migrated overlay surface has a stronger
+triangle/quad contract for these tapered bone bodies.
+
 ## Files Changed
 
 - `scripts/graphics_shader_inventory.sh`
@@ -660,7 +666,9 @@ handles now emit `tgraphics` color-rect commands instead of repeated direct
 drawing calls. Skeleton change-parent square gadgets now also emit `tgraphics`
 color-rect and color-line commands instead of direct rectangle drawing calls.
 Edit-tool object axes and center crosses now emit `tgraphics` color-line
-commands instead of direct immediate-mode `GL_LINES`.
+commands instead of direct immediate-mode `GL_LINES`. Skeleton bone and IK-bone
+outline segments now also emit `tgraphics` color-line commands instead of direct
+immediate-mode line drawing.
 Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
 effects and by moving the remaining preview/export and style-editor surfaces
 through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene
