@@ -1,8 +1,8 @@
 # macOS Graphics Modernization Milestone 3 Metal Probe Report
 
 Status: initial Milestone 3 build/probe, render-target, textured-draw,
-offscreen-readback, replace/blend pipeline, and automated probe slices completed
-locally on 2026-05-22.
+offscreen-readback, replace/blend pipeline, OpenGL baseline comparison, and
+automated probe slices completed locally on 2026-05-22.
 
 ## Objective
 
@@ -11,9 +11,10 @@ This checkpoint adds the first native macOS Metal implementation behind
 code, link against `Metal.framework` and `QuartzCore.framework`, create a
 default `MTLDevice`, create a command queue, configure a CAMetalLayer render
 target, compile a minimal Metal shader pipeline, upload raster textures, encode
-textured quad draws with replace and source-over alpha blending modes, read back
-offscreen Metal targets, and run an automated offscreen Metal validation probe
-while preserving OpenGL as the active renderer.
+textured quad draws with replace and OpenGL-compatible alpha blending modes,
+read back offscreen Metal targets, run the same draw lists through an offscreen
+OpenGL baseline, and run an automated Metal/OpenGL validation probe while
+preserving OpenGL as the active renderer.
 
 This is not yet a visible Metal scene viewer. The active backend intentionally
 continues to fall back to OpenGL until a Metal render target is wired into the
@@ -27,6 +28,7 @@ Qt viewer hierarchy.
 - `toonz/sources/common/tgraphics/tgraphics_metal_probe.cpp`
 - `toonz/sources/common/tgraphics/tgraphics_metal_shaders.metal`
 - `toonz/sources/tnzcore/CMakeLists.txt`
+- `nix/opentoonz-env.nix`
 
 ## Changes
 
@@ -40,6 +42,9 @@ Qt viewer hierarchy.
 - Added `TGraphics::createMetalImageRenderTarget(...)` and
   `TGraphics::readMetalRenderTarget(...)` so future validation can render a
   `DrawList2D` into an offscreen Metal texture and compare it with OpenGL output.
+- Added `TGraphics::createOpenGLImageRenderTarget(...)` and
+  `TGraphics::readOpenGLRenderTarget(...)` for a narrow Qt/FBO-backed OpenGL
+  baseline path used by the probe.
 - Added `tgraphics_metal.mm`, compiled only on macOS when
   `WITH_GRAPHICS_METAL=ON`.
 - Created a native Metal state object with:
@@ -60,16 +65,23 @@ Qt viewer hierarchy.
   - triangle draws for `DrawList2D` texture quads
   - per-quad `TextureQuad::m_blending` handling
   - drawable presentation
+- Matched Metal alpha blending to the existing `tglDraw` OpenGL baseline:
+  `GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA` for both color and alpha channels.
 - Added `MetalTextureRenderTarget` for offscreen render/readback validation.
 - Added the `tgraphics_metal_probe` executable when `WITH_GRAPHICS_METAL=ON` on
   macOS. It renders an inset opaque gradient `DrawList2D` texture through the
   Metal offscreen target, verifies that untouched pixels remain transparent,
   reads the target back, and fails on any pixel mismatch. It also renders a
   second alpha case that replaces a solid base, replaces an opaque gradient
-  region, and then source-over blends a semi-transparent overlay across both
-  regions.
+  region, and then blends a semi-transparent overlay across both regions using
+  the same alpha behavior as the OpenGL baseline.
+- The probe now renders both cases through Metal and OpenGL and fails on any
+  pixel mismatch outside a one-channel tolerance.
 - Added `tgraphics_metal_shaders.metal` to keep the minimal vertex/fragment
   shader source visible in the build tree.
+- Exported `QT_PLUGIN_PATH` from the Nix dev shell using the existing
+  `OPENTOONZ_QT_PLUGIN_DIRS` value so Qt-based command-line probes can find the
+  Cocoa platform plugin.
 - Linked `tnzcore` against `Metal.framework` only when
   `WITH_GRAPHICS_METAL=ON`.
 - Linked `tnzcore` against `QuartzCore.framework` only when
@@ -79,21 +91,23 @@ Qt viewer hierarchy.
 - Kept `TGraphics::activeDevice()` returning the OpenGL device so the converted
   scene-viewer path remains functional.
 
-## Inventory Before and After
+## Inventory After
 
-The graphics inventory is unchanged by this native Metal probe:
+The OpenGL baseline target intentionally adds a small number of Qt/OpenGL
+references to `tgraphics.cpp` so the Metal probe can compare against the current
+OpenGL `DrawList2D` behavior:
 
 ```text
 OpenToonz graphics API inventory
 source_root=toonz/sources
 
-all graphics markers               files=  120 matches=  2869
+all graphics markers               files=  121 matches=  2890
 Qt legacy QGL                      files=    0 matches=     0
-Qt QOpenGL                         files=   31 matches=   206
+Qt QOpenGL                         files=   32 matches=   216
 GLU                                files=    5 matches=    53
 GLEW or GLUT                       files=   10 matches=    30
 fixed-function drawing             files=   85 matches=  2026
-fixed-function matrix              files=   56 matches=   449
+fixed-function matrix              files=   57 matches=   460
 glDrawPixels                       files=    4 matches=    10
 OpenGL selection                   files=    5 matches=    95
 ```
@@ -121,7 +135,8 @@ the CMake target metadata, links `tnzcore` against Metal and QuartzCore, builds
 `tgraphics_metal_probe`, and links `OpenToonz.app`.
 
 Probe output after validating transparent clear pixels, opaque replace drawing,
-and source-over alpha blending over both solid and gradient destinations:
+OpenGL-compatible alpha blending over both solid and gradient destinations, and
+Metal/OpenGL readback parity:
 
 ```text
 tgraphics_metal_probe: ok on Apple M1 Max
@@ -138,13 +153,14 @@ OpenGL even if `OPENTOONZ_GRAPHICS_BACKEND=metal` is requested.
 - Metal shader source is present in the build tree, but the experimental
   backend still compiles the same small shader source at runtime; app-bundle
   shader packaging is a later Milestone 5/6 concern.
+- The OpenGL baseline target is intentionally narrow and exists for
+  `DrawList2D` probe parity; it is not a replacement for `qtofflinegl`.
 - `OPENTOONZ_GRAPHICS_BACKEND=metal` still falls back to OpenGL.
 
 ## Next Milestone 3 Work
 
 - Integrate the CAMetalLayer render target with a narrow Qt viewer/native-view
   path.
-- Expand the offscreen probe into an image-diff harness with an OpenGL baseline
-  comparison.
+- Expand the offscreen probe from synthetic quads into baseline scene fixtures.
 - Route only a narrow scene-viewer path to the Metal command encoder once
   drawable lifecycle and fallback behavior are stable.

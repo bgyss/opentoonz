@@ -12,7 +12,7 @@ namespace TGraphics {
 namespace {
 
 struct MetalState {
-  id<MTLDevice> m_device = nil;
+  id<MTLDevice> m_device             = nil;
   id<MTLCommandQueue> m_commandQueue = nil;
   std::string m_deviceName;
 
@@ -66,8 +66,7 @@ class MetalLayerRenderTarget final : public RenderTarget {
   double m_scale        = 1.0;
 
 public:
-  MetalLayerRenderTarget(CAMetalLayer *layer, int width, int height,
-                         double devicePixelRatio)
+  MetalLayerRenderTarget(CAMetalLayer *layer, int width, int height, double devicePixelRatio)
       : m_layer(layer)
       , m_width(std::max(1, width))
       , m_height(std::max(1, height))
@@ -144,10 +143,8 @@ public:
     MetalState &state = metalState();
     if (!state.m_device || !state.m_commandQueue) return;
 
-    MetalLayerRenderTarget *layerTarget =
-        dynamic_cast<MetalLayerRenderTarget *>(m_target);
-    MetalTextureRenderTarget *textureTarget =
-        dynamic_cast<MetalTextureRenderTarget *>(m_target);
+    MetalLayerRenderTarget *layerTarget     = dynamic_cast<MetalLayerRenderTarget *>(m_target);
+    MetalTextureRenderTarget *textureTarget = dynamic_cast<MetalTextureRenderTarget *>(m_target);
 
     id<CAMetalDrawable> drawable = nil;
     id<MTLTexture> renderTexture = nil;
@@ -160,21 +157,20 @@ public:
     }
     if (!renderTexture) return;
 
-    MTLRenderPassDescriptor *pass = [MTLRenderPassDescriptor renderPassDescriptor];
+    MTLRenderPassDescriptor *pass        = [MTLRenderPassDescriptor renderPassDescriptor];
     pass.colorAttachments[0].texture     = renderTexture;
     pass.colorAttachments[0].loadAction  = MTLLoadActionClear;
     pass.colorAttachments[0].storeAction = MTLStoreActionStore;
     pass.colorAttachments[0].clearColor  = MTLClearColorMake(0.0, 0.0, 0.0, 0.0);
 
     id<MTLCommandBuffer> commandBuffer = [state.m_commandQueue commandBuffer];
-    commandBuffer.label = @"OpenToonz TGraphics";
+    commandBuffer.label                = @"OpenToonz TGraphics";
 
-    id<MTLRenderCommandEncoder> encoder =
-        [commandBuffer renderCommandEncoderWithDescriptor:pass];
-    encoder.label = @"DrawList2D";
+    id<MTLRenderCommandEncoder> encoder = [commandBuffer renderCommandEncoderWithDescriptor:pass];
+    encoder.label                       = @"DrawList2D";
 
     id<MTLRenderPipelineState> defaultPipeline = pipelineState(false);
-    id<MTLSamplerState> sampler         = samplerState();
+    id<MTLSamplerState> sampler                = samplerState();
     if (!defaultPipeline || !sampler) {
       [encoder endEncoding];
       if (drawable) [commandBuffer presentDrawable:drawable];
@@ -185,8 +181,7 @@ public:
     [encoder setFragmentSamplerState:sampler atIndex:0];
 
     for (const TextureQuad &quad : drawList.textureQuads()) {
-      const RasterTexture *texture =
-          dynamic_cast<const RasterTexture *>(quad.m_texture.get());
+      const RasterTexture *texture = dynamic_cast<const RasterTexture *>(quad.m_texture.get());
       if (!texture || !texture->raster()) continue;
 
       id<MTLTexture> metalTexture = upload(texture->raster());
@@ -217,42 +212,36 @@ private:
     static bool attemptedReplace                      = false;
     static bool attemptedBlend                        = false;
 
-    id<MTLRenderPipelineState> &pipeline =
-        blending ? blendPipeline : replacePipeline;
-    bool &attempted = blending ? attemptedBlend : attemptedReplace;
+    id<MTLRenderPipelineState> &pipeline = blending ? blendPipeline : replacePipeline;
+    bool &attempted                      = blending ? attemptedBlend : attemptedReplace;
     if (attempted) return pipeline;
     attempted = true;
 
-    MetalState &state = metalState();
-    NSError *error    = nil;
-    id<MTLLibrary> library =
-        [state.m_device newLibraryWithSource:shaderSource() options:nil error:&error];
+    MetalState &state      = metalState();
+    NSError *error         = nil;
+    id<MTLLibrary> library = [state.m_device newLibraryWithSource:shaderSource()
+                                                          options:nil
+                                                            error:&error];
     if (!library) return nil;
 
-    id<MTLFunction> vertexFunction =
-        [library newFunctionWithName:@"tgraphicsVertex"];
-    id<MTLFunction> fragmentFunction =
-        [library newFunctionWithName:@"tgraphicsFragment"];
+    id<MTLFunction> vertexFunction   = [library newFunctionWithName:@"tgraphicsVertex"];
+    id<MTLFunction> fragmentFunction = [library newFunctionWithName:@"tgraphicsFragment"];
 
-    MTLRenderPipelineDescriptor *descriptor =
-        [[MTLRenderPipelineDescriptor alloc] init];
-    descriptor.label                          = @"OpenToonz TGraphics Texture";
-    descriptor.vertexFunction                 = vertexFunction;
-    descriptor.fragmentFunction               = fragmentFunction;
-    descriptor.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
+    MTLRenderPipelineDescriptor *descriptor        = [[MTLRenderPipelineDescriptor alloc] init];
+    descriptor.label                               = @"OpenToonz TGraphics Texture";
+    descriptor.vertexFunction                      = vertexFunction;
+    descriptor.fragmentFunction                    = fragmentFunction;
+    descriptor.colorAttachments[0].pixelFormat     = MTLPixelFormatBGRA8Unorm;
     descriptor.colorAttachments[0].blendingEnabled = blending ? YES : NO;
     if (blending) {
-      descriptor.colorAttachments[0].sourceRGBBlendFactor =
-          MTLBlendFactorSourceAlpha;
-      descriptor.colorAttachments[0].destinationRGBBlendFactor =
-          MTLBlendFactorOneMinusSourceAlpha;
-      descriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorOne;
+      descriptor.colorAttachments[0].sourceRGBBlendFactor      = MTLBlendFactorSourceAlpha;
+      descriptor.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+      descriptor.colorAttachments[0].sourceAlphaBlendFactor    = MTLBlendFactorSourceAlpha;
       descriptor.colorAttachments[0].destinationAlphaBlendFactor =
           MTLBlendFactorOneMinusSourceAlpha;
     }
 
-    pipeline = [state.m_device newRenderPipelineStateWithDescriptor:descriptor
-                                                              error:&error];
+    pipeline = [state.m_device newRenderPipelineStateWithDescriptor:descriptor error:&error];
 
 #if !__has_feature(objc_arc)
     [descriptor release];
@@ -268,13 +257,13 @@ private:
     static id<MTLSamplerState> sampler = nil;
     if (sampler) return sampler;
 
-    MetalState &state                 = metalState();
-    MTLSamplerDescriptor *descriptor  = [[MTLSamplerDescriptor alloc] init];
-    descriptor.minFilter              = MTLSamplerMinMagFilterLinear;
-    descriptor.magFilter              = MTLSamplerMinMagFilterLinear;
-    descriptor.sAddressMode           = MTLSamplerAddressModeClampToEdge;
-    descriptor.tAddressMode           = MTLSamplerAddressModeClampToEdge;
-    sampler                           = [state.m_device newSamplerStateWithDescriptor:descriptor];
+    MetalState &state                = metalState();
+    MTLSamplerDescriptor *descriptor = [[MTLSamplerDescriptor alloc] init];
+    descriptor.minFilter             = MTLSamplerMinMagFilterLinear;
+    descriptor.magFilter             = MTLSamplerMinMagFilterLinear;
+    descriptor.sAddressMode          = MTLSamplerAddressModeClampToEdge;
+    descriptor.tAddressMode          = MTLSamplerAddressModeClampToEdge;
+    sampler                          = [state.m_device newSamplerStateWithDescriptor:descriptor];
 
 #if !__has_feature(objc_arc)
     [descriptor release];
@@ -294,7 +283,7 @@ private:
                                                            width:width
                                                           height:height
                                                        mipmapped:NO];
-    descriptor.usage = MTLTextureUsageShaderRead;
+    descriptor.usage       = MTLTextureUsageShaderRead;
     id<MTLTexture> texture = [state.m_device newTextureWithDescriptor:descriptor];
     if (!texture) return nil;
 
@@ -327,17 +316,14 @@ private:
              {left, bottom, 0.0f, 1.0f}}};
   }
 
-  float pixelToClipX(double x) const {
-    return static_cast<float>((2.0 * x / targetWidth()) - 1.0);
-  }
+  float pixelToClipX(double x) const { return static_cast<float>((2.0 * x / targetWidth()) - 1.0); }
 
   float pixelToClipY(double y) const {
     return static_cast<float>(1.0 - (2.0 * y / targetHeight()));
   }
 
   int targetWidth() const {
-    if (MetalLayerRenderTarget *layerTarget =
-            dynamic_cast<MetalLayerRenderTarget *>(m_target)) {
+    if (MetalLayerRenderTarget *layerTarget = dynamic_cast<MetalLayerRenderTarget *>(m_target)) {
       return layerTarget->width();
     }
     if (MetalTextureRenderTarget *textureTarget =
@@ -348,8 +334,7 @@ private:
   }
 
   int targetHeight() const {
-    if (MetalLayerRenderTarget *layerTarget =
-            dynamic_cast<MetalLayerRenderTarget *>(m_target)) {
+    if (MetalLayerRenderTarget *layerTarget = dynamic_cast<MetalLayerRenderTarget *>(m_target)) {
       return layerTarget->height();
     }
     if (MetalTextureRenderTarget *textureTarget =
@@ -364,8 +349,7 @@ class MetalDevice final : public Device {
 public:
   BackendType backendType() const override { return BackendType::Metal; }
 
-  std::unique_ptr<CommandEncoder> createCommandEncoder(
-      RenderTarget *target = 0) override {
+  std::unique_ptr<CommandEncoder> createCommandEncoder(RenderTarget *target = 0) override {
     return std::unique_ptr<CommandEncoder>(new MetalCommandEncoder(target));
   }
 };
@@ -387,8 +371,9 @@ const char *probeMetalDeviceName() {
   return probeMetalDevice() ? state.m_deviceName.c_str() : "";
 }
 
-std::unique_ptr<RenderTarget> createNativeMetalLayerRenderTarget(
-    void *metalLayer, int width, int height, double devicePixelRatio) {
+std::unique_ptr<RenderTarget> createNativeMetalLayerRenderTarget(void *metalLayer, int width,
+                                                                 int height,
+                                                                 double devicePixelRatio) {
   if (!probeMetalDevice() || !metalLayer) return std::unique_ptr<RenderTarget>();
 
   CAMetalLayer *layer = static_cast<CAMetalLayer *>(metalLayer);
@@ -400,14 +385,11 @@ std::unique_ptr<RenderTarget> createNativeMetalLayerRenderTarget(
       new MetalLayerRenderTarget(layer, width, height, devicePixelRatio));
 }
 
-std::unique_ptr<RenderTarget> createNativeMetalImageRenderTarget(int width,
-                                                                 int height) {
+std::unique_ptr<RenderTarget> createNativeMetalImageRenderTarget(int width, int height) {
   if (!probeMetalDevice()) return std::unique_ptr<RenderTarget>();
 
-  std::unique_ptr<RenderTarget> target(
-      new MetalTextureRenderTarget(width, height));
-  MetalTextureRenderTarget *textureTarget =
-      dynamic_cast<MetalTextureRenderTarget *>(target.get());
+  std::unique_ptr<RenderTarget> target(new MetalTextureRenderTarget(width, height));
+  MetalTextureRenderTarget *textureTarget = dynamic_cast<MetalTextureRenderTarget *>(target.get());
   if (!textureTarget->texture()) return std::unique_ptr<RenderTarget>();
   return target;
 }
@@ -417,18 +399,16 @@ bool isNativeMetalLayerRenderTarget(const RenderTarget *target) {
 }
 
 TRaster32P readNativeMetalRenderTarget(RenderTarget *target) {
-  MetalTextureRenderTarget *textureTarget =
-      dynamic_cast<MetalTextureRenderTarget *>(target);
+  MetalTextureRenderTarget *textureTarget = dynamic_cast<MetalTextureRenderTarget *>(target);
   if (!textureTarget || !textureTarget->texture()) return TRaster32P();
 
   TRaster32P raster(textureTarget->width(), textureTarget->height());
   raster->lock();
-  const MTLRegion region =
-      MTLRegionMake2D(0, 0, textureTarget->width(), textureTarget->height());
+  const MTLRegion region = MTLRegionMake2D(0, 0, textureTarget->width(), textureTarget->height());
   [textureTarget->texture() getBytes:raster->pixels(0)
                          bytesPerRow:raster->getWrap() * sizeof(TPixel32)
-                           fromRegion:region
-                          mipmapLevel:0];
+                          fromRegion:region
+                         mipmapLevel:0];
   raster->unlock();
   return raster;
 }

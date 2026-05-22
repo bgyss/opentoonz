@@ -2,31 +2,39 @@
 
 #include "tgl.h"
 
+#include <QGuiApplication>
+#include <QOffscreenSurface>
+#include <QOpenGLContext>
+#include <QOpenGLFramebufferObject>
+#include <QOpenGLFramebufferObjectFormat>
+#include <QSurfaceFormat>
+
 #include <algorithm>
 #include <cassert>
 #include <cctype>
 #include <cstdlib>
 #include <iostream>
 #include <string>
+#include <vector>
 
 namespace TGraphics {
 
 #ifdef OPENTOONZ_WITH_GRAPHICS_METAL
-Device &nativeMetalDevice();
+Device& nativeMetalDevice();
 bool probeMetalDevice();
-const char *probeMetalDeviceName();
+const char* probeMetalDeviceName();
 std::unique_ptr<RenderTarget> createNativeMetalLayerRenderTarget(
-    void *metalLayer, int width, int height, double devicePixelRatio);
+    void* metalLayer, int width, int height, double devicePixelRatio);
 std::unique_ptr<RenderTarget> createNativeMetalImageRenderTarget(int width,
                                                                  int height);
-bool isNativeMetalLayerRenderTarget(const RenderTarget *target);
-TRaster32P readNativeMetalRenderTarget(RenderTarget *target);
+bool isNativeMetalLayerRenderTarget(const RenderTarget* target);
+TRaster32P readNativeMetalRenderTarget(RenderTarget* target);
 #endif
 
 namespace {
 
 std::string normalizedBackendName() {
-  const char *value = std::getenv("OPENTOONZ_GRAPHICS_BACKEND");
+  const char* value = std::getenv("OPENTOONZ_GRAPHICS_BACKEND");
   if (!value) return std::string();
 
   std::string name(value);
@@ -67,11 +75,11 @@ HitTest::~HitTest() {}
 CommandEncoder::~CommandEncoder() {}
 Device::~Device() {}
 
-RasterTexture::RasterTexture(const TRaster32P &raster) : m_raster(raster) {}
+RasterTexture::RasterTexture(const TRaster32P& raster) : m_raster(raster) {}
 
-const TRaster32P &RasterTexture::raster() const { return m_raster; }
+const TRaster32P& RasterTexture::raster() const { return m_raster; }
 
-void DrawList2D::addTexture(const TRectD &rect, const TRaster32P &raster,
+void DrawList2D::addTexture(const TRectD& rect, const TRaster32P& raster,
                             bool blending) {
   TextureQuad quad;
   quad.m_rect     = rect;
@@ -80,25 +88,113 @@ void DrawList2D::addTexture(const TRectD &rect, const TRaster32P &raster,
   m_textureQuads.push_back(quad);
 }
 
-const std::vector<TextureQuad> &DrawList2D::textureQuads() const {
+const std::vector<TextureQuad>& DrawList2D::textureQuads() const {
   return m_textureQuads;
 }
 
 bool DrawList2D::empty() const { return m_textureQuads.empty(); }
 
-class OpenGLCommandEncoder final : public CommandEncoder {
+class OpenGLImageRenderTarget final : public RenderTarget {
+  std::unique_ptr<QOffscreenSurface> m_surface;
+  std::unique_ptr<QOpenGLContext> m_context;
+  std::unique_ptr<QOpenGLFramebufferObject> m_fbo;
+  int m_width  = 0;
+  int m_height = 0;
+
 public:
+  OpenGLImageRenderTarget(int width, int height)
+      : m_width(std::max(1, width)), m_height(std::max(1, height)) {
+    if (!QGuiApplication::instance()) return;
+
+    QSurfaceFormat format = QSurfaceFormat::defaultFormat();
+    format.setProfile(QSurfaceFormat::CompatibilityProfile);
+
+    m_surface.reset(new QOffscreenSurface());
+    m_surface->setFormat(format);
+    m_surface->create();
+    if (!m_surface->isValid()) return;
+
+    m_context.reset(new QOpenGLContext());
+    m_context->setFormat(format);
+    if (!m_context->create()) return;
+    if (!m_context->makeCurrent(m_surface.get())) return;
+
+    QOpenGLFramebufferObjectFormat fboFormat;
+    fboFormat.setAttachment(QOpenGLFramebufferObject::CombinedDepthStencil);
+    m_fbo.reset(new QOpenGLFramebufferObject(m_width, m_height, fboFormat));
+    m_fbo->bind();
+  }
+
+  bool isValid() const { return m_context && m_surface && m_fbo; }
+  int width() const { return m_width; }
+  int height() const { return m_height; }
+
+  void makeCurrent() {
+    if (isValid()) m_context->makeCurrent(m_surface.get());
+  }
+
+  void doneCurrent() {
+    if (m_context) m_context->doneCurrent();
+  }
+
+  QOpenGLFramebufferObject* fbo() const { return m_fbo.get(); }
+};
+
+class OpenGLCommandEncoder final : public CommandEncoder {
+  RenderTarget* m_target = nullptr;
+
+public:
+  explicit OpenGLCommandEncoder(RenderTarget* target) : m_target(target) {}
+
   BackendType backendType() const override { return BackendType::OpenGL; }
 
-  void draw(const DrawList2D &drawList) override {
-    for (const TextureQuad &quad : drawList.textureQuads()) {
-      const RasterTexture *texture =
-          dynamic_cast<const RasterTexture *>(quad.m_texture.get());
+  void draw(const DrawList2D& drawList) override {
+    OpenGLImageRenderTarget* imageTarget =
+        dynamic_cast<OpenGLImageRenderTarget*>(m_target);
+    if (imageTarget) beginImageTargetDraw(*imageTarget);
+
+    for (const TextureQuad& quad : drawList.textureQuads()) {
+      const RasterTexture* texture =
+          dynamic_cast<const RasterTexture*>(quad.m_texture.get());
       assert(texture);
       if (!texture) continue;
 
       tglDraw(quad.m_rect, texture->raster(), quad.m_blending);
     }
+
+    if (imageTarget) endImageTargetDraw(*imageTarget);
+  }
+
+private:
+  void beginImageTargetDraw(OpenGLImageRenderTarget& target) {
+    target.makeCurrent();
+    target.fbo()->bind();
+
+    glViewport(0, 0, target.width(), target.height());
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_SCISSOR_TEST);
+    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    glOrtho(0.0, target.width(), target.height(), 0.0, -1.0, 1.0);
+
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+  }
+
+  void endImageTargetDraw(OpenGLImageRenderTarget& target) {
+    glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glFlush();
+
+    target.fbo()->release();
+    target.doneCurrent();
   }
 };
 
@@ -107,18 +203,54 @@ public:
   BackendType backendType() const override { return BackendType::OpenGL; }
 
   std::unique_ptr<CommandEncoder> createCommandEncoder(
-      RenderTarget *target = 0) override {
-    (void)target;
-    return std::unique_ptr<CommandEncoder>(new OpenGLCommandEncoder());
+      RenderTarget* target = 0) override {
+    return std::unique_ptr<CommandEncoder>(new OpenGLCommandEncoder(target));
   }
 };
 
-Device &openGLDevice() {
+Device& openGLDevice() {
   static OpenGLDevice device;
   return device;
 }
 
-Device &metalDevice() {
+std::unique_ptr<RenderTarget> createOpenGLImageRenderTarget(int width,
+                                                            int height) {
+  std::unique_ptr<OpenGLImageRenderTarget> target(
+      new OpenGLImageRenderTarget(width, height));
+  if (!target->isValid()) return std::unique_ptr<RenderTarget>();
+  return std::unique_ptr<RenderTarget>(target.release());
+}
+
+TRaster32P readOpenGLRenderTarget(RenderTarget* target) {
+  OpenGLImageRenderTarget* imageTarget =
+      dynamic_cast<OpenGLImageRenderTarget*>(target);
+  if (!imageTarget || !imageTarget->isValid()) return TRaster32P();
+
+  const int width  = imageTarget->width();
+  const int height = imageTarget->height();
+  std::vector<unsigned char> pixels(width * height * 4);
+
+  imageTarget->makeCurrent();
+  imageTarget->fbo()->bind();
+  glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+  imageTarget->fbo()->release();
+  imageTarget->doneCurrent();
+
+  TRaster32P raster(width, height);
+  raster->lock();
+  for (int y = 0; y < height; ++y) {
+    TPixel32* line           = raster->pixels(y);
+    const unsigned char* src = pixels.data() + (height - 1 - y) * width * 4;
+    for (int x = 0; x < width; ++x) {
+      line[x] = TPixel32(src[x * 4 + 0], src[x * 4 + 1], src[x * 4 + 2],
+                         src[x * 4 + 3]);
+    }
+  }
+  raster->unlock();
+  return raster;
+}
+
+Device& metalDevice() {
 #ifdef OPENTOONZ_WITH_GRAPHICS_METAL
   return nativeMetalDevice();
 #else
@@ -142,7 +274,7 @@ bool isMetalDeviceAvailable() {
 #endif
 }
 
-const char *metalDeviceName() {
+const char* metalDeviceName() {
 #ifdef OPENTOONZ_WITH_GRAPHICS_METAL
   return probeMetalDeviceName();
 #else
@@ -151,7 +283,7 @@ const char *metalDeviceName() {
 }
 
 std::unique_ptr<RenderTarget> createMetalLayerRenderTarget(
-    void *metalLayer, int width, int height, double devicePixelRatio) {
+    void* metalLayer, int width, int height, double devicePixelRatio) {
 #ifdef OPENTOONZ_WITH_GRAPHICS_METAL
   return createNativeMetalLayerRenderTarget(metalLayer, width, height,
                                             devicePixelRatio);
@@ -175,7 +307,7 @@ std::unique_ptr<RenderTarget> createMetalImageRenderTarget(int width,
 #endif
 }
 
-bool isMetalLayerRenderTarget(const RenderTarget *target) {
+bool isMetalLayerRenderTarget(const RenderTarget* target) {
 #ifdef OPENTOONZ_WITH_GRAPHICS_METAL
   return isNativeMetalLayerRenderTarget(target);
 #else
@@ -184,7 +316,7 @@ bool isMetalLayerRenderTarget(const RenderTarget *target) {
 #endif
 }
 
-TRaster32P readMetalRenderTarget(RenderTarget *target) {
+TRaster32P readMetalRenderTarget(RenderTarget* target) {
 #ifdef OPENTOONZ_WITH_GRAPHICS_METAL
   return readNativeMetalRenderTarget(target);
 #else
@@ -214,7 +346,7 @@ BackendType activeBackendType() {
   return BackendType::OpenGL;
 }
 
-Device &activeDevice() {
+Device& activeDevice() {
   if (requestedBackendType() == BackendType::Metal &&
       !isMetalBackendAvailable()) {
     warnMetalUnavailableOnce();
@@ -223,13 +355,13 @@ Device &activeDevice() {
   return openGLDevice();
 }
 
-void drawWithOpenGLBackend(const DrawList2D &drawList) {
+void drawWithOpenGLBackend(const DrawList2D& drawList) {
   std::unique_ptr<CommandEncoder> encoder =
       openGLDevice().createCommandEncoder();
   encoder->draw(drawList);
 }
 
-void drawWithActiveBackend(const DrawList2D &drawList) {
+void drawWithActiveBackend(const DrawList2D& drawList) {
   std::unique_ptr<CommandEncoder> encoder =
       activeDevice().createCommandEncoder();
   encoder->draw(drawList);

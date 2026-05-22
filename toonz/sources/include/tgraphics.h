@@ -64,9 +64,9 @@ class DVAPI RasterTexture final : public Texture {
   TRaster32P m_raster;
 
 public:
-  explicit RasterTexture(const TRaster32P &raster);
+  explicit RasterTexture(const TRaster32P& raster);
 
-  const TRaster32P &raster() const;
+  const TRaster32P& raster() const;
 };
 
 struct DVAPI TextureQuad final {
@@ -79,9 +79,9 @@ class DVAPI DrawList2D final {
   std::vector<TextureQuad> m_textureQuads;
 
 public:
-  void addTexture(const TRectD &rect, const TRaster32P &raster, bool blending);
+  void addTexture(const TRectD& rect, const TRaster32P& raster, bool blending);
 
-  const std::vector<TextureQuad> &textureQuads() const;
+  const std::vector<TextureQuad>& textureQuads() const;
   bool empty() const;
 };
 
@@ -89,8 +89,8 @@ class DVAPI CommandEncoder {
 public:
   virtual ~CommandEncoder();
 
-  virtual BackendType backendType() const = 0;
-  virtual void draw(const DrawList2D &drawList) = 0;
+  virtual BackendType backendType() const       = 0;
+  virtual void draw(const DrawList2D& drawList) = 0;
 };
 
 class DVAPI Device {
@@ -99,26 +99,29 @@ public:
 
   virtual BackendType backendType() const = 0;
   virtual std::unique_ptr<CommandEncoder> createCommandEncoder(
-      RenderTarget *target = 0) = 0;
+      RenderTarget* target = 0) = 0;
 };
 
-DVAPI Device &openGLDevice();
-DVAPI Device &metalDevice();
+DVAPI Device& openGLDevice();
+DVAPI Device& metalDevice();
+DVAPI std::unique_ptr<RenderTarget> createOpenGLImageRenderTarget(int width,
+                                                                  int height);
+DVAPI TRaster32P readOpenGLRenderTarget(RenderTarget* target);
 DVAPI bool isMetalBuildEnabled();
 DVAPI bool isMetalDeviceAvailable();
-DVAPI const char *metalDeviceName();
+DVAPI const char* metalDeviceName();
 DVAPI std::unique_ptr<RenderTarget> createMetalLayerRenderTarget(
-    void *metalLayer, int width, int height, double devicePixelRatio);
+    void* metalLayer, int width, int height, double devicePixelRatio);
 DVAPI std::unique_ptr<RenderTarget> createMetalImageRenderTarget(int width,
                                                                  int height);
-DVAPI bool isMetalLayerRenderTarget(const RenderTarget *target);
-DVAPI TRaster32P readMetalRenderTarget(RenderTarget *target);
+DVAPI bool isMetalLayerRenderTarget(const RenderTarget* target);
+DVAPI TRaster32P readMetalRenderTarget(RenderTarget* target);
 DVAPI bool isMetalBackendAvailable();
 DVAPI BackendType requestedBackendType();
 DVAPI BackendType activeBackendType();
-DVAPI Device &activeDevice();
-DVAPI void drawWithOpenGLBackend(const DrawList2D &drawList);
-DVAPI void drawWithActiveBackend(const DrawList2D &drawList);
+DVAPI Device& activeDevice();
+DVAPI void drawWithOpenGLBackend(const DrawList2D& drawList);
+DVAPI void drawWithActiveBackend(const DrawList2D& drawList);
 
 }  // namespace TGraphics
 
