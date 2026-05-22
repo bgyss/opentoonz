@@ -7,7 +7,9 @@ command, and first direct Metal camera color-card command completed locally on
 2026-05-22. Direct axis-aligned camera outline line commands and direct
 checkerboard background commands are now also validated through the
 Metal/OpenGL probe. Direct transformed texture-quad commands and the first
-direct Metal preview-raster presentation path are now also in place.
+direct Metal preview-raster presentation path are now also in place. Eligible
+normal scene `TRaster32P` nodes now have a conservative direct Metal emission
+path before the compatibility OpenGL compositor runs.
 
 ## Objective
 
@@ -29,16 +31,18 @@ and a direct camera outline for the narrow non-3D viewer path, plus a direct
 checkerboard background when the viewer Transparency Check is enabled. It now
 also supports explicit four-corner texture quads so viewer rasters can be
 submitted with camera/view transforms instead of only as axis-aligned
-screen-space rectangles.
+screen-space rectangles. The normal 2D scene `Stage::RasterPainter` can now
+append simple full-color raster nodes to a direct Metal draw list before it
+falls back to the existing CPU raster composition and OpenGL upload.
 
 This is not yet a full native Metal scene renderer. Scene composition still
 comes from the existing OpenGL viewer path, then the captured viewer framebuffer
 is uploaded to Metal and presented through `DrawList2D`. The direct Metal
-background/checkerboard/color-card/outline/preview-raster work is
-intentionally narrow and is immediately followed by that compatibility snapshot.
-This is a deliberate transitional slice to validate Qt/native-view ownership,
-drawable lifecycle, direct command encoding, and Metal presentation before
-porting scene internals.
+background/checkerboard/color-card/outline/preview-raster/simple-scene-raster
+work is intentionally narrow and is immediately followed by that compatibility
+snapshot. This is a deliberate transitional slice to validate Qt/native-view
+ownership, drawable lifecycle, direct command encoding, and Metal presentation
+before porting scene internals.
 
 ## Files Changed
 
@@ -49,6 +53,8 @@ porting scene internals.
 - `toonz/sources/common/tgraphics/tgraphics_metal_shaders.metal`
 - `toonz/sources/tnzcore/CMakeLists.txt`
 - `nix/opentoonz-env.nix`
+- `toonz/sources/include/toonz/stagevisitor.h`
+- `toonz/sources/toonzlib/stagevisitor.cpp`
 - `toonz/sources/toonz/sceneviewer.cpp`
 - `toonz/sources/toonz/sceneviewer.h`
 
@@ -168,6 +174,15 @@ porting scene internals.
   and `OPENTOONZ_GRAPHICS_BACKEND=metal` is active. The legacy OpenGL preview
   draw still runs afterward for fallback behavior and for the compatibility
   framebuffer snapshot.
+- Added `Stage::RasterPainter::appendDirectRasterTextureQuads(...)`, a
+  conservative bridge that emits eligible scene raster nodes as direct Metal
+  texture quads without clearing the existing raster-node list.
+- `SceneViewer::drawScene()` now asks `RasterPainter` for those direct raster
+  texture quads before calling the existing `flushRasterImages()` OpenGL path.
+  The bridge only emits straightforward `TRaster32P` nodes: no active visual
+  checks, channel masks, onion skin coloring, column opacity, filter colors,
+  premultiply/white-transparent conversion, ignored alpha, or darken-blended
+  raster view mode.
 - Linked `tnzcore` against `Metal.framework` only when
   `WITH_GRAPHICS_METAL=ON`.
 - Linked `tnzcore` against `QuartzCore.framework` only when
@@ -248,11 +263,17 @@ inside the full UI.
 - Qt native-view integration exists only for presenting a captured viewer
   framebuffer through Metal.
 - The direct Metal viewer background clear, checkerboard, camera color-card
-  rectangle, camera outline lines, and preview raster are currently superseded
-  by the compatibility OpenGL framebuffer snapshot in the same paint pass.
+  rectangle, camera outline lines, preview raster, and eligible normal scene
+  raster nodes are currently superseded by the compatibility OpenGL framebuffer
+  snapshot in the same paint pass.
 - The direct preview-raster path only handles `TRaster32P` preview rasters for
   now. Other raster formats still rely on the existing OpenGL path and final
   compatibility snapshot.
+- The direct normal-scene raster path intentionally skips complex raster-node
+  cases that still need the existing CPU compositor: Toonz raster/palette
+  conversion, onion skins, visual check modes, column opacity, filter colors,
+  premultiply/white-transparent behavior, ignored-alpha column behavior, and
+  raster darken-blended view mode.
 - The checkerboard helper expands into many solid rectangles. This is adequate
   for the current 50-device-pixel viewer checker cells and probe coverage, but
   a backend-native tiled/pattern path would be better before broad use.
@@ -271,8 +292,8 @@ inside the full UI.
 ## Next Milestone 3 Work
 
 - Replace the compatibility OpenGL framebuffer snapshot with direct Metal
-  drawing for more scene components: normal scene raster image textures, vector
-  image textures, and additional overlays.
+  drawing for more scene components: broader normal scene raster image cases,
+  vector image textures, and additional overlays.
 - Expand the offscreen probe from synthetic quads into baseline scene fixtures.
 - Route only a narrow scene-viewer path to the Metal command encoder once
   drawable lifecycle and fallback behavior are stable.

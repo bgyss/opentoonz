@@ -1170,6 +1170,22 @@ bool SceneViewer::presentBackgroundWithMetal() {
 
 //-------------------------------------------------------------------------------
 
+bool SceneViewer::presentDrawListWithMetal(
+    const TGraphics::DrawList2D& drawList) {
+  if (drawList.empty()) return false;
+
+  const int width  = std::max(1, this->width() * getDevPixRatio());
+  const int height = std::max(1, this->height() * getDevPixRatio());
+  if (!ensureMetalLayerTarget(width, height)) return false;
+
+  std::unique_ptr<TGraphics::CommandEncoder> encoder =
+      TGraphics::metalDevice().createCommandEncoder(m_metalLayerTarget.get());
+  encoder->draw(drawList);
+  return true;
+}
+
+//-------------------------------------------------------------------------------
+
 bool SceneViewer::presentRasterQuadWithMetal(
     const TRaster32P& raster, const TPointD& p00, const TPointD& p10,
     const TPointD& p11, const TPointD& p01, bool blending) {
@@ -1188,10 +1204,7 @@ bool SceneViewer::presentRasterQuadWithMetal(
                           toMetalPixel(p11), toMetalPixel(p01), raster,
                           blending);
 
-  std::unique_ptr<TGraphics::CommandEncoder> encoder =
-      TGraphics::metalDevice().createCommandEncoder(m_metalLayerTarget.get());
-  encoder->draw(drawList);
-  return true;
+  return presentDrawListWithMetal(drawList);
 }
 
 //-------------------------------------------------------------------------------
@@ -2667,6 +2680,12 @@ void SceneViewer::drawScene() {
         TFrameId fid = app->getCurrentTool()->getTool()->getCurrentFid();
         painter.setCurrentImageId(sl->getImageId(fid, 0));
       }
+    }
+    if (shouldPresentWithMetal()) {
+      TGraphics::DrawList2D drawList;
+      painter.appendDirectRasterTextureQuads(
+          drawList, std::max(1, height() * getDevPixRatio()));
+      presentDrawListWithMetal(drawList);
     }
     painter.flushRasterImages();
 

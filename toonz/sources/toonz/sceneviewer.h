@@ -5,6 +5,7 @@
 
 // TnzCore includes
 #include "tgeometry.h"
+#include "tgraphics.h"
 #include "tgl.h"
 
 // TnzLib includes
@@ -346,6 +347,7 @@ protected:
   void hideMetalLayer();
   bool ensureMetalLayerTarget(int width, int height);
   bool presentBackgroundWithMetal();
+  bool presentDrawListWithMetal(const TGraphics::DrawList2D& drawList);
   bool presentRasterQuadWithMetal(const TRaster32P& raster, const TPointD& p00,
                                   const TPointD& p10, const TPointD& p11,
                                   const TPointD& p01, bool blending);

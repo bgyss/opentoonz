@@ -5,6 +5,7 @@
 
 // TnzCore includes
 #include "timage.h"
+#include "tgraphics.h"
 #include "trastercm.h"
 #include "tgl.h"
 #include <string>
@@ -289,6 +290,8 @@ public:
   TRasterP getRaster(int index, QTransform &matrix);
 
   void flushRasterImages();
+  void appendDirectRasterTextureQuads(TGraphics::DrawList2D &drawList,
+                                      int targetHeight) const;
   void drawRasterImages(QPainter &p, QPolygon cameraRect);
 
   void enableSingleColumn(bool on) { m_singleColumnEnabled = on; }

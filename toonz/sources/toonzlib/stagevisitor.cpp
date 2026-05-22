@@ -765,6 +765,38 @@ void RasterPainter::flushRasterImages() {
 }
 
 //-----------------------------------------------------------------------------
+
+void RasterPainter::appendDirectRasterTextureQuads(
+    TGraphics::DrawList2D &drawList, int targetHeight) const {
+  if (m_nodes.empty() || m_vs.m_colorMask != 0) return;
+  if (m_checkFlags && ToonzCheck::instance()->getChecks() != 0) return;
+  if (m_doRasterDarkenBlendedView) return;
+
+  auto toTopLeftPixel = [targetHeight](const TPointD &point) {
+    return TPointD(point.x, targetHeight - point.y);
+  };
+
+  for (const Node &node : m_nodes) {
+    TRaster32P raster = node.m_raster;
+    if (!raster) continue;
+    if (node.m_onionMode != Node::eOnionSkinNone) continue;
+    if (node.m_alpha != 255) continue;
+    if (node.m_doPremultiply || node.m_whiteTransp || node.m_isFirstColumn)
+      continue;
+    if (node.m_filterColor != TPixel32::Black) continue;
+
+    const TPointD p00 = node.m_aff * TPointD(0.0, 0.0);
+    const TPointD p10 = node.m_aff * TPointD(raster->getLx(), 0.0);
+    const TPointD p11 = node.m_aff * TPointD(raster->getLx(), raster->getLy());
+    const TPointD p01 = node.m_aff * TPointD(0.0, raster->getLy());
+
+    drawList.addTextureQuad(toTopLeftPixel(p00), toTopLeftPixel(p10),
+                            toTopLeftPixel(p11), toTopLeftPixel(p01), raster,
+                            true);
+  }
+}
+
+//-----------------------------------------------------------------------------
 /*! Make frame visualization in QPainter.
 \n	Draw in painter mode just raster image in m_nodes.
 \n  Onion-skin or channel mode are not considered.
