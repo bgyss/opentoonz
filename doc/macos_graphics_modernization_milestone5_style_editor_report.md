@@ -1,7 +1,7 @@
-# macOS Graphics Modernization Milestone 5 Style Editor Checkpoint
+# macOS Graphics Modernization Milestone 5 Checkpoint
 
-Status: first contained style-editor rendering migration completed locally on
-2026-05-22.
+Status: first contained style-editor rendering migration and first reusable
+offscreen `DrawList2D` readback helper completed locally on 2026-05-22.
 
 ## Objective
 
@@ -16,10 +16,18 @@ This is not the full Milestone 5 completion. Other style-editor, offscreen
 rendering, preview/export, and shader-effect paths still use OpenGL or
 `QOpenGLFramebufferObject` directly and remain follow-up work.
 
+The follow-up offscreen checkpoint adds public `tgraphics` helper functions for
+rendering a `DrawList2D` into a `TRaster32P` through the OpenGL, Metal, or
+active backend. This is the reusable bridge needed before migrating preview,
+export, and other secondary render surfaces one call site at a time.
+
 ## Files Changed
 
 - `toonz/sources/include/toonzqt/styleeditor.h`
 - `toonz/sources/toonzqt/styleeditor.cpp`
+- `toonz/sources/include/tgraphics.h`
+- `toonz/sources/common/tgraphics/tgraphics.cpp`
+- `toonz/sources/common/tgraphics/tgraphics_metal_probe.cpp`
 
 ## Changes
 
@@ -45,6 +53,13 @@ rendering, preview/export, and shader-effect paths still use OpenGL or
   - `glBegin` / `glEnd`
   - `glColor3f`
   - `glVertex2f`
+- Added `TGraphics::renderDrawListWithOpenGLBackend(...)`,
+  `TGraphics::renderDrawListWithMetalBackend(...)`, and
+  `TGraphics::renderDrawListWithActiveBackend(...)`.
+- Updated `tgraphics_metal_probe` to use the new helpers instead of manually
+  creating backend-specific image render targets, command encoders, and
+  readback calls. The probe now validates the same reusable offscreen API that
+  future preview/export/style-editor migrations can call.
 
 ## Inventory Impact
 
@@ -68,6 +83,10 @@ fixed-function matrix              files=   56 matches=   450
 longer contains direct fixed-function OpenGL drawing calls. `QOpenGL*` counts
 increase slightly because the LUT calibration path now uses
 `QOpenGLPaintDevice` to bridge the CPU image into the existing calibration FBO.
+
+The offscreen helper checkpoint does not reduce inventory counts by itself; it
+removes duplicated backend setup from the probe and creates the API surface for
+later call-site migrations.
 
 ## Validation Run
 
@@ -97,11 +116,15 @@ tgraphics_metal_probe: ok on Apple M1 Max
   plumbing.
 - Manual visual smoke is still needed for the Style Editor color wheel under
   normal and LUT-calibrated configurations.
+- The new offscreen helpers currently operate on `DrawList2D`; broad
+  `TOfflineGL` vector/raster rendering still needs staged conversion into
+  draw-list emitters or backend-specific adapters.
 - Preview/export, shader effects, and broader offscreen render targets remain
   Milestone 5 work.
 
 ## Next Recommendation
 
-Continue Milestone 5 by moving a second isolated secondary surface away from
-direct OpenGL, or by introducing a Metal/CPU-backed offscreen render target
-adapter for one `qtofflinegl` call site with image-diff validation.
+Continue Milestone 5 by converting one small preview/export or style-chip path
+that already has simple 2D texture/rectangle semantics to
+`renderDrawListWithActiveBackend(...)`, with image-diff validation against the
+existing OpenGL output.

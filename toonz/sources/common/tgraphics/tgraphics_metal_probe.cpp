@@ -325,26 +325,12 @@ bool validateSolidClear(const TRaster32P& readback, int width, int height,
 
 TRaster32P renderMetal(const TGraphics::DrawList2D& drawList, int width,
                        int height) {
-  std::unique_ptr<TGraphics::RenderTarget> target =
-      TGraphics::createMetalImageRenderTarget(width, height);
-  if (!target) return TRaster32P();
-
-  std::unique_ptr<TGraphics::CommandEncoder> encoder =
-      TGraphics::metalDevice().createCommandEncoder(target.get());
-  encoder->draw(drawList);
-  return TGraphics::readMetalRenderTarget(target.get());
+  return TGraphics::renderDrawListWithMetalBackend(drawList, width, height);
 }
 
 TRaster32P renderOpenGL(const TGraphics::DrawList2D& drawList, int width,
                         int height) {
-  std::unique_ptr<TGraphics::RenderTarget> target =
-      TGraphics::createOpenGLImageRenderTarget(width, height);
-  if (!target) return TRaster32P();
-
-  std::unique_ptr<TGraphics::CommandEncoder> encoder =
-      TGraphics::openGLDevice().createCommandEncoder(target.get());
-  encoder->draw(drawList);
-  return TGraphics::readOpenGLRenderTarget(target.get());
+  return TGraphics::renderDrawListWithOpenGLBackend(drawList, width, height);
 }
 
 }  // namespace

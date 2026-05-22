@@ -683,4 +683,35 @@ void drawWithActiveBackend(const DrawList2D& drawList) {
   encoder->draw(drawList);
 }
 
+TRaster32P renderDrawListWithOpenGLBackend(const DrawList2D& drawList,
+                                           int width, int height) {
+  std::unique_ptr<RenderTarget> target =
+      createOpenGLImageRenderTarget(width, height);
+  if (!target) return TRaster32P();
+
+  std::unique_ptr<CommandEncoder> encoder =
+      openGLDevice().createCommandEncoder(target.get());
+  encoder->draw(drawList);
+  return readOpenGLRenderTarget(target.get());
+}
+
+TRaster32P renderDrawListWithMetalBackend(const DrawList2D& drawList,
+                                          int width, int height) {
+  std::unique_ptr<RenderTarget> target =
+      createMetalImageRenderTarget(width, height);
+  if (!target) return TRaster32P();
+
+  std::unique_ptr<CommandEncoder> encoder =
+      metalDevice().createCommandEncoder(target.get());
+  encoder->draw(drawList);
+  return readMetalRenderTarget(target.get());
+}
+
+TRaster32P renderDrawListWithActiveBackend(const DrawList2D& drawList,
+                                           int width, int height) {
+  if (activeBackendType() == BackendType::Metal)
+    return renderDrawListWithMetalBackend(drawList, width, height);
+  return renderDrawListWithOpenGLBackend(drawList, width, height);
+}
+
 }  // namespace TGraphics

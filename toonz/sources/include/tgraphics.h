@@ -172,6 +172,12 @@ DVAPI BackendType activeBackendType();
 DVAPI Device& activeDevice();
 DVAPI void drawWithOpenGLBackend(const DrawList2D& drawList);
 DVAPI void drawWithActiveBackend(const DrawList2D& drawList);
+DVAPI TRaster32P renderDrawListWithOpenGLBackend(const DrawList2D& drawList,
+                                                 int width, int height);
+DVAPI TRaster32P renderDrawListWithMetalBackend(const DrawList2D& drawList,
+                                                int width, int height);
+DVAPI TRaster32P renderDrawListWithActiveBackend(const DrawList2D& drawList,
+                                                 int width, int height);
 
 }  // namespace TGraphics
 
