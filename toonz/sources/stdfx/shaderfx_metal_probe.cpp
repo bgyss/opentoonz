@@ -6,6 +6,8 @@
 #include "trasterfx.h"
 #include "tthread.h"
 #include "ttile.h"
+#include "toonz/scenefx.h"
+#include "toonz/toonzscene.h"
 
 #include <QCoreApplication>
 #include <QEventLoop>
@@ -34,6 +36,7 @@ struct Options {
   std::string writeDiffPamPath;
   int tolerance = 0;
   bool renderWithRenderer = false;
+  bool renderWithScene    = false;
 };
 
 void printUsage() {
@@ -42,7 +45,8 @@ void printUsage() {
                "FILE]\n"
                "                            [--compare-pam FILE] "
                "[--write-diff-pam FILE]\n"
-               "                            [--tolerance N] [--renderer]\n";
+               "                            [--tolerance N] [--renderer]\n"
+               "                            [--scene-render]\n";
 }
 
 bool parseOptions(int argc, char* argv[], Options& options) {
@@ -62,6 +66,8 @@ bool parseOptions(int argc, char* argv[], Options& options) {
       options.tolerance = std::atoi(argv[++i]);
     } else if (arg == "--renderer") {
       options.renderWithRenderer = true;
+    } else if (arg == "--scene-render") {
+      options.renderWithScene = true;
     } else if (arg == "--help" || arg == "-h") {
       printUsage();
       return false;
@@ -71,6 +77,24 @@ bool parseOptions(int argc, char* argv[], Options& options) {
     }
   }
   return true;
+}
+
+bool rasterHasVisiblePixel(const TRaster32P& raster) {
+  if (!raster) return false;
+
+  raster->lock();
+  bool hasVisiblePixel = false;
+  for (int y = 0; y < raster->getLy() && !hasVisiblePixel; ++y) {
+    const TPixel32* row = raster->pixels(y);
+    for (int x = 0; x < raster->getLx(); ++x) {
+      if (row[x].m != 0) {
+        hasVisiblePixel = true;
+        break;
+      }
+    }
+  }
+  raster->unlock();
+  return hasVisiblePixel;
 }
 
 bool pixelsNear(const TPixel32& actual, const TPixel32& expected,
@@ -382,11 +406,9 @@ TRasterFxP makeProbeShaderFx(const Options& options, TFxP foregroundFx,
   return root;
 }
 
-TRaster32P renderWithRendererForProbe(const Options& options, const TTile& tile,
+TRaster32P renderRasterFxWithRenderer(TRasterFxP root, const TTile& tile,
                                       double frame,
-                                      const TRenderSettings& settings,
-                                      TFxP foregroundFx, TFxP backgroundFx) {
-  TRasterFxP root = makeProbeShaderFx(options, foregroundFx, backgroundFx);
+                                      const TRenderSettings& settings) {
   if (!root) return TRaster32P();
 
   TRenderer renderer(1);
@@ -417,6 +439,27 @@ TRaster32P renderWithRendererForProbe(const Options& options, const TTile& tile,
     return TRaster32P();
   }
   return TRaster32P(port.raster());
+}
+
+TRaster32P renderWithRendererForProbe(const Options& options, const TTile& tile,
+                                      double frame,
+                                      const TRenderSettings& settings,
+                                      TFxP foregroundFx, TFxP backgroundFx) {
+  return renderRasterFxWithRenderer(
+      makeProbeShaderFx(options, foregroundFx, backgroundFx), tile, frame,
+      settings);
+}
+
+TRaster32P renderSceneForProbe(const Options& options, const TTile& tile,
+                               double frame, const TRenderSettings& settings,
+                               TFxP foregroundFx, TFxP backgroundFx) {
+  TFxP root = makeProbeShaderFx(options, foregroundFx, backgroundFx);
+  if (!root) return TRaster32P();
+
+  ToonzScene scene;
+  TFxP builtFx = buildSceneFx(&scene, frame, scene.getXsheet(), root,
+                              BSFX_DEFAULT_TR, true);
+  return renderRasterFxWithRenderer(builtFx, tile, frame, settings);
 }
 
 TRaster32P renderExpectedMetalHelper(const Options& options, int width,
@@ -497,7 +540,18 @@ int main(int argc, char* argv[]) {
     settings.m_affine = TAffine();
 
   bool rendered = false;
-  if (options.renderWithRenderer) {
+  if (options.renderWithScene) {
+    if (options.shaderName == "SHADER_HSLBlendGPU")
+      return fail("SHADER_HSLBlendGPU scene-render probe is not supported yet")
+                 ? 0
+                 : 1;
+    TRaster32P renderedRaster = renderSceneForProbe(
+        options, tile, 1.0, settings, foregroundFx, backgroundFx);
+    if (renderedRaster) {
+      tile.getRaster()->copy(renderedRaster);
+      rendered = true;
+    }
+  } else if (options.renderWithRenderer) {
     if (options.shaderName == "SHADER_HSLBlendGPU" &&
         TGraphics::activeBackendType() != TGraphics::BackendType::Metal)
       return fail("SHADER_HSLBlendGPU probe requires the Metal backend") ? 0
@@ -536,6 +590,9 @@ int main(int argc, char* argv[]) {
     }
     if (!options.writeDiffPamPath.empty())
       writePam(makeDiffRaster(actual, expected), options.writeDiffPamPath);
+  } else if (options.renderWithScene) {
+    if (!rasterHasVisiblePixel(actual))
+      return fail("scene-render output was fully transparent") ? 0 : 1;
   } else if (TGraphics::activeBackendType() == TGraphics::BackendType::Metal) {
     TRaster32P expected =
         renderExpectedMetalHelper(options, width, height, tile, settings);
