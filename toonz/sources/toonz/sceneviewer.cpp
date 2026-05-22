@@ -101,6 +101,7 @@ TEnv::DoubleVar RotateAngle("RotateAngle", 90);
 
 void drawSpline(const TAffine& viewMatrix, const TRect& clipRect, bool camera3d,
                 double pixelSize);
+void getSafeAreaSizeList(QList<QList<double>>& sizeList);
 
 // 0: current frame
 // 1: all frames in the preview range
@@ -1395,6 +1396,70 @@ bool SceneViewer::presentCameraOverlayWithMetal(unsigned long flags,
 
 //-------------------------------------------------------------------------------
 
+bool SceneViewer::presentSafeAreaWithMetal() {
+  if (!safeAreaToggle.getStatus() || m_drawEditingLevel || is3DView())
+    return false;
+
+  const int targetWidth  = std::max(1, width() * getDevPixRatio());
+  const int targetHeight = std::max(1, height() * getDevPixRatio());
+  if (!ensureMetalLayerTarget(targetWidth, targetHeight)) return false;
+
+  auto toMetalPixel = [targetWidth, targetHeight](const TPointD& point) {
+    return TPointD(targetWidth * 0.5 + point.x,
+                   targetHeight - (targetHeight * 0.5 + point.y));
+  };
+
+  auto cameraPoint = [&](const TPointD& point) {
+    return toMetalPixel(m_drawCameraAff * point);
+  };
+
+  auto addSafeAreaRect = [&](TGraphics::DrawList2D& drawList,
+                             const TRectD& rect, const TPixel32& color) {
+    const TPointD p00 = cameraPoint(rect.getP00());
+    const TPointD p10 = cameraPoint(rect.getP10());
+    const TPointD p11 = cameraPoint(rect.getP11());
+    const TPointD p01 = cameraPoint(rect.getP01());
+    appendDashedLine(drawList, p00, p10, color);
+    appendDashedLine(drawList, p10, p11, color);
+    appendDashedLine(drawList, p11, p01, color);
+    appendDashedLine(drawList, p01, p00, color);
+  };
+
+  QList<QList<double>> sizeList;
+  getSafeAreaSizeList(sizeList);
+  if (sizeList.empty()) return false;
+
+  const TRectD cameraRect = ViewerDraw::getCameraRect();
+  const double ux         = 0.5 * cameraRect.getLx();
+  const double uy         = 0.5 * cameraRect.getLy();
+
+  auto colorChannel = [](double value) {
+    return std::max(0, std::min(255, static_cast<int>(value)));
+  };
+
+  TGraphics::DrawList2D drawList;
+  for (int i = 0; i < sizeList.size(); ++i) {
+    const QList<double>& curSize = sizeList.at(i);
+    if (curSize.size() < 2) continue;
+
+    TPixel32 color = TPixel32::Red;
+    if (curSize.size() == 5) {
+      color = TPixel32(colorChannel(curSize.at(2)),
+                       colorChannel(curSize.at(3)),
+                       colorChannel(curSize.at(4)), 255);
+    }
+
+    const double fx = 0.01 * curSize.at(0);
+    const double fy = 0.01 * curSize.at(1);
+    addSafeAreaRect(drawList, TRectD(-ux * fx, -uy * fy, ux * fx, uy * fy),
+                    color);
+  }
+
+  return presentDrawListWithMetal(drawList);
+}
+
+//-------------------------------------------------------------------------------
+
 bool SceneViewer::presentPreviewFrameOverlayWithMetal(const TRectD& frameRect,
                                                       bool frameNotReady) {
   if (m_draw3DMode) return false;
@@ -2426,6 +2491,8 @@ void SceneViewer::drawOverlay() {
     // safe area
     if (safeAreaToggle.getStatus() && m_drawEditingLevel == false &&
         !is3DView()) {
+      if (shouldPresentWithMetal()) presentSafeAreaWithMetal();
+
       glPushMatrix();
       tglMultMatrix(m_drawCameraAff);
       ViewerDraw::drawSafeArea();

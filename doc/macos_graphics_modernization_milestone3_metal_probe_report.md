@@ -205,6 +205,9 @@ before porting scene internals.
 - Preview-frame overlays now mirror into direct Metal while preview mode is
   active: blank-color fills use transformed `ColorQuad` commands, and
   not-ready/busy preview markers use direct red `ColorLine` frame rectangles.
+- Safe-area overlays now mirror into direct Metal when the safe-area toggle is
+  active: configured safe-area percentages and optional RGB colors are converted
+  into dashed camera-space `ColorLine` rectangles.
 - The direct Metal viewer background path now adds a checkerboard using
   `Preferences::getChessboardColors(...)` when `ToonzCheck::eTransparency` is
   active.
