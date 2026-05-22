@@ -27,6 +27,9 @@
 #include <QDesktopWidget>
 #include <QVector2D>
 
+#include <algorithm>
+#include <cmath>
+
 using namespace EditToolGadgets;
 
 GLdouble FxGadget::m_selectedColor[3] = {0.2, 0.8, 0.1};
@@ -460,6 +463,7 @@ public:
   }
 
   void draw(bool picking) override;
+  int pickCpu(const TPointD &viewerPos) override;
 
   TPointD getPoint() const {
     return TPointD(getValue(m_xParam), getValue(m_yParam));
@@ -501,6 +505,17 @@ void PointFxGadget::draw(bool picking) {
   if (isSelected()) {
     drawTooltip(pos + TPointD(7, 3) * unit, getLabel());
   }
+}
+
+//---------------------------------------------------------------------------
+
+int PointFxGadget::pickCpu(const TPointD &viewerPos) {
+  const TPointD pos = m_controller->gadgetToViewerPos(getPoint());
+  const double hitRadius = std::max(6.0, 6.0 * m_controller->getDevPixRatio());
+  return std::abs(viewerPos.x - pos.x) <= hitRadius &&
+                 std::abs(viewerPos.y - pos.y) <= hitRadius
+             ? static_cast<int>(getId())
+             : -1;
 }
 
 //---------------------------------------------------------------------------
@@ -2679,6 +2694,16 @@ void FxGadgetController::draw(bool picking) {
 
 //---------------------------------------------------------------------------
 
+int FxGadgetController::pickCpu(const TPointD &viewerPos) {
+  for (auto it = m_gadgets.rbegin(); it != m_gadgets.rend(); ++it) {
+    int id = (*it)->pickCpu(viewerPos);
+    if (id >= 0) return id;
+  }
+  return -1;
+}
+
+//---------------------------------------------------------------------------
+
 void FxGadgetController::selectById(unsigned int id) {
   std::map<GLuint, FxGadget *>::iterator it = m_idTable.find(id);
   FxGadget *selectedGadget = it != m_idTable.end() ? it->second : nullptr;
@@ -2967,6 +2992,12 @@ void FxGadgetController::invalidateViewer() { m_tool->invalidate(); }
 
 int FxGadgetController::getDevPixRatio() {
   return getDevicePixelRatio(m_tool->getViewer()->viewerWidget());
+}
+
+//---------------------------------------------------------------------------
+
+TPointD FxGadgetController::gadgetToViewerPos(const TPointD &pos) {
+  return m_tool->getViewer()->worldToPos(getMatrix() * pos);
 }
 
 //---------------------------------------------------------------------------

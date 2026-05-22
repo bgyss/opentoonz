@@ -828,6 +828,7 @@ int EditTool::pickMainHandleCpu(const TPointD &pos) {
   if (!transformEnabled()) return -1;
   if (TTool::getApplication()->getCurrentFrame()->isEditingLevel()) return -1;
   if (getViewer()->is3DView()) return -1;
+  if (m_fxGadgetController->isEditingNonZeraryFx()) return -1;
 
   TXsheet *xsh         = getXsheet();
   TStageObjectId objId = getObjectId();
@@ -895,8 +896,11 @@ void EditTool::mouseMove(const TPointD &, const TMouseEvent &e) {
   int selectedDevice = -1;
   const bool useMetalCpuPicking =
       shouldUseMetalCpuToolPicking() && m_activeAxis.getValue() == L"All";
-  if (useMetalCpuPicking)
-    selectedDevice = pickMainHandleCpu(e.m_pos);
+  if (useMetalCpuPicking) {
+    if (m_fxGadgetController->hasGadget())
+      selectedDevice = m_fxGadgetController->pickCpu(e.m_pos);
+    if (selectedDevice < 0) selectedDevice = pickMainHandleCpu(e.m_pos);
+  }
   if (selectedDevice < 0 && (!useMetalCpuPicking ||
                              m_fxGadgetController->hasGadget()) &&
       (m_fxGadgetController->hasGadget() || m_activeAxis.getValue() == L"All"))
@@ -1017,7 +1021,11 @@ void EditTool::leftButtonDown(const TPointD &ppos, const TMouseEvent &e) {
 void EditTool::onEditAllLeftButtonDown(TPointD &pos, const TMouseEvent &e) {
   const bool useMetalCpuPicking = shouldUseMetalCpuToolPicking();
   int selectedDevice =
-      useMetalCpuPicking ? pickMainHandleCpu(e.m_pos) : -1;
+      useMetalCpuPicking && m_fxGadgetController->hasGadget()
+          ? m_fxGadgetController->pickCpu(e.m_pos)
+          : -1;
+  if (useMetalCpuPicking && selectedDevice < 0)
+    selectedDevice = pickMainHandleCpu(e.m_pos);
   if (selectedDevice < 0 &&
       (!useMetalCpuPicking || m_fxGadgetController->hasGadget()))
     selectedDevice = pick(e.m_pos);

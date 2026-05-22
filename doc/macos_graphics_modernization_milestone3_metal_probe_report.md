@@ -213,8 +213,12 @@ before porting scene internals.
 - Edit Tool "All" mode now has a first CPU hit-test path for the main transform
   handles when the Metal backend is requested. Center, rotation, isotropic
   scale, horizontal/vertical scale, and shear handles can be selected without
-  entering `GL_SELECT`; FX gadget picking remains on the legacy path until those
-  gadgets get their own CPU or ID-buffer picker.
+  entering `GL_SELECT`. The CPU main-handle picker now also skips non-zerary FX
+  editing when the main handles are intentionally hidden.
+- Point-style FX gadget handles now have a first CPU picker under Metal before
+  legacy name-picking fallback. Unsupported FX gadget shapes still fall back to
+  the legacy OpenGL pick path until each shape gets its own CPU or ID-buffer
+  picker.
 - The direct Metal viewer background path now adds a checkerboard using
   `Preferences::getChessboardColors(...)` when `ToonzCheck::eTransparency` is
   active.

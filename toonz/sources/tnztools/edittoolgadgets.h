@@ -82,6 +82,7 @@ public:
   void drawTooltip(const TPointD &tooltipPos, std::string tooltipPosText);
 
   virtual void draw(bool picking) = 0;
+  virtual int pickCpu(const TPointD &viewerPos) { return -1; }
 
   virtual void leftButtonDown(const TPointD &pos, const TMouseEvent &) {}
   virtual void leftButtonDrag(const TPointD &pos, const TMouseEvent &) {}
@@ -136,6 +137,7 @@ public:
   TAffine getMatrix();
 
   void draw(bool picking = false);
+  int pickCpu(const TPointD &viewerPos);
 
   void selectById(unsigned int id);
 
@@ -152,6 +154,7 @@ public:
   bool hasGadget() { return m_gadgets.size() != 0; }
 
   int getDevPixRatio();
+  TPointD gadgetToViewerPos(const TPointD &pos);
 
   // get the current viewer geometry
   TRectD getGeometry();
