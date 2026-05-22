@@ -724,9 +724,11 @@ int main(int argc, char* argv[]) {
                   "backend")
                  ? 0
                  : 1;
-    if (options.shaderName == "SHADER_HSLBlendGPU" &&
+    if ((options.shaderName == "SHADER_HSLBlendGPU" ||
+         options.shaderName == "SHADER_radialblurGPU") &&
         !options.saveLoadScenePath.empty())
-      return fail("SHADER_HSLBlendGPU saved-scene probe is not supported yet")
+      return fail("input-texture ShaderFx saved-scene probe is not supported "
+                  "yet")
                  ? 0
                  : 1;
     TRaster32P renderedRaster;
