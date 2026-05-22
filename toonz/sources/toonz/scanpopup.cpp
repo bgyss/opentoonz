@@ -8,6 +8,7 @@
 #include "tsystem.h"
 #include "timagecache.h"
 #include "tgl.h"
+#include "tgraphics.h"
 #include "tcurveutil.h"
 #include "tpixelutils.h"
 #include "trop.h"
@@ -54,6 +55,21 @@ const QString BlackAndWhite = "Black & White", Graytones = "Graytones",
               Rgbcolors = "RGB Color";
 
 bool ScannerHasBeenDefined = false;
+
+void appendPixelRectOutline(TGraphics::DrawList2D &drawList,
+                            const TRectD &rect, double pixelSize,
+                            const TPixel32 &color) {
+  if (pixelSize <= 0.0 || rect.x1 <= rect.x0 || rect.y1 <= rect.y0) return;
+
+  drawList.addColorRect(TRectD(rect.x0, rect.y0, rect.x1, rect.y0 + pixelSize),
+                        color, false);
+  drawList.addColorRect(TRectD(rect.x0, rect.y1 - pixelSize, rect.x1, rect.y1),
+                        color, false);
+  drawList.addColorRect(TRectD(rect.x0, rect.y0, rect.x0 + pixelSize, rect.y1),
+                        color, false);
+  drawList.addColorRect(TRectD(rect.x1 - pixelSize, rect.y0, rect.x1, rect.y1),
+                        color, false);
+}
 
 void checkPaperFormat(TScannerParameters *parameters) {
   if (parameters->getPaperOverflow()) {
@@ -1008,11 +1024,9 @@ public:
     TRectD cropBox   = rect2pix(m_parameters->getCropBox());
     double pixelSize = getPixelSize();
 
-    tglColor(TPixel::Red);
-    glLineStipple(1, 0xFFFF);
-    glEnable(GL_LINE_STIPPLE);
-
-    tglDrawRect(cropBox);
+    TGraphics::DrawList2D drawList;
+    appendPixelRectOutline(drawList, cropBox, pixelSize, TPixel32::Red);
+    TGraphics::drawWithOpenGLBackend(drawList);
 
     TPointD size(10, 10);
     tglColor(TPixel::Red);

@@ -132,6 +132,12 @@ commands in window coordinates. Vector stroke centerline preview drawing remains
 on the legacy path, but the simple preview-progress frame no longer depends on
 immediate-mode line drawing.
 
+The scan-crop checkpoint moves the scanner crop rectangle overlay from
+`tglDrawRect(...)` plus OpenGL line stipple state to four one-pixel
+`DrawList2D` color-rect commands using the tool pixel size. Crop handles remain
+on the existing `ToolUtils::drawSquare(...)` path, but the editable crop border
+now has a backend-neutral draw-list representation.
+
 ## Files Changed
 
 - `scripts/graphics_shader_inventory.sh`
@@ -147,6 +153,7 @@ immediate-mode line drawing.
 - `toonz/sources/toonz/CMakeLists.txt`
 - `toonz/sources/toonz/cleanuppreview.cpp`
 - `toonz/sources/toonz/imageviewer.cpp`
+- `toonz/sources/toonz/scanpopup.cpp`
 - `toonz/sources/toonz/sceneviewer.cpp`
 - `toonz/sources/toonz/vectorizerswatch.cpp`
 - `toonz/sources/toonz/viewerdraw.cpp`
@@ -559,7 +566,9 @@ commands instead of immediate-mode line strips. Cleanup preview camera-test
 frame/cross outlines now emit `tgraphics` color-quad commands sized by the
 current pixel size. Vectorizer swatch in-progress borders now emit `tgraphics`
 color-rect commands in window coordinates instead of widened immediate-mode line
-strips.
+strips. Scanner crop-box borders now emit one-pixel `tgraphics` color-rect
+commands instead of direct `tglDrawRect(...)` calls and OpenGL line stipple
+state.
 Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
 effects and by moving the remaining preview/export and style-editor surfaces
 through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene
