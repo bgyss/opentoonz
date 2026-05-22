@@ -2467,16 +2467,13 @@ void SceneViewer::drawOverlay() {
       m_pixelSize = sqrt(tglGetPixelSize2()) * getDevPixRatio();
       TRect rect  = m_stopMotion->m_canon->m_zoomRect;
 
-      glColor3d(1.0, 0.0, 0.0);
-
       // border
-      glBegin(GL_LINE_STRIP);
-      glVertex2d(rect.x0, rect.y0);
-      glVertex2d(rect.x0, rect.y1 - m_pixelSize);
-      glVertex2d(rect.x1 - m_pixelSize, rect.y1 - m_pixelSize);
-      glVertex2d(rect.x1 - m_pixelSize, rect.y0);
-      glVertex2d(rect.x0, rect.y0);
-      glEnd();
+      TGraphics::DrawList2D drawList;
+      appendRectOutline(drawList,
+                        TRectD(rect.x0, rect.y0, rect.x1 - m_pixelSize,
+                               rect.y1 - m_pixelSize),
+                        TPixel32::Red);
+      TGraphics::drawWithOpenGLBackend(drawList);
 
       glPopMatrix();
     }
