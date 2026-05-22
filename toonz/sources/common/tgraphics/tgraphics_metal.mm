@@ -99,6 +99,9 @@ NSString *shaderSource() {
           "intensity; float angle; float bias; float sharpness; };\n"
           "struct CausticsUniforms { float a11; float a12; float a13; float "
           "a21; float a22; float a23; float4 color; float time; };\n"
+          "struct StarskyUniforms { float a11; float a12; float a13; float "
+          "a21; float a22; float a23; float4 color; float time; float "
+          "brightness; };\n"
           "fragment float4 tgraphicsSunflareFragment(VertexOut in "
           "[[stage_in]], constant SunflareUniforms &u [[buffer(0)]]) {\n"
           "  float2 world = float2(in.position.x * u.a11 + in.position.y * "
@@ -151,6 +154,48 @@ NSString *shaderSource() {
           "  float4 outColor = float4(float3(cf), 0.0) + u.color;\n"
           "  outColor.rgb *= outColor.a;\n"
           "  return outColor;\n"
+          "}\n"
+          "float starskyHash(float n) { return fract(sin(n) * 43758.5453); }\n"
+          "float starskyRand(float2 co) {\n"
+          "  return fract(sin(dot(co.xy, float2(12.9898, 78.233))) * "
+          "43758.5453);\n"
+          "}\n"
+          "float starskyNoise(float2 x) {\n"
+          "  float2 p = floor(x);\n"
+          "  float2 f = fract(x);\n"
+          "  f = f * f * (3.0 - 2.0 * f);\n"
+          "  float n = p.x + p.y * 57.0;\n"
+          "  return mix(mix(starskyHash(n + 0.0), starskyHash(n + 1.0), "
+          "f.x), mix(starskyHash(n + 57.0), starskyHash(n + 58.0), f.x), "
+          "f.y);\n"
+          "}\n"
+          "float3 starskyCloud(float2 p, float4 color) {\n"
+          "  float f = 0.0;\n"
+          "  f += 0.50000 * starskyNoise(p * 1.0 * 10.0);\n"
+          "  f += 0.25000 * starskyNoise(p * 2.0 * 10.0);\n"
+          "  f += 0.12500 * starskyNoise(p * 4.0 * 10.0);\n"
+          "  f += 0.06250 * starskyNoise(p * 8.0 * 10.0);\n"
+          "  f *= f;\n"
+          "  return color.rgb * color.a * f * 0.6;\n"
+          "}\n"
+          "fragment float4 tgraphicsStarskyFragment(VertexOut in "
+          "[[stage_in]], constant StarskyUniforms &u [[buffer(0)]]) {\n"
+          "  float2 pos = 0.01 * float2(in.position.x * u.a11 + "
+          "in.position.y * u.a12 + u.a13, in.position.x * u.a21 + "
+          "in.position.y * u.a22 + u.a23);\n"
+          "  float3 outRgb = starskyCloud(pos, u.color);\n"
+          "  float dist = length(pos);\n"
+          "  float2 coord = float2(dist, atan2(pos.y, pos.x));\n"
+          "  float2 p = 40.0 * float2(coord.x, floor(coord.x + 1.0) * "
+          "coord.y + starskyHash(floor(40.0 * coord.x)));\n"
+          "  float2 uv = 2.0 * fract(p) - 1.0;\n"
+          "  float cellValue = abs(2.0 * fract(starskyRand(floor(p)) + "
+          "0.01 * u.time) - 1.0);\n"
+          "  float cellBrightness = clamp((cellValue - 0.9) * u.brightness * "
+          "10.0, 0.0, 1.0);\n"
+          "  outRgb += clamp((1.0 - 2.0 * length(uv)) * cellBrightness, "
+          "0.0, 1.0);\n"
+          "  return float4(outRgb, 1.0);\n"
           "}\n";
 }
 
@@ -252,6 +297,20 @@ struct CausticsUniforms {
   float m_time        = 0.0f;
 };
 
+struct StarskyUniforms {
+  float m_a11          = 1.0f;
+  float m_a12          = 0.0f;
+  float m_a13          = 0.0f;
+  float m_a21          = 0.0f;
+  float m_a22          = 1.0f;
+  float m_a23          = 0.0f;
+  float m_padding0[2]  = {0.0f, 0.0f};
+  float m_color[4]     = {128.0f / 255.0f, 0.0f, 1.0f, 1.0f};
+  float m_time         = 0.0f;
+  float m_brightness   = 1.0f;
+  float m_padding1[2]  = {0.0f, 0.0f};
+};
+
 id<MTLRenderPipelineState> proceduralShaderPipelineState(id<MTLRenderPipelineState> &pipeline,
                                                          bool &attempted, NSString *label,
                                                          NSString *fragmentFunctionName) {
@@ -303,6 +362,13 @@ id<MTLRenderPipelineState> causticsPipelineState() {
   static bool attempted                      = false;
   return proceduralShaderPipelineState(pipeline, attempted, @"create caustics pipeline",
                                        @"tgraphicsCausticsFragment");
+}
+
+id<MTLRenderPipelineState> starskyPipelineState() {
+  static id<MTLRenderPipelineState> pipeline = nil;
+  static bool attempted                      = false;
+  return proceduralShaderPipelineState(pipeline, attempted, @"create starsky pipeline",
+                                       @"tgraphicsStarskyFragment");
 }
 
 class MetalCommandEncoder final : public CommandEncoder {
@@ -866,6 +932,63 @@ TRaster32P renderNativeMetalCaustics(int width, int height, const TAffine &outpu
   uniforms.m_color[2] = color.b / 255.0f;
   uniforms.m_color[3] = color.m / 255.0f;
   uniforms.m_time     = static_cast<float>(time);
+
+  [encoder setRenderPipelineState:pipeline];
+  [encoder setVertexBytes:vertices length:sizeof(vertices) atIndex:0];
+  [encoder setFragmentBytes:&uniforms length:sizeof(uniforms) atIndex:0];
+  [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+  [encoder endEncoding];
+  [commandBuffer commit];
+  [commandBuffer waitUntilCompleted];
+
+  return readNativeMetalRenderTarget(&target);
+}
+
+TRaster32P renderNativeMetalStarsky(int width, int height, const TAffine &outputToWorld,
+                                    const TPixel32 &color, double time,
+                                    double brightness) {
+  if (!probeMetalDevice() || width <= 0 || height <= 0) return TRaster32P();
+
+  MetalTextureRenderTarget target(width, height);
+  if (!target.texture()) return TRaster32P();
+
+  id<MTLRenderPipelineState> pipeline = starskyPipelineState();
+  if (!pipeline) return TRaster32P();
+
+  MetalState &state = metalState();
+
+  MTLRenderPassDescriptor *pass        = [MTLRenderPassDescriptor renderPassDescriptor];
+  pass.colorAttachments[0].texture     = target.texture();
+  pass.colorAttachments[0].loadAction  = MTLLoadActionClear;
+  pass.colorAttachments[0].storeAction = MTLStoreActionStore;
+  pass.colorAttachments[0].clearColor  = MTLClearColorMake(0.0, 0.0, 0.0, 0.0);
+
+  id<MTLCommandBuffer> commandBuffer  = [state.m_commandQueue commandBuffer];
+  commandBuffer.label                 = @"OpenToonz TGraphics Starsky";
+  id<MTLRenderCommandEncoder> encoder = [commandBuffer renderCommandEncoderWithDescriptor:pass];
+  encoder.label                       = @"Starsky";
+
+  const float left              = -1.0f;
+  const float right             = 1.0f;
+  const float top               = 1.0f;
+  const float bottom            = -1.0f;
+  const MetalVertex vertices[6] = {{left, top, 0.0f, 0.0f},     {right, top, 1.0f, 0.0f},
+                                   {left, bottom, 0.0f, 1.0f},  {right, top, 1.0f, 0.0f},
+                                   {right, bottom, 1.0f, 1.0f}, {left, bottom, 0.0f, 1.0f}};
+
+  StarskyUniforms uniforms;
+  uniforms.m_a11        = static_cast<float>(outputToWorld.a11);
+  uniforms.m_a12        = static_cast<float>(outputToWorld.a12);
+  uniforms.m_a13        = static_cast<float>(outputToWorld.a13);
+  uniforms.m_a21        = static_cast<float>(outputToWorld.a21);
+  uniforms.m_a22        = static_cast<float>(outputToWorld.a22);
+  uniforms.m_a23        = static_cast<float>(outputToWorld.a23);
+  uniforms.m_color[0]   = color.r / 255.0f;
+  uniforms.m_color[1]   = color.g / 255.0f;
+  uniforms.m_color[2]   = color.b / 255.0f;
+  uniforms.m_color[3]   = color.m / 255.0f;
+  uniforms.m_time       = static_cast<float>(time);
+  uniforms.m_brightness = static_cast<float>(brightness);
 
   [encoder setRenderPipelineState:pipeline];
   [encoder setVertexBytes:vertices length:sizeof(vertices) atIndex:0];

@@ -17,7 +17,7 @@ fi
 
 (
   cd "$repo_root"
-  for shader in SHADER_sunflare SHADER_caustics; do
+  for shader in SHADER_sunflare SHADER_caustics SHADER_starsky; do
     stem="${shader#SHADER_}"
     opengl_pam="$artifact_dir/$stem-opengl.pam"
     metal_pam="$artifact_dir/$stem-metal.pam"

@@ -59,6 +59,18 @@ struct CausticsUniforms {
   float time;
 };
 
+struct StarskyUniforms {
+  float a11;
+  float a12;
+  float a13;
+  float a21;
+  float a22;
+  float a23;
+  float4 color;
+  float time;
+  float brightness;
+};
+
 fragment float4 tgraphicsSunflareFragment(
     VertexOut in [[stage_in]],
     constant SunflareUniforms &u [[buffer(0)]]) {
@@ -107,4 +119,57 @@ fragment float4 tgraphicsCausticsFragment(
   float4 outColor = float4(float3(cf), 0.0) + u.color;
   outColor.rgb *= outColor.a;
   return outColor;
+}
+
+float starskyHash(float n) { return fract(sin(n) * 43758.5453); }
+
+float starskyRand(float2 co) {
+  return fract(sin(dot(co.xy, float2(12.9898, 78.233))) * 43758.5453);
+}
+
+float starskyNoise(float2 x) {
+  float2 p = floor(x);
+  float2 f = fract(x);
+  f = f * f * (3.0 - 2.0 * f);
+  float n = p.x + p.y * 57.0;
+  return mix(mix(starskyHash(n + 0.0), starskyHash(n + 1.0), f.x),
+             mix(starskyHash(n + 57.0), starskyHash(n + 58.0), f.x), f.y);
+}
+
+float3 starskyCloud(float2 p, float4 color) {
+  float f = 0.0;
+  f += 0.50000 * starskyNoise(p * 1.0 * 10.0);
+  f += 0.25000 * starskyNoise(p * 2.0 * 10.0);
+  f += 0.12500 * starskyNoise(p * 4.0 * 10.0);
+  f += 0.06250 * starskyNoise(p * 8.0 * 10.0);
+  f *= f;
+
+  return color.rgb * color.a * f * 0.6;
+}
+
+fragment float4 tgraphicsStarskyFragment(
+    VertexOut in [[stage_in]], constant StarskyUniforms &u [[buffer(0)]]) {
+  float2 pos =
+      0.01 * float2(in.position.x * u.a11 + in.position.y * u.a12 + u.a13,
+                    in.position.x * u.a21 + in.position.y * u.a22 + u.a23);
+
+  float3 outRgb = starskyCloud(pos, u.color);
+
+  float dist = length(pos);
+  float2 coord = float2(dist, atan2(pos.y, pos.x));
+
+  float2 p =
+      40.0 * float2(coord.x, floor(coord.x + 1.0) * coord.y +
+                                 starskyHash(floor(40.0 * coord.x)));
+
+  float2 uv = 2.0 * fract(p) - 1.0;
+
+  float cellValue =
+      abs(2.0 * fract(starskyRand(floor(p)) + 0.01 * u.time) - 1.0);
+  float cellBrightness =
+      clamp((cellValue - 0.9) * u.brightness * 10.0, 0.0, 1.0);
+
+  outRgb += clamp((1.0 - 2.0 * length(uv)) * cellBrightness, 0.0, 1.0);
+
+  return float4(outRgb, 1.0);
 }

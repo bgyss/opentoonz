@@ -115,17 +115,20 @@ Validated Metal procedural helpers:
 
 - `sunflare.frag`
 - `caustics.frag`
+- `starsky.frag`
 
 The Metal implementation uses the same procedural inputs as the GLSL source:
 `sunflare` uses `outputToWorld`, `color`, `blades`, `intensity`, `angle`,
-`bias`, and `sharpness`; `caustics` uses `outputToWorld`, `color`, and `time`.
-Both render into a Metal texture target and return `TRaster32P` readback for
+`bias`, and `sharpness`; `caustics` uses `outputToWorld`, `color`, and `time`;
+`starsky` uses `outputToWorld`, `color`, `time`, and `brightness`. All three
+render into a Metal texture target and return `TRaster32P` readback for
 probe/image-diff workflows.
 
 Production integration status:
 
 - `OPENTOONZ_GRAPHICS_BACKEND=metal` can route 32-bit, no-input
-  `SHADER_sunflare` and `SHADER_caustics` tiles through Metal helpers.
+  `SHADER_sunflare`, `SHADER_caustics`, and `SHADER_starsky` tiles through
+  Metal helpers.
 - `shaderfx_metal_probe` validates the `ShaderFx::doCompute(...)` Metal branch
   against the lower-level Metal helper for transformed 96x64 tiles.
 - `scripts/graphics_shaderfx_compare.sh` captures the same transformed
@@ -171,7 +174,7 @@ The current `tgraphics` Metal backend still compiles equivalent shader source
 from an Objective-C++ string in `tgraphics_metal.mm`; the `.metal` file is
 tracked in the target as source evidence, not yet packaged as a runtime
 library. The runtime string and tracked `.metal` source both include the
-sunflare and caustics fragment entry points.
+sunflare, caustics, and starsky fragment entry points.
 
 ## ShaderFx Image-Diff Command
 
@@ -187,6 +190,9 @@ Artifacts:
 - `/private/tmp/opentoonz-shaderfx-compare/caustics-opengl.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/caustics-metal.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/caustics-diff.pam`
+- `/private/tmp/opentoonz-shaderfx-compare/starsky-opengl.pam`
+- `/private/tmp/opentoonz-shaderfx-compare/starsky-metal.pam`
+- `/private/tmp/opentoonz-shaderfx-compare/starsky-diff.pam`
 
 The current tolerance is 2 channel values. This accepts the observed OpenGL vs
 Metal rounding differences for the transformed procedural tiles while still
@@ -194,10 +200,10 @@ failing visible color, alpha, or coordinate mismatches.
 
 ## Next Effects Recommendation
 
-Continue from the validated `sunflare` and `caustics` `ShaderFx` paths by
-porting the next procedural no-input shader (`fireball`, `starsky`, or `wavy`)
-and adding it to the same OpenGL-vs-Metal comparison harness. Keep OpenGL
-`ShaderFx` as the default until preview/export parity is broader.
+Continue from the validated `sunflare`, `caustics`, and `starsky` `ShaderFx`
+paths by porting the next procedural no-input shader (`fireball` or `wavy`) and
+adding it to the same OpenGL-vs-Metal comparison harness. Keep OpenGL `ShaderFx`
+as the default until preview/export parity is broader.
 
 ## Validation Run
 
@@ -206,8 +212,8 @@ bash scripts/graphics_shader_inventory.sh
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=ON'
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tnzstdfx tgraphics_metal_probe shaderfx_metal_probe --parallel 3
 nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
-nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_caustics'
-nix develop path:. --command bash scripts/graphics_shaderfx_compare.sh /private/tmp/opentoonz-shaderfx-compare-caustics-final
+nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_starsky'
+nix develop path:. --command bash scripts/graphics_shaderfx_compare.sh /private/tmp/opentoonz-shaderfx-compare-starsky
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target OpenToonz --parallel 3
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=OFF'
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target OpenToonz --parallel 3
@@ -218,25 +224,27 @@ Metal probe output:
 
 ```text
 tgraphics_metal_probe: ok on Apple M1 Max
-shaderfx_metal_probe: ok shader=SHADER_caustics backend=metal device=Apple M1 Max
+shaderfx_metal_probe: ok shader=SHADER_starsky backend=metal device=Apple M1 Max
 shaderfx_metal_probe: ok shader=SHADER_sunflare backend=opengl
 shaderfx_metal_probe: ok shader=SHADER_sunflare backend=metal device=Apple M1 Max
 shaderfx_metal_probe: ok shader=SHADER_caustics backend=opengl
 shaderfx_metal_probe: ok shader=SHADER_caustics backend=metal device=Apple M1 Max
+shaderfx_metal_probe: ok shader=SHADER_starsky backend=opengl
+shaderfx_metal_probe: ok shader=SHADER_starsky backend=metal device=Apple M1 Max
 graphics_shaderfx_compare: ok
 ```
 
 The final OpenGL-vs-Metal ShaderFx artifact directory for this checkpoint was:
 
 ```text
-/private/tmp/opentoonz-shaderfx-compare-caustics-final
+/private/tmp/opentoonz-shaderfx-compare-starsky
 ```
 
 Known validation gap: this checkpoint verifies that the production effect graph
-can compile and route to the Metal `sunflare` and `caustics` paths, that
-`ShaderFx::doCompute(...)` matches the lower-level Metal helpers, that the
+can compile and route to the Metal `sunflare`, `caustics`, and `starsky` paths,
+that `ShaderFx::doCompute(...)` matches the lower-level Metal helpers, that the
 sunflare Metal helper matches a CPU formula reference, and that the production
-OpenGL and Metal `ShaderFx` outputs match within tolerance for both migrated
-shaders. It does not yet cover input-texture shader effects, transform-feedback
-bbox/ports shaders, packaged Metal shader-library loading, or preview/export
-scene renders.
+OpenGL and Metal `ShaderFx` outputs match within tolerance for all three
+migrated shaders. It does not yet cover input-texture shader effects,
+transform-feedback bbox/ports shaders, packaged Metal shader-library loading,
+or preview/export scene renders.

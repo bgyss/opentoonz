@@ -946,16 +946,19 @@ bool renderProceduralShaderWithMetal(const ShaderInterface *shaderInterface,
   const QString shaderName = shaderInterface->mainShader().m_name;
   const bool isSunflare    = shaderName == QStringLiteral("SHADER_sunflare");
   const bool isCaustics    = shaderName == QStringLiteral("SHADER_caustics");
-  if (!isSunflare && !isCaustics) return false;
+  const bool isStarsky     = shaderName == QStringLiteral("SHADER_starsky");
+  if (!isSunflare && !isCaustics && !isStarsky) return false;
 
-  TPixel32 color = isCaustics ? TPixel32(0, 120, 255, 255)
-                              : TPixel32(255, 170, 75, 255);
+  TPixel32 color = TPixel32(255, 170, 75, 255);
+  if (isCaustics) color = TPixel32(0, 120, 255, 255);
+  if (isStarsky) color = TPixel32(128, 0, 255, 255);
   int blades       = 6;
   double intensity = 1.0;
   double angle     = 0.0;
   double bias      = 0.0;
   double sharpness = 3.0;
-  double time      = 0.0;
+  double time       = 0.0;
+  double brightness = 1.0;
 
   const std::vector<ShaderInterface::Parameter> &siParams =
       shaderInterface->parameters();
@@ -992,6 +995,8 @@ bool renderProceduralShaderWithMetal(const ShaderInterface *shaderInterface,
         sharpness = param->getValue(frame);
       else if (name == QStringLiteral("time"))
         time = param->getValue(frame);
+      else if (name == QStringLiteral("brightness"))
+        brightness = param->getValue(frame);
       break;
     }
     default:
@@ -1005,6 +1010,10 @@ bool renderProceduralShaderWithMetal(const ShaderInterface *shaderInterface,
     rendered = TGraphics::renderCausticsWithMetalBackend(
         outputRaster->getLx(), outputRaster->getLy(), outputToWorld, color,
         time);
+  } else if (isStarsky) {
+    rendered = TGraphics::renderStarskyWithMetalBackend(
+        outputRaster->getLx(), outputRaster->getLy(), outputToWorld, color,
+        time, brightness);
   } else {
     rendered = TGraphics::renderSunflareWithMetalBackend(
         outputRaster->getLx(), outputRaster->getLy(), outputToWorld, color,

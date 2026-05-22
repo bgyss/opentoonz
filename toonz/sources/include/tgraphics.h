@@ -184,6 +184,10 @@ DVAPI TRaster32P renderCausticsWithMetalBackend(int width, int height,
                                                 const TAffine& outputToWorld,
                                                 const TPixel32& color,
                                                 double time);
+DVAPI TRaster32P renderStarskyWithMetalBackend(int width, int height,
+                                               const TAffine& outputToWorld,
+                                               const TPixel32& color,
+                                               double time, double brightness);
 
 }  // namespace TGraphics
 

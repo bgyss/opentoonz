@@ -40,6 +40,10 @@ TRaster32P renderNativeMetalSunflare(int width, int height,
 TRaster32P renderNativeMetalCaustics(int width, int height,
                                      const TAffine& outputToWorld,
                                      const TPixel32& color, double time);
+TRaster32P renderNativeMetalStarsky(int width, int height,
+                                    const TAffine& outputToWorld,
+                                    const TPixel32& color, double time,
+                                    double brightness);
 #endif
 
 namespace {
@@ -755,6 +759,24 @@ TRaster32P renderCausticsWithMetalBackend(int width, int height,
   (void)outputToWorld;
   (void)color;
   (void)time;
+  return TRaster32P();
+#endif
+}
+
+TRaster32P renderStarskyWithMetalBackend(int width, int height,
+                                         const TAffine& outputToWorld,
+                                         const TPixel32& color, double time,
+                                         double brightness) {
+#ifdef OPENTOONZ_WITH_GRAPHICS_METAL
+  return renderNativeMetalStarsky(width, height, outputToWorld, color, time,
+                                  brightness);
+#else
+  (void)width;
+  (void)height;
+  (void)outputToWorld;
+  (void)color;
+  (void)time;
+  (void)brightness;
   return TRaster32P();
 #endif
 }
