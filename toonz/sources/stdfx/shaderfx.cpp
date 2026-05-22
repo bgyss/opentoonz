@@ -727,6 +727,35 @@ bool ShaderFx::doGetBBox(double frame, TRectD &bbox,
     return true;
   }
 
+  if (TGraphics::activeBackendType() == TGraphics::BackendType::Metal &&
+      m_shaderInterface->mainShader().m_name == QStringLiteral("SHADER_glitter") &&
+      m_inputPorts.size() == 1) {
+    TRasterFxPort &port = m_inputPorts[0];
+    if (!port.isConnected()) return true;
+    if (!port->doGetBBox(frame, bbox, info)) return false;
+    if (bbox == TConsts::infiniteRectD) return true;
+
+    double radius = 5.333333333;
+    const std::vector<ShaderInterface::Parameter> &siParams =
+        m_shaderInterface->parameters();
+    if (siParams.size() == m_params.size()) {
+      for (int i = 0, count = int(siParams.size()); i != count; ++i) {
+        if (siParams[i].m_type != ShaderInterface::FLOAT ||
+            siParams[i].m_name != QStringLiteral("radius"))
+          continue;
+        const TDoubleParamP &param =
+            *boost::unsafe_any_cast<TDoubleParamP>(&m_params[i]);
+        radius = param->getValue(frame);
+      }
+    }
+    const double rad = std::max(radius, 0.0);
+    bbox.x0 -= rad;
+    bbox.y0 -= rad;
+    bbox.x1 += rad;
+    bbox.y1 += rad;
+    return true;
+  }
+
   const ShaderInterface::ShaderData &sd = m_shaderInterface->bboxShader();
   if (!sd.isValid()) return true;
 
@@ -818,7 +847,9 @@ int ShaderFx::getMemoryRequirement(const TRectD &rect, double frame,
        m_shaderInterface->mainShader().m_name ==
            QStringLiteral("SHADER_radialblurGPU") ||
        m_shaderInterface->mainShader().m_name ==
-           QStringLiteral("SHADER_spinblurGPU")))
+           QStringLiteral("SHADER_spinblurGPU") ||
+       m_shaderInterface->mainShader().m_name ==
+           QStringLiteral("SHADER_glitter")))
     return -1;
   return TStandardZeraryFx::getMemoryRequirement(rect, frame, info);
 }
@@ -1456,6 +1487,91 @@ bool renderSpinBlurShaderWithMetal(const ShaderInterface *shaderInterface,
   return true;
 }
 
+bool renderGlitterShaderWithMetal(const ShaderInterface *shaderInterface,
+                                  const std::vector<boost::any> &params,
+                                  boost::ptr_vector<TRasterFxPort> &ports,
+                                  TTile &tile, double frame,
+                                  const TRenderSettings &info) {
+  if (TGraphics::activeBackendType() != TGraphics::BackendType::Metal)
+    return false;
+  if (shaderInterface->mainShader().m_name != QStringLiteral("SHADER_glitter"))
+    return false;
+  if (ports.size() != 1 || !ports[0].isConnected()) return false;
+
+  TRaster32P outputRaster = tile.getRaster();
+  if (!outputRaster || info.m_bpp != 32) return false;
+
+  double threshold  = 30.0;
+  double brightness = 30.0;
+  double radius     = 5.333333333;
+  double angle      = 45.0;
+  double halo       = 1.0;
+
+  const std::vector<ShaderInterface::Parameter> &siParams =
+      shaderInterface->parameters();
+  if (siParams.size() != params.size()) return false;
+
+  for (int i = 0, count = int(siParams.size()); i != count; ++i) {
+    const QString &name = siParams[i].m_name;
+    if (siParams[i].m_type != ShaderInterface::FLOAT) continue;
+    const TDoubleParamP &param =
+        *boost::unsafe_any_cast<TDoubleParamP>(&params[i]);
+    if (name == QStringLiteral("threshold"))
+      threshold = param->getValue(frame);
+    else if (name == QStringLiteral("brightness"))
+      brightness = param->getValue(frame);
+    else if (name == QStringLiteral("radius"))
+      radius = param->getValue(frame);
+    else if (name == QStringLiteral("angle"))
+      angle = param->getValue(frame);
+    else if (name == QStringLiteral("halo"))
+      halo = param->getValue(frame);
+  }
+
+  const TRectD outRect = ::tileRect(tile);
+  if (outRect.getLx() <= 0.0 || outRect.getLy() <= 0.0) return false;
+
+  const TAffine worldToOutput = TTranslation(-tile.m_pos) * info.m_affine;
+  const double scale =
+      std::sqrt(std::abs(worldToOutput.a11 * worldToOutput.a22 -
+                         worldToOutput.a12 * worldToOutput.a21));
+  const double rad = scale * std::max(radius, 0.0);
+  TRectD expandedOutputRect(TPointD(0.0, 0.0),
+                            TDimensionD(outputRaster->getLx(),
+                                        outputRaster->getLy()));
+  expandedOutputRect.x0 -= rad;
+  expandedOutputRect.y0 -= rad;
+  expandedOutputRect.x1 += rad;
+  expandedOutputRect.y1 += rad;
+  TRectD inputRect = transformRect(worldToOutput.inv(), expandedOutputRect);
+  ::ceilRect(inputRect);
+  const TDimension inputSize(tround(inputRect.getLx()),
+                             tround(inputRect.getLy()));
+  if (inputSize.lx <= 0 || inputSize.ly <= 0) return false;
+
+  TTile inTile;
+  TRenderSettings inputInfo(info);
+  inputInfo.m_affine = info.m_affine;
+  ports[0]->allocateAndCompute(inTile, inputRect.getP00(), inputSize,
+                               tile.getRaster(), frame, inputInfo);
+  if (!TRaster32P(inTile.getRaster())) return false;
+
+  const TAffine textureToOutput =
+      TTranslation(-tile.m_pos) * info.m_affine * info.m_affine.inv() *
+      TTranslation(inputRect.getP00()) *
+      TScale(inputRect.getLx(), inputRect.getLy());
+  const TAffine outputToTexture = textureToOutput.inv();
+
+  TRaster32P rendered = TGraphics::renderGlitterWithMetalBackend(
+      outputRaster->getLx(), outputRaster->getLy(),
+      TRaster32P(inTile.getRaster()), outputToTexture, worldToOutput,
+      threshold, brightness, radius, angle, halo);
+  if (!rendered) return false;
+
+  outputRaster->copy(rendered);
+  return true;
+}
+
 //-------------------------------------------------------------------
 
 void ShaderFx::doCompute(TTile &tile, double frame,
@@ -1512,6 +1628,9 @@ void ShaderFx::doCompute(TTile &tile, double frame,
     return;
   if (renderSpinBlurShaderWithMetal(m_shaderInterface, m_params, m_inputPorts,
                                     tile, frame, info))
+    return;
+  if (renderGlitterShaderWithMetal(m_shaderInterface, m_params, m_inputPorts,
+                                   tile, frame, info))
     return;
 
   ShadingContextManager *manager = ShadingContextManager::instance();
@@ -1692,6 +1811,13 @@ void ShaderFx::compute(TTile &tile, double frame, const TRenderSettings &info) {
       doCompute(tile, frame, info);
       return;
     }
+    if (m_shaderInterface->mainShader().m_name ==
+            QStringLiteral("SHADER_glitter") &&
+        m_inputPorts.size() == 1 && m_inputPorts[0].isConnected() &&
+        TRaster32P(tile.getRaster()) && info.m_bpp == 32) {
+      doCompute(tile, frame, info);
+      return;
+    }
   }
 
   TStandardZeraryFx::compute(tile, frame, info);
@@ -1740,6 +1866,20 @@ void ShaderFx::doDryCompute(TRectD &rect, double frame,
   if (TGraphics::activeBackendType() == TGraphics::BackendType::Metal &&
       m_shaderInterface->mainShader().m_name ==
           QStringLiteral("SHADER_spinblurGPU") &&
+      m_inputPorts.size() == 1) {
+    TRectD inputRect = rect;
+    if (inputRect.getLx() <= 0.0 || inputRect.getLy() <= 0.0) return;
+    ::ceilRect(inputRect);
+
+    TRenderSettings inputInfo(info);
+    inputInfo.m_affine = info.m_affine;
+    TRasterFxPort &port = m_inputPorts[0];
+    if (port.isConnected()) port->dryCompute(inputRect, frame, inputInfo);
+    return;
+  }
+
+  if (TGraphics::activeBackendType() == TGraphics::BackendType::Metal &&
+      m_shaderInterface->mainShader().m_name == QStringLiteral("SHADER_glitter") &&
       m_inputPorts.size() == 1) {
     TRectD inputRect = rect;
     if (inputRect.getLx() <= 0.0 || inputRect.getLy() <= 0.0) return;

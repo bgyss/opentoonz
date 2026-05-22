@@ -211,6 +211,11 @@ DVAPI TRaster32P renderSpinBlurWithMetalBackend(
     int width, int height, const TRaster32P& source,
     const TAffine& outputToInput, const TAffine& worldToOutput,
     const TPointD& center, double radius, double blur);
+DVAPI TRaster32P renderGlitterWithMetalBackend(
+    int width, int height, const TRaster32P& source,
+    const TAffine& outputToInput, const TAffine& worldToOutput,
+    double threshold, double brightness, double radius, double angle,
+    double halo);
 
 }  // namespace TGraphics
 

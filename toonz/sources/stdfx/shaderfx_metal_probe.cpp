@@ -506,6 +506,7 @@ TRasterFxP makeProbeShaderFx(const Options& options, TFxP foregroundFx,
     root->getInputPort(0)->setFx(foregroundFx.getPointer());
     root->getInputPort(1)->setFx(backgroundFx.getPointer());
   } else if (options.shaderName == "SHADER_radialblurGPU" ||
+             options.shaderName == "SHADER_glitter" ||
              options.shaderName == "SHADER_spinblurGPU") {
     if (root->getInputPortCount() != 1) return TRasterFxP();
     if (!root->getInputPort(0)) return TRasterFxP();
@@ -635,7 +636,9 @@ TRaster32P renderRadialBlurSceneForProbe(const Options& options,
   const int width  = tile.getRaster()->getLx() * 3;
   const int height = tile.getRaster()->getLy() * 3;
   const std::wstring levelName =
-      options.shaderName == "SHADER_spinblurGPU"
+      options.shaderName == "SHADER_glitter"
+          ? L"GlitterProbeForeground"
+          : options.shaderName == "SHADER_spinblurGPU"
           ? L"SpinBlurProbeForeground"
           : L"RadialBlurProbeForeground";
 
@@ -660,6 +663,8 @@ TRaster32P renderSceneForProbe(const Options& options, const TTile& tile,
   if (options.shaderName == "SHADER_radialblurGPU")
     return renderRadialBlurSceneForProbe(options, tile, frame, settings);
   if (options.shaderName == "SHADER_spinblurGPU")
+    return renderRadialBlurSceneForProbe(options, tile, frame, settings);
+  if (options.shaderName == "SHADER_glitter")
     return renderRadialBlurSceneForProbe(options, tile, frame, settings);
 
   TFxP root = makeProbeShaderFx(options, foregroundFx, backgroundFx);
@@ -741,6 +746,10 @@ bool hydrateSavedProbeInputLevels(const Options& options, ToonzScene& scene,
     return hydrateSavedProbeLevel(scene, L"SpinBlurProbeForeground",
                                   scenePath);
   }
+  if (options.shaderName == "SHADER_glitter") {
+    return hydrateSavedProbeLevel(scene, L"GlitterProbeForeground",
+                                  scenePath);
+  }
   return true;
 }
 
@@ -766,11 +775,14 @@ TRaster32P renderSavedLoadedSceneForProbe(const Options& options,
     root = makeProbeShaderFx(options, TFxP(foregroundColumnFx),
                              TFxP(backgroundColumnFx));
   } else if (options.shaderName == "SHADER_radialblurGPU" ||
+             options.shaderName == "SHADER_glitter" ||
              options.shaderName == "SHADER_spinblurGPU") {
     const int width  = tile.getRaster()->getLx() * 3;
     const int height = tile.getRaster()->getLy() * 3;
     const std::wstring levelName =
-        options.shaderName == "SHADER_spinblurGPU"
+        options.shaderName == "SHADER_glitter"
+            ? L"GlitterProbeForeground"
+            : options.shaderName == "SHADER_spinblurGPU"
             ? L"SpinBlurProbeForeground"
             : L"RadialBlurProbeForeground";
     TLevelColumnFx* foregroundColumnFx = addSavedProbeRasterColumn(
@@ -865,6 +877,34 @@ TRaster32P renderExpectedMetalHelper(const Options& options, int width,
         makeHSLProbeRaster(inputWidth, inputHeight, inputRect.getP00(), true),
         outputToTexture, worldToOutput, TPointD(0.0, 0.0), 3.0, 1.0);
   }
+  if (options.shaderName == "SHADER_glitter") {
+    const TAffine worldToOutput = TTranslation(-tile.m_pos) * settings.m_affine;
+    const double radius         = 5.333333333;
+    const double scale =
+        std::sqrt(std::abs(worldToOutput.a11 * worldToOutput.a22 -
+                           worldToOutput.a12 * worldToOutput.a21));
+    const double rad = scale * radius;
+    TRectD inputRect(TPointD(0.0, 0.0), TDimensionD(width, height));
+    inputRect.x0 -= rad;
+    inputRect.y0 -= rad;
+    inputRect.x1 += rad;
+    inputRect.y1 += rad;
+    inputRect = transformRect(worldToOutput.inv(), inputRect);
+    inputRect.x0 = tfloor(inputRect.x0), inputRect.y0 = tfloor(inputRect.y0);
+    inputRect.x1 = tceil(inputRect.x1), inputRect.y1 = tceil(inputRect.y1);
+    const int inputWidth  = tround(inputRect.getLx());
+    const int inputHeight = tround(inputRect.getLy());
+    if (inputWidth <= 0 || inputHeight <= 0) return TRaster32P();
+    const TAffine textureToOutput =
+        TTranslation(-tile.m_pos) * settings.m_affine *
+        settings.m_affine.inv() * TTranslation(inputRect.getP00()) *
+        TScale(inputRect.getLx(), inputRect.getLy());
+    const TAffine outputToTexture = textureToOutput.inv();
+    return TGraphics::renderGlitterWithMetalBackend(
+        width, height,
+        makeHSLProbeRaster(inputWidth, inputHeight, inputRect.getP00(), true),
+        outputToTexture, worldToOutput, 30.0, 30.0, radius, 45.0, 1.0);
+  }
   return TRaster32P();
 }
 
@@ -894,6 +934,7 @@ int main(int argc, char* argv[]) {
   TFxP backgroundFx;
   if (options.shaderName == "SHADER_HSLBlendGPU" ||
       options.shaderName == "SHADER_radialblurGPU" ||
+      options.shaderName == "SHADER_glitter" ||
       options.shaderName == "SHADER_spinblurGPU") {
     foregroundFx = TFxP(new HSLProbeRasterFx(true));
     if (options.shaderName == "SHADER_HSLBlendGPU")
@@ -910,6 +951,7 @@ int main(int argc, char* argv[]) {
       TAffine::translation(4.0, -3.0) * TAffine::scale(1.25, 0.75);
   if (options.shaderName == "SHADER_HSLBlendGPU" ||
       options.shaderName == "SHADER_radialblurGPU" ||
+      options.shaderName == "SHADER_glitter" ||
       options.shaderName == "SHADER_spinblurGPU")
     settings.m_affine = TAffine();
 
@@ -935,6 +977,7 @@ int main(int argc, char* argv[]) {
   } else if (options.renderWithRenderer) {
     if ((options.shaderName == "SHADER_HSLBlendGPU" ||
          options.shaderName == "SHADER_radialblurGPU" ||
+         options.shaderName == "SHADER_glitter" ||
          options.shaderName == "SHADER_spinblurGPU") &&
         TGraphics::activeBackendType() != TGraphics::BackendType::Metal)
       return fail("input-texture ShaderFx probe requires the Metal backend")
@@ -948,6 +991,7 @@ int main(int argc, char* argv[]) {
     }
   } else if (options.shaderName == "SHADER_HSLBlendGPU" ||
              options.shaderName == "SHADER_radialblurGPU" ||
+             options.shaderName == "SHADER_glitter" ||
              options.shaderName == "SHADER_spinblurGPU") {
     if (TGraphics::activeBackendType() != TGraphics::BackendType::Metal)
       return fail("input-texture ShaderFx probe requires the Metal backend")

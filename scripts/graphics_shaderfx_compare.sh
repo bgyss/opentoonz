@@ -123,6 +123,22 @@ fi
     --scene-render \
     --save-load-scene "$artifact_dir/spinblurGPU-metal.tnz" \
     --write-pam "$artifact_dir/spinblurGPU-metal-saved-scene.pam"
+  OPENTOONZ_GRAPHICS_BACKEND=metal "$probe" \
+    --shader SHADER_glitter \
+    --write-pam "$artifact_dir/glitter-metal.pam"
+  OPENTOONZ_GRAPHICS_BACKEND=metal "$probe" \
+    --shader SHADER_glitter \
+    --renderer \
+    --write-pam "$artifact_dir/glitter-metal-renderer.pam"
+  OPENTOONZ_GRAPHICS_BACKEND=metal "$probe" \
+    --shader SHADER_glitter \
+    --scene-render \
+    --write-pam "$artifact_dir/glitter-metal-scene.pam"
+  OPENTOONZ_GRAPHICS_BACKEND=metal "$probe" \
+    --shader SHADER_glitter \
+    --scene-render \
+    --save-load-scene "$artifact_dir/glitter-metal.tnz" \
+    --write-pam "$artifact_dir/glitter-metal-saved-scene.pam"
 )
 
 echo "graphics_shaderfx_compare: ok"

@@ -158,12 +158,13 @@ Production integration status:
 - `scripts/graphics_shaderfx_compare.sh` captures the same transformed
   production `ShaderFx` tiles through OpenGL and Metal, writes OpenGL/Metal/diff
   PAM artifacts for the migrated no-input procedural shaders, writes Metal HSL
-  radial blur, and spin blur artifacts for `SHADER_HSLBlendGPU`,
-  `SHADER_radialblurGPU`, and `SHADER_spinblurGPU`, writes renderer-driven Metal
-  artifacts for the migrated no-input shaders, HSL, radial blur, and spin blur,
-  writes HSL, radial blur, and spin blur Metal scene-render artifacts, writes
-  saved-and-reloaded HSL, radial blur, and spin blur input-texture `.tnz` scene
-  fixtures with raster-level inputs, writes
+  radial blur, spin blur, and glitter artifacts for `SHADER_HSLBlendGPU`,
+  `SHADER_radialblurGPU`, `SHADER_spinblurGPU`, and `SHADER_glitter`, writes
+  renderer-driven Metal artifacts for the migrated no-input shaders, HSL,
+  radial blur, spin blur, and glitter, writes HSL, radial blur, spin blur, and
+  glitter Metal scene-render artifacts, writes saved-and-reloaded HSL, radial
+  blur, spin blur, and glitter input-texture `.tnz` scene fixtures with
+  raster-level inputs, writes
   `ToonzScene`/`buildSceneFx(...)` scene-render OpenGL/Metal/diff artifacts for
   the migrated no-input procedural shaders, writes saved-and-reloaded `.tnz`
   scene fixtures plus OpenGL/Metal/diff artifacts for the same procedural
@@ -174,14 +175,11 @@ Production integration status:
 
 Remaining shared shader-generation candidates:
 
-- `glitter.frag`
-
-This samples `inputImage` textures through GLSL `sampler2D`/`texture2D` and uses
-the current OpenGL matrix conventions. It should be ported after a
-backend-neutral input texture and coordinate binding path exists in
-`tgraphics`. `HSLBlendGPU.frag` is now the first hand-routed input-texture
-ShaderFx case, but it is not yet generated from the GLSL source and does not
-cover bbox/ports shaders that need non-identity input geometry.
+- None of the packaged fragment shaders remain in the generic input-texture
+  candidate bucket. `HSLBlendGPU.frag`, `radialblurGPU.frag`,
+  `spinblurGPU.frag`, and `glitter.frag` all now have explicit hand-routed
+  Metal helpers and ShaderFx Metal routes. The GLSL sources remain packaged for
+  the OpenGL fallback and are not yet generated into MSL from shared source.
 
 `radialblurGPU.frag` now has a direct hand-routed Metal implementation for the
 simple connected 32-bit tile path, detached `TRenderer` execution, a
@@ -192,6 +190,13 @@ counted as a fully migrated effect.
 
 `spinblurGPU.frag` now has a direct hand-routed Metal implementation for the
 simple connected 32-bit tile path, detached `TRenderer` execution, a
+`ToonzScene`/`buildSceneFx(...)` scene-render fixture with a real raster-level
+input column, and saved/reloaded scene-render coverage for that input-texture
+fixture. Its Metal path uses CPU-side bbox/input-rect expansion for the migrated
+route instead of compiling the legacy transform-feedback bbox/ports shaders.
+
+`glitter.frag` now has a direct hand-routed Metal implementation for the simple
+connected 32-bit tile path, detached `TRenderer` execution, a
 `ToonzScene`/`buildSceneFx(...)` scene-render fixture with a real raster-level
 input column, and saved/reloaded scene-render coverage for that input-texture
 fixture. Its Metal path uses CPU-side bbox/input-rect expansion for the migrated
@@ -258,6 +263,21 @@ Input-texture Metal groundwork:
 - `shaderfx_metal_probe --shader SHADER_spinblurGPU --scene-render
   --save-load-scene <path>` validates the same saved/reloaded minimal `.tnz`
   path for the spin-blur input-texture fixture.
+- `TGraphics::renderGlitterWithMetalBackend(...)` renders a single-input
+  glitter effect into an offscreen Metal render target using the GLSL
+  `glitter.frag` ray-filter sampling formula and explicit `outputToInput` and
+  `worldToOutput` transforms.
+- `shaderfx_metal_probe --shader SHADER_glitter` validates the direct connected
+  `ShaderFx::doCompute(...)` Metal route against the lower-level glitter helper
+  for the current simple 32-bit tile path.
+- `shaderfx_metal_probe --shader SHADER_glitter --renderer` validates the same
+  route through `TRenderer` with precomputing enabled.
+- `shaderfx_metal_probe --shader SHADER_glitter --scene-render` validates
+  glitter through a `ToonzScene` render tree with a real foreground raster level
+  column.
+- `shaderfx_metal_probe --shader SHADER_glitter --scene-render
+  --save-load-scene <path>` validates the same saved/reloaded minimal `.tnz`
+  path for the glitter input-texture fixture.
 
 Blocked by OpenGL-specific transform feedback:
 
@@ -396,10 +416,9 @@ connected, detached renderer, `ToonzScene`/`buildSceneFx(...)` scene-render,
 and saved-and-reloaded `.tnz` scene-render coverage. `spinblurGPU` now has the
 same direct connected, detached renderer, `ToonzScene`/`buildSceneFx(...)`
 scene-render, and saved-and-reloaded `.tnz` scene-render coverage. Continue by
-porting the remaining input-texture shader candidate (`glitter`) and replacing
-transform-feedback bbox/port shaders with backend-neutral CPU or Metal buffer
-computation. Keep OpenGL `ShaderFx` as the default until full scene parity is
-broader.
+replacing transform-feedback bbox/port shaders with backend-neutral CPU or Metal
+buffer computation for the migrated input-texture effects. Keep OpenGL
+`ShaderFx` as the default until full scene parity is broader.
 
 ## Validation Run
 
@@ -424,7 +443,11 @@ nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/bu
 nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_spinblurGPU --renderer'
 nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_spinblurGPU --scene-render'
 nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_spinblurGPU --scene-render --save-load-scene /private/tmp/opentoonz-spinblur-saved-scene.tnz --write-pam /private/tmp/opentoonz-spinblur-saved-scene.pam'
-nix develop path:. --command bash scripts/graphics_shaderfx_compare.sh /private/tmp/opentoonz-shaderfx-compare-spinblur
+nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_glitter'
+nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_glitter --renderer'
+nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_glitter --scene-render'
+nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_glitter --scene-render --save-load-scene /private/tmp/opentoonz-glitter-saved-scene.tnz --write-pam /private/tmp/opentoonz-glitter-saved-scene.pam'
+nix develop path:. --command bash scripts/graphics_shaderfx_compare.sh /private/tmp/opentoonz-shaderfx-compare-glitter
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=OFF'
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target OpenToonz --parallel 3
 nix develop path:. --command bash scripts/macos/assert-arm64-bundle.sh
@@ -453,6 +476,10 @@ shaderfx_metal_probe: ok shader=SHADER_spinblurGPU backend=metal device=Apple M1
 shaderfx_metal_probe: ok shader=SHADER_spinblurGPU backend=metal device=Apple M1 Max
 shaderfx_metal_probe: ok shader=SHADER_spinblurGPU backend=metal device=Apple M1 Max
 shaderfx_metal_probe: ok shader=SHADER_spinblurGPU backend=metal device=Apple M1 Max
+shaderfx_metal_probe: ok shader=SHADER_glitter backend=metal device=Apple M1 Max
+shaderfx_metal_probe: ok shader=SHADER_glitter backend=metal device=Apple M1 Max
+shaderfx_metal_probe: ok shader=SHADER_glitter backend=metal device=Apple M1 Max
+shaderfx_metal_probe: ok shader=SHADER_glitter backend=metal device=Apple M1 Max
 shaderfx_metal_probe: ok shader=SHADER_sunflare backend=metal device=Apple M1 Max
 shaderfx_metal_probe: ok shader=SHADER_sunflare backend=opengl
 shaderfx_metal_probe: ok shader=SHADER_caustics backend=opengl
@@ -484,24 +511,24 @@ WITH_GRAPHICS_METAL:BOOL=OFF
 The final ShaderFx artifact directory for this checkpoint was:
 
 ```text
-/private/tmp/opentoonz-shaderfx-compare-spinblur
+/private/tmp/opentoonz-shaderfx-compare-glitter
 ```
 
 Known validation gap: this checkpoint verifies that the production effect graph
 can compile and route to the Metal `sunflare`, `caustics`, `starsky`, `wavy`,
 `fireball`, and direct connected `HSLBlendGPU` paths, that direct and
 renderer-driven `ShaderFx` execution both match the lower-level Metal helpers
-for the migrated Metal paths including detached radial blur and spin blur, that
-the HSL, radial blur, and spin blur input-texture paths can render through
-`ToonzScene`/`buildSceneFx(...)` graphs with real raster-level inputs, that the
-HSL, radial blur, and spin blur input-texture scene fixtures can be saved,
-reloaded, hydrated from their saved raster frame files, rebuilt through
-`buildSceneFx(...)`, and rendered through Metal, that the sunflare Metal helper
+for the migrated Metal paths including detached radial blur, spin blur, and
+glitter, that the HSL, radial blur, spin blur, and glitter input-texture paths
+can render through `ToonzScene`/`buildSceneFx(...)` graphs with real
+raster-level inputs, that the HSL, radial blur, spin blur, and glitter
+input-texture scene fixtures can be saved, reloaded, hydrated from their saved
+raster frame files, rebuilt through `buildSceneFx(...)`, and rendered through
+Metal, that the sunflare Metal helper
 matches a CPU formula reference, and that the production OpenGL and Metal
 `ShaderFx` outputs match
 within tolerance for all five no-input migrated shaders directly, when wrapped
 through `ToonzScene`/`buildSceneFx(...)`, and after saving and reloading minimal
-`.tnz` scene fixtures. It does not yet cover the remaining `glitter`
-input-texture shader effect, transform-feedback bbox/ports shaders beyond the
-current input-texture bypasses, an actual generated `.metallib` artifact, or
-full GUI preview/export scene renders.
+`.tnz` scene fixtures. It does not yet cover transform-feedback bbox/ports
+shaders beyond the current input-texture bypasses, an actual generated
+`.metallib` artifact, or full GUI preview/export scene renders.

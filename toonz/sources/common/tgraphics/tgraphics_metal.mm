@@ -239,6 +239,86 @@ NSString *shaderSource() {
           "  }\n"
           "  return pix / float(2 * samplesCount - 1);\n"
           "}\n"
+          "struct GlitterUniforms { float inputA11; float inputA12; float "
+          "inputA13; float inputA21; float inputA22; float inputA23; float "
+          "worldA11; float worldA12; float worldA13; float worldA21; float "
+          "worldA22; float worldA23; float threshold; float brightness; "
+          "float radius; float angle; float halo; float3 padding; };\n"
+          "float glitterRayWeight(float s, float halo) { s /= halo; return "
+          "clamp(1.0 - s * s, 0.0, 1.0); }\n"
+          "float4 glitterLightValue(texture2d<float> sourceTexture, sampler "
+          "colorSampler, float2 texCoord, float threshold) {\n"
+          "  float4 color = sourceTexture.sample(colorSampler, texCoord);\n"
+          "  float lum = dot(float3(0.298980712, 0.587036132, "
+          "0.113983154), color.rgb);\n"
+          "  return smoothstep(threshold, 1.0, lum) * color;\n"
+          "}\n"
+          "bool glitterFilterLine(thread float4 &color, texture2d<float> "
+          "sourceTexture, sampler colorSampler, float2 p, float2 dx, float "
+          "sy, float stepsCount, float halo, float threshold) {\n"
+          "  float rw = glitterRayWeight(sy, halo);\n"
+          "  if (rw == 0.0) return false;\n"
+          "  float dw = max(1.0 - sy / stepsCount, 0.0);\n"
+          "  color += dw * rw * glitterLightValue(sourceTexture, "
+          "colorSampler, p, threshold);\n"
+          "  for (float sx = 1.0; sx < stepsCount; sx += 1.0) {\n"
+          "    dw = max(1.0 - length(float2(sx, sy)) / stepsCount, 0.0);\n"
+          "    color += rw * dw * (glitterLightValue(sourceTexture, "
+          "colorSampler, p + sx * dx, threshold) + "
+          "glitterLightValue(sourceTexture, colorSampler, p - sx * dx, "
+          "threshold));\n"
+          "  }\n"
+          "  return true;\n"
+          "}\n"
+          "fragment float4 tgraphicsGlitterFragment(VertexOut in "
+          "[[stage_in]], texture2d<float> sourceTexture [[texture(0)]], "
+          "sampler colorSampler [[sampler(0)]], constant GlitterUniforms &u "
+          "[[buffer(0)]]) {\n"
+          "  float scale = sqrt(abs(u.worldA11 * u.worldA22 - u.worldA12 * "
+          "u.worldA21));\n"
+          "  float angle = u.angle * 0.017453292519943295;\n"
+          "  float sinAngle = sin(angle);\n"
+          "  float cosAngle = cos(angle);\n"
+          "  float threshold = 1.0 - 0.01 * u.threshold;\n"
+          "  float rad = max(u.radius, 0.0) * scale;\n"
+          "  float stepsCount = max(ceil(4.0 * rad), 1.0);\n"
+          "  float halo = max(0.01 * (u.halo + 1.0) * stepsCount, "
+          "0.0001);\n"
+          "  float step = max(u.radius, 0.0) / stepsCount;\n"
+          "  float2 texCoord = float2(in.position.x * u.inputA11 + "
+          "in.position.y * u.inputA12 + u.inputA13, in.position.x * "
+          "u.inputA21 + in.position.y * u.inputA22 + u.inputA23);\n"
+          "  float2 worldBasisX = float2(u.worldA11 * u.inputA11 + "
+          "u.worldA21 * u.inputA12, u.worldA11 * u.inputA21 + u.worldA21 * "
+          "u.inputA22);\n"
+          "  float2 worldBasisY = float2(u.worldA12 * u.inputA11 + "
+          "u.worldA22 * u.inputA12, u.worldA12 * u.inputA21 + u.worldA22 * "
+          "u.inputA22);\n"
+          "  float2 dx0 = (cosAngle * worldBasisX + sinAngle * worldBasisY) "
+          "* step;\n"
+          "  float2 dx1 = (-sinAngle * worldBasisX + cosAngle * "
+          "worldBasisY) * step;\n"
+          "  float4 addColor = float4(0.0);\n"
+          "  glitterFilterLine(addColor, sourceTexture, colorSampler, "
+          "texCoord, dx0, 0.0, stepsCount, halo, threshold);\n"
+          "  for (float s = 1.0; s < stepsCount; s += 1.0) {\n"
+          "    if (!glitterFilterLine(addColor, sourceTexture, colorSampler, "
+          "texCoord + s * dx1, dx0, s, stepsCount, halo, threshold)) break;\n"
+          "    glitterFilterLine(addColor, sourceTexture, colorSampler, "
+          "texCoord - s * dx1, dx0, s, stepsCount, halo, threshold);\n"
+          "  }\n"
+          "  glitterFilterLine(addColor, sourceTexture, colorSampler, "
+          "texCoord, dx1, 0.0, stepsCount, halo, threshold);\n"
+          "  for (float s = 1.0; s < stepsCount; s += 1.0) {\n"
+          "    if (!glitterFilterLine(addColor, sourceTexture, colorSampler, "
+          "texCoord + s * dx0, dx1, s, stepsCount, halo, threshold)) break;\n"
+          "    glitterFilterLine(addColor, sourceTexture, colorSampler, "
+          "texCoord - s * dx0, dx1, s, stepsCount, halo, threshold);\n"
+          "  }\n"
+          "  float weight = stepsCount * 4.0;\n"
+          "  float4 color = sourceTexture.sample(colorSampler, texCoord);\n"
+          "  return color + addColor * (u.brightness / weight);\n"
+          "}\n"
           "struct SunflareUniforms { float a11; float a12; float a13; float "
           "a21; float a22; float a23; float4 color; float blades; float "
           "intensity; float angle; float bias; float sharpness; };\n"
@@ -629,6 +709,27 @@ struct RadialBlurUniforms {
   float m_blur     = 0.3f;
 };
 
+struct GlitterUniforms {
+  float m_inputA11   = 1.0f;
+  float m_inputA12   = 0.0f;
+  float m_inputA13   = 0.0f;
+  float m_inputA21   = 0.0f;
+  float m_inputA22   = 1.0f;
+  float m_inputA23   = 0.0f;
+  float m_worldA11   = 1.0f;
+  float m_worldA12   = 0.0f;
+  float m_worldA13   = 0.0f;
+  float m_worldA21   = 0.0f;
+  float m_worldA22   = 1.0f;
+  float m_worldA23   = 0.0f;
+  float m_threshold  = 30.0f;
+  float m_brightness = 30.0f;
+  float m_radius     = 5.333333333f;
+  float m_angle      = 45.0f;
+  float m_halo       = 1.0f;
+  float m_padding[3] = {0.0f, 0.0f, 0.0f};
+};
+
 id<MTLRenderPipelineState> proceduralShaderPipelineState(id<MTLRenderPipelineState> &pipeline,
                                                          bool &attempted, NSString *label,
                                                          NSString *fragmentFunctionName) {
@@ -720,6 +821,13 @@ id<MTLRenderPipelineState> spinBlurPipelineState() {
   static bool attempted                      = false;
   return proceduralShaderPipelineState(pipeline, attempted, @"create spin blur pipeline",
                                        @"tgraphicsSpinBlurFragment");
+}
+
+id<MTLRenderPipelineState> glitterPipelineState() {
+  static id<MTLRenderPipelineState> pipeline = nil;
+  static bool attempted                      = false;
+  return proceduralShaderPipelineState(pipeline, attempted, @"create glitter pipeline",
+                                       @"tgraphicsGlitterFragment");
 }
 
 id<MTLSamplerState> sharedSamplerState() {
@@ -1663,6 +1771,74 @@ TRaster32P renderNativeMetalSpinBlur(int width, int height, const TRaster32P &so
   uniforms.m_centerY  = static_cast<float>(center.y);
   uniforms.m_radius   = static_cast<float>(radius);
   uniforms.m_blur     = static_cast<float>(blur);
+
+  [encoder setRenderPipelineState:pipeline];
+  [encoder setVertexBytes:vertices length:sizeof(vertices) atIndex:0];
+  [encoder setFragmentTexture:sourceTexture atIndex:0];
+  [encoder setFragmentSamplerState:sampler atIndex:0];
+  [encoder setFragmentBytes:&uniforms length:sizeof(uniforms) atIndex:0];
+  [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+  [encoder endEncoding];
+  [commandBuffer commit];
+  [commandBuffer waitUntilCompleted];
+
+  return readNativeMetalRenderTarget(&target);
+}
+
+TRaster32P renderNativeMetalGlitter(int width, int height, const TRaster32P &source,
+                                    const TAffine &outputToInput,
+                                    const TAffine &worldToOutput,
+                                    double threshold, double brightness,
+                                    double radius, double angle, double halo) {
+  if (!probeMetalDevice() || width <= 0 || height <= 0 || !source) return TRaster32P();
+
+  MetalTextureRenderTarget target(width, height);
+  if (!target.texture()) return TRaster32P();
+
+  id<MTLRenderPipelineState> pipeline = glitterPipelineState();
+  id<MTLSamplerState> sampler         = sharedSamplerState();
+  id<MTLTexture> sourceTexture        = uploadRasterTexture(source);
+  if (!pipeline || !sampler || !sourceTexture) return TRaster32P();
+
+  MetalState &state = metalState();
+
+  MTLRenderPassDescriptor *pass        = [MTLRenderPassDescriptor renderPassDescriptor];
+  pass.colorAttachments[0].texture     = target.texture();
+  pass.colorAttachments[0].loadAction  = MTLLoadActionClear;
+  pass.colorAttachments[0].storeAction = MTLStoreActionStore;
+  pass.colorAttachments[0].clearColor  = MTLClearColorMake(0.0, 0.0, 0.0, 0.0);
+
+  id<MTLCommandBuffer> commandBuffer  = [state.m_commandQueue commandBuffer];
+  commandBuffer.label                 = @"OpenToonz TGraphics Glitter";
+  id<MTLRenderCommandEncoder> encoder = [commandBuffer renderCommandEncoderWithDescriptor:pass];
+  encoder.label                       = @"Glitter";
+
+  const float left              = -1.0f;
+  const float right             = 1.0f;
+  const float top               = 1.0f;
+  const float bottom            = -1.0f;
+  const MetalVertex vertices[6] = {{left, top, 0.0f, 0.0f},     {right, top, 1.0f, 0.0f},
+                                   {left, bottom, 0.0f, 1.0f},  {right, top, 1.0f, 0.0f},
+                                   {right, bottom, 1.0f, 1.0f}, {left, bottom, 0.0f, 1.0f}};
+
+  GlitterUniforms uniforms;
+  uniforms.m_inputA11   = static_cast<float>(outputToInput.a11);
+  uniforms.m_inputA12   = static_cast<float>(outputToInput.a12);
+  uniforms.m_inputA13   = static_cast<float>(outputToInput.a13);
+  uniforms.m_inputA21   = static_cast<float>(outputToInput.a21);
+  uniforms.m_inputA22   = static_cast<float>(outputToInput.a22);
+  uniforms.m_inputA23   = static_cast<float>(outputToInput.a23);
+  uniforms.m_worldA11   = static_cast<float>(worldToOutput.a11);
+  uniforms.m_worldA12   = static_cast<float>(worldToOutput.a12);
+  uniforms.m_worldA13   = static_cast<float>(worldToOutput.a13);
+  uniforms.m_worldA21   = static_cast<float>(worldToOutput.a21);
+  uniforms.m_worldA22   = static_cast<float>(worldToOutput.a22);
+  uniforms.m_worldA23   = static_cast<float>(worldToOutput.a23);
+  uniforms.m_threshold  = static_cast<float>(threshold);
+  uniforms.m_brightness = static_cast<float>(brightness);
+  uniforms.m_radius     = static_cast<float>(radius);
+  uniforms.m_angle      = static_cast<float>(angle);
+  uniforms.m_halo       = static_cast<float>(halo);
 
   [encoder setRenderPipelineState:pipeline];
   [encoder setVertexBytes:vertices length:sizeof(vertices) atIndex:0];

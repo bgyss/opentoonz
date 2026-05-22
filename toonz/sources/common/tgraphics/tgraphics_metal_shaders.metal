@@ -73,6 +73,27 @@ struct RadialBlurUniforms {
   float blur;
 };
 
+struct GlitterUniforms {
+  float inputA11;
+  float inputA12;
+  float inputA13;
+  float inputA21;
+  float inputA22;
+  float inputA23;
+  float worldA11;
+  float worldA12;
+  float worldA13;
+  float worldA21;
+  float worldA22;
+  float worldA23;
+  float threshold;
+  float brightness;
+  float radius;
+  float angle;
+  float halo;
+  float3 padding;
+};
+
 float hslMin3(float3 c) { return min(min(c.r, c.g), c.b); }
 float hslMax3(float3 c) { return max(max(c.r, c.g), c.b); }
 float hslLum3(float3 c) { return dot(c, float3(0.30, 0.59, 0.11)); }
@@ -227,6 +248,102 @@ fragment float4 tgraphicsSpinBlurFragment(
   }
 
   return pix / float(2 * samplesCount - 1);
+}
+
+float glitterRayWeight(float s, float halo) {
+  s /= halo;
+  return clamp(1.0 - s * s, 0.0, 1.0);
+}
+
+float4 glitterLightValue(texture2d<float> sourceTexture,
+                         sampler colorSampler, float2 texCoord,
+                         float threshold) {
+  float4 color = sourceTexture.sample(colorSampler, texCoord);
+  float lum = dot(float3(0.298980712, 0.587036132, 0.113983154), color.rgb);
+  return smoothstep(threshold, 1.0, lum) * color;
+}
+
+bool glitterFilterLine(thread float4& color,
+                       texture2d<float> sourceTexture,
+                       sampler colorSampler, float2 p, float2 dx, float sy,
+                       float stepsCount, float halo, float threshold) {
+  float rw = glitterRayWeight(sy, halo);
+  if (rw == 0.0) return false;
+
+  float dw = max(1.0 - sy / stepsCount, 0.0);
+  color += dw * rw * glitterLightValue(sourceTexture, colorSampler, p,
+                                       threshold);
+
+  for (float sx = 1.0; sx < stepsCount; sx += 1.0) {
+    dw = max(1.0 - length(float2(sx, sy)) / stepsCount, 0.0);
+    color += rw * dw *
+             (glitterLightValue(sourceTexture, colorSampler, p + sx * dx,
+                                threshold) +
+              glitterLightValue(sourceTexture, colorSampler, p - sx * dx,
+                                threshold));
+  }
+
+  return true;
+}
+
+fragment float4 tgraphicsGlitterFragment(
+    VertexOut in [[stage_in]], texture2d<float> sourceTexture [[texture(0)]],
+    sampler colorSampler [[sampler(0)]],
+    constant GlitterUniforms& u [[buffer(0)]]) {
+  float scale =
+      sqrt(abs(u.worldA11 * u.worldA22 - u.worldA12 * u.worldA21));
+  float angle = u.angle * 0.017453292519943295;
+  float sinAngle = sin(angle);
+  float cosAngle = cos(angle);
+  float threshold = 1.0 - 0.01 * u.threshold;
+  float rad = max(u.radius, 0.0) * scale;
+  float stepsCount = max(ceil(4.0 * rad), 1.0);
+  float halo = max(0.01 * (u.halo + 1.0) * stepsCount, 0.0001);
+  float step = max(u.radius, 0.0) / stepsCount;
+
+  float2 texCoord =
+      float2(in.position.x * u.inputA11 + in.position.y * u.inputA12 +
+                 u.inputA13,
+             in.position.x * u.inputA21 + in.position.y * u.inputA22 +
+                 u.inputA23);
+
+  float2 worldBasisX =
+      float2(u.worldA11 * u.inputA11 + u.worldA21 * u.inputA12,
+             u.worldA11 * u.inputA21 + u.worldA21 * u.inputA22);
+  float2 worldBasisY =
+      float2(u.worldA12 * u.inputA11 + u.worldA22 * u.inputA12,
+             u.worldA12 * u.inputA21 + u.worldA22 * u.inputA22);
+  float2 dx0 = (cosAngle * worldBasisX + sinAngle * worldBasisY) * step;
+  float2 dx1 = (-sinAngle * worldBasisX + cosAngle * worldBasisY) * step;
+
+  float4 addColor = float4(0.0);
+  glitterFilterLine(addColor, sourceTexture, colorSampler, texCoord, dx0, 0.0,
+                    stepsCount, halo, threshold);
+  for (float s = 1.0; s < stepsCount; s += 1.0) {
+    if (!glitterFilterLine(addColor, sourceTexture, colorSampler,
+                           texCoord + s * dx1, dx0, s, stepsCount, halo,
+                           threshold))
+      break;
+    glitterFilterLine(addColor, sourceTexture, colorSampler,
+                      texCoord - s * dx1, dx0, s, stepsCount, halo,
+                      threshold);
+  }
+
+  glitterFilterLine(addColor, sourceTexture, colorSampler, texCoord, dx1, 0.0,
+                    stepsCount, halo, threshold);
+  for (float s = 1.0; s < stepsCount; s += 1.0) {
+    if (!glitterFilterLine(addColor, sourceTexture, colorSampler,
+                           texCoord + s * dx0, dx1, s, stepsCount, halo,
+                           threshold))
+      break;
+    glitterFilterLine(addColor, sourceTexture, colorSampler,
+                      texCoord - s * dx0, dx1, s, stepsCount, halo,
+                      threshold);
+  }
+
+  float weight = stepsCount * 4.0;
+  float4 color = sourceTexture.sample(colorSampler, texCoord);
+  return color + addColor * (u.brightness / weight);
 }
 
 struct SunflareUniforms {
