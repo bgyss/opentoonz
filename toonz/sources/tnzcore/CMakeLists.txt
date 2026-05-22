@@ -451,3 +451,13 @@ if(BUILD_TARGET_APPLE AND WITH_GRAPHICS_METAL)
         tnzcore
     )
 endif()
+
+if(BUILD_TARGET_APPLE)
+    add_executable(tofflinegl_probe
+        ../common/tvrender/tofflinegl_probe.cpp
+    )
+    target_link_libraries(tofflinegl_probe
+        tnzcore
+        Qt5::Gui
+    )
+endif()
