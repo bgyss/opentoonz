@@ -219,6 +219,10 @@ before porting scene internals.
   legacy name-picking fallback. Unsupported FX gadget shapes still fall back to
   the legacy OpenGL pick path until each shape gets its own CPU or ID-buffer
   picker.
+- Simple geometric FX gadgets now extend that Metal CPU picker to radius,
+  distance, diamond, and size handles. More complex angle-range, compass,
+  rainbow-width, ellipse, parallelogram, and other specialized gadget shapes
+  still fall back to legacy OpenGL picking.
 - The direct Metal viewer background path now adds a checkerboard using
   `Preferences::getChessboardColors(...)` when `ToonzCheck::eTransparency` is
   active.

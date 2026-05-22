@@ -32,6 +32,44 @@
 
 using namespace EditToolGadgets;
 
+namespace {
+
+double viewerDistance2(const TPointD &a, const TPointD &b) {
+  const TPointD d = a - b;
+  return d.x * d.x + d.y * d.y;
+}
+
+double viewerSegmentDistance2(const TPointD &p, const TPointD &a,
+                              const TPointD &b) {
+  const TPointD ab = b - a;
+  const double len2 = ab.x * ab.x + ab.y * ab.y;
+  if (len2 <= 0.0) return viewerDistance2(p, a);
+  const TPointD ap = p - a;
+  double t         = (ap.x * ab.x + ap.y * ab.y) / len2;
+  t                = std::max(0.0, std::min(1.0, t));
+  return viewerDistance2(p, a + ab * t);
+}
+
+bool hitViewerPoint(FxGadgetController *controller, const TPointD &viewerPos,
+                    const TPointD &gadgetPos, double radiusScale = 6.0) {
+  const TPointD pos = controller->gadgetToViewerPos(gadgetPos);
+  const double hitRadius =
+      std::max(radiusScale, radiusScale * controller->getDevPixRatio());
+  return viewerDistance2(viewerPos, pos) <= hitRadius * hitRadius;
+}
+
+bool hitViewerSegment(FxGadgetController *controller, const TPointD &viewerPos,
+                      const TPointD &a, const TPointD &b,
+                      double radiusScale = 6.0) {
+  const TPointD va = controller->gadgetToViewerPos(a);
+  const TPointD vb = controller->gadgetToViewerPos(b);
+  const double hitRadius =
+      std::max(radiusScale, radiusScale * controller->getDevPixRatio());
+  return viewerSegmentDistance2(viewerPos, va, vb) <= hitRadius * hitRadius;
+}
+
+}  // namespace
+
 GLdouble FxGadget::m_selectedColor[3] = {0.2, 0.8, 0.1};
 
 namespace {
@@ -545,6 +583,7 @@ public:
   TPointD getCenter() const;
 
   void draw(bool picking) override;
+  int pickCpu(const TPointD &viewerPos) override;
 
   void leftButtonDown(const TPointD &pos, const TMouseEvent &) override;
   void leftButtonDrag(const TPointD &pos, const TMouseEvent &) override;
@@ -584,6 +623,18 @@ void RadiusFxGadget::draw(bool picking) {
 
 //---------------------------------------------------------------------------
 
+int RadiusFxGadget::pickCpu(const TPointD &viewerPos) {
+  if (!m_radius) return -1;
+  const double radius  = getValue(m_radius);
+  const TPointD center = getCenter();
+  if (hitViewerPoint(m_controller, viewerPos,
+                     center + TPointD(0.707, 0.707) * radius, 8.0))
+    return static_cast<int>(getId());
+  return -1;
+}
+
+//---------------------------------------------------------------------------
+
 void RadiusFxGadget::leftButtonDown(const TPointD &pos, const TMouseEvent &) {}
 
 //---------------------------------------------------------------------------
@@ -617,6 +668,7 @@ public:
   }
 
   void draw(bool picking) override;
+  int pickCpu(const TPointD &viewerPos) override;
 
   void leftButtonDown(const TPointD &pos, const TMouseEvent &) override;
   void leftButtonDrag(const TPointD &pos, const TMouseEvent &) override;
@@ -655,6 +707,21 @@ void DistanceFxGadget::draw(bool picking) {
   if (isSelected()) {
     drawTooltip(b + TPointD(5, 5) * getPixelSize(), getLabel());
   }
+}
+
+//---------------------------------------------------------------------------
+
+int DistanceFxGadget::pickCpu(const TPointD &viewerPos) {
+  if (!m_distance) return -1;
+  const double d = getValue(m_distance) * getScaleFactor();
+  const TPointD dir(getDirection());
+  const TPointD b = dir * (d * 0.5);
+  const TPointD c = b - dir * d;
+  if (hitViewerPoint(m_controller, viewerPos, b, 8.0) ||
+      hitViewerPoint(m_controller, viewerPos, c, 8.0) ||
+      hitViewerSegment(m_controller, viewerPos, b, c, 5.0))
+    return static_cast<int>(getId());
+  return -1;
 }
 
 //---------------------------------------------------------------------------
@@ -914,6 +981,7 @@ public:
   }
 
   void draw(bool picking) override;
+  int pickCpu(const TPointD &viewerPos) override;
 
   void leftButtonDown(const TPointD &pos, const TMouseEvent &) override {}
   void leftButtonDrag(const TPointD &pos, const TMouseEvent &) override;
@@ -959,6 +1027,18 @@ void DiamondFxGadget::draw(bool picking) {
 
 //---------------------------------------------------------------------------
 
+int DiamondFxGadget::pickCpu(const TPointD &viewerPos) {
+  const double size = getValue(m_param);
+  if (hitViewerPoint(m_controller, viewerPos, TPointD(-size, 0), 8.0) ||
+      hitViewerPoint(m_controller, viewerPos, TPointD(size, 0), 8.0) ||
+      hitViewerPoint(m_controller, viewerPos, TPointD(0, -size), 8.0) ||
+      hitViewerPoint(m_controller, viewerPos, TPointD(0, size), 8.0))
+    return static_cast<int>(getId());
+  return -1;
+}
+
+//---------------------------------------------------------------------------
+
 void DiamondFxGadget::leftButtonDrag(const TPointD &pos, const TMouseEvent &) {
   double sz = fabs(pos.x) + fabs(pos.y);
   if (sz < 0.1) sz = 0.1;
@@ -979,6 +1059,7 @@ public:
   }
 
   void draw(bool picking) override;
+  int pickCpu(const TPointD &viewerPos) override;
 
   void leftButtonDown(const TPointD &pos, const TMouseEvent &) override {}
   void leftButtonDrag(const TPointD &pos, const TMouseEvent &) override;
@@ -1017,6 +1098,20 @@ void SizeFxGadget::draw(bool picking) {
   if (isSelected()) {
     drawTooltip(TPointD(lx, ly), getLabel());
   }
+}
+
+//---------------------------------------------------------------------------
+
+int SizeFxGadget::pickCpu(const TPointD &viewerPos) {
+  const double lx = getValue(m_lx);
+  const double ly = m_ly ? getValue(m_ly) : lx;
+  if (hitViewerPoint(m_controller, viewerPos, TPointD(lx, ly), 8.0) ||
+      hitViewerSegment(m_controller, viewerPos, TPointD(0, 0),
+                       TPointD(lx, 0), 5.0) ||
+      hitViewerSegment(m_controller, viewerPos, TPointD(0, 0),
+                       TPointD(0, ly), 5.0))
+    return static_cast<int>(getId());
+  return -1;
 }
 
 //---------------------------------------------------------------------------
