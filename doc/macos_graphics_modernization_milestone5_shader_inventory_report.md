@@ -161,10 +161,12 @@ Production integration status:
   and radial blur artifacts for `SHADER_HSLBlendGPU` and
   `SHADER_radialblurGPU`, writes renderer-driven Metal artifacts for the
   migrated no-input shaders, HSL, and radial blur, writes HSL and radial blur
-  Metal scene-render artifacts, writes `ToonzScene`/`buildSceneFx(...)`
-  scene-render OpenGL/Metal/diff artifacts for the migrated no-input procedural
-  shaders, writes saved-and-reloaded `.tnz` scene fixtures plus OpenGL/Metal/diff
-  artifacts for the same procedural subset, and passes on Apple M1 Max.
+  Metal scene-render artifacts, writes saved-and-reloaded HSL and radial blur
+  input-texture `.tnz` scene fixtures with raster-level inputs, writes
+  `ToonzScene`/`buildSceneFx(...)` scene-render OpenGL/Metal/diff artifacts for
+  the migrated no-input procedural shaders, writes saved-and-reloaded `.tnz`
+  scene fixtures plus OpenGL/Metal/diff artifacts for the same procedural
+  subset, and passes on Apple M1 Max.
 - OpenGL remains the default backend.
 - Non-32-bit tiles and every other `ShaderFx` still use the existing OpenGL
   path.
@@ -182,10 +184,11 @@ ShaderFx case, but it is not yet generated from the GLSL source and does not
 cover bbox/ports shaders that need non-identity input geometry.
 
 `radialblurGPU.frag` now has a direct hand-routed Metal implementation for the
-simple connected 32-bit tile path, detached `TRenderer` execution, and a
+simple connected 32-bit tile path, detached `TRenderer` execution, a
 `ToonzScene`/`buildSceneFx(...)` scene-render fixture with a real raster-level
-input column. Saved-scene and transform-feedback bbox/port parity are still open
-before it should be counted as a fully migrated effect.
+input column, and saved/reloaded scene-render coverage for that input-texture
+fixture. Transform-feedback bbox/port parity is still open before it should be
+counted as a fully migrated effect.
 
 Input-texture Metal groundwork:
 
@@ -209,6 +212,11 @@ Input-texture Metal groundwork:
   because level-column placement intentionally changes the input coordinate
   contract; the probe still fails if the scene-render output is fully
   transparent.
+- `shaderfx_metal_probe --shader SHADER_HSLBlendGPU --scene-render
+  --save-load-scene <path>` validates that the HSL input-texture fixture can be
+  saved as a minimal `.tnz`, reloaded, hydrated from the saved raster-level
+  frame files, rebuilt through `buildSceneFx(...)`, and rendered through the
+  Metal path without producing a transparent result.
 - `TGraphics::renderRadialBlurWithMetalBackend(...)` renders a single-input
   radial blur into an offscreen Metal render target using the GLSL
   `radialblurGPU.frag` sampling formula and explicit `outputToInput` and
@@ -225,6 +233,9 @@ Input-texture Metal groundwork:
   level column. The scene fixture uses the same visible-pixel validation style
   as HSL because level-column placement changes the input coordinate contract
   relative to the detached renderer fixture.
+- `shaderfx_metal_probe --shader SHADER_radialblurGPU --scene-render
+  --save-load-scene <path>` validates the same saved/reloaded minimal `.tnz`
+  path for the radial-blur input-texture fixture.
 
 Blocked by OpenGL-specific transform feedback:
 
@@ -337,9 +348,13 @@ Artifacts:
 - `/private/tmp/opentoonz-shaderfx-compare/HSLBlendGPU-metal.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/HSLBlendGPU-metal-renderer.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/HSLBlendGPU-metal-scene.pam`
+- `/private/tmp/opentoonz-shaderfx-compare/HSLBlendGPU-metal.tnz`
+- `/private/tmp/opentoonz-shaderfx-compare/HSLBlendGPU-metal-saved-scene.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/radialblurGPU-metal.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/radialblurGPU-metal-renderer.pam`
 - `/private/tmp/opentoonz-shaderfx-compare/radialblurGPU-metal-scene.pam`
+- `/private/tmp/opentoonz-shaderfx-compare/radialblurGPU-metal.tnz`
+- `/private/tmp/opentoonz-shaderfx-compare/radialblurGPU-metal-saved-scene.pam`
 
 The default tolerance is 2 channel values. `fireball` uses
 `SHADERFX_FIREBALL_COMPARE_TOLERANCE=32` by default because its procedural noise
@@ -353,15 +368,14 @@ alpha, or coordinate mismatches.
 The direct no-input procedural shader subset now has direct, renderer-driven,
 `ToonzScene`/`buildSceneFx(...)`, and saved-and-reloaded `.tnz` scene fixture
 coverage. The first complete direct input-texture route (`HSLBlendGPU`) now has
-direct, renderer-driven, and `ToonzScene`/`buildSceneFx(...)` scene-render
-coverage. `radialblurGPU` now has direct connected and detached renderer Metal
-coverage plus `ToonzScene`/`buildSceneFx(...)` scene-render coverage, but it
-does not yet have saved-scene validation. Continue by stabilizing saved-scene
-fixtures for migrated input-texture shaders, then port the remaining
-input-texture shader candidates (`glitter` and `spinblurGPU`) and replace
-transform-feedback bbox/port shaders with backend-neutral CPU or Metal buffer
-computation. Keep OpenGL `ShaderFx` as the default until full scene parity is
-broader.
+direct, renderer-driven, `ToonzScene`/`buildSceneFx(...)` scene-render, and
+saved-and-reloaded `.tnz` scene-render coverage. `radialblurGPU` now has direct
+connected, detached renderer, `ToonzScene`/`buildSceneFx(...)` scene-render,
+and saved-and-reloaded `.tnz` scene-render coverage. Continue by porting the
+remaining input-texture shader candidates (`glitter` and `spinblurGPU`) and
+replacing transform-feedback bbox/port shaders with backend-neutral CPU or
+Metal buffer computation. Keep OpenGL `ShaderFx` as the default until full
+scene parity is broader.
 
 ## Validation Run
 
@@ -377,10 +391,12 @@ nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/bu
 nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_HSLBlendGPU'
 nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_HSLBlendGPU --renderer'
 nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_HSLBlendGPU --scene-render'
+nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_HSLBlendGPU --scene-render --save-load-scene /private/tmp/opentoonz-hsl-saved-scene.tnz --write-pam /private/tmp/opentoonz-hsl-saved-scene.pam'
 nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_radialblurGPU'
 nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_radialblurGPU --renderer'
 nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_radialblurGPU --scene-render'
-nix develop path:. --command bash scripts/graphics_shaderfx_compare.sh /private/tmp/opentoonz-shaderfx-compare-saved-scene
+nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_radialblurGPU --scene-render --save-load-scene /private/tmp/opentoonz-radialblur-saved-scene.tnz --write-pam /private/tmp/opentoonz-radialblur-saved-scene.pam'
+nix develop path:. --command bash scripts/graphics_shaderfx_compare.sh /private/tmp/opentoonz-shaderfx-compare-input-saved-scenes
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=OFF'
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target OpenToonz --parallel 3
 nix develop path:. --command bash scripts/macos/assert-arm64-bundle.sh
@@ -400,6 +416,8 @@ shaderfx_metal_probe: ok shader=SHADER_fireball backend=metal device=Apple M1 Ma
 shaderfx_metal_probe: ok shader=SHADER_HSLBlendGPU backend=metal device=Apple M1 Max
 shaderfx_metal_probe: ok shader=SHADER_HSLBlendGPU backend=metal device=Apple M1 Max
 shaderfx_metal_probe: ok shader=SHADER_HSLBlendGPU backend=metal device=Apple M1 Max
+shaderfx_metal_probe: ok shader=SHADER_HSLBlendGPU backend=metal device=Apple M1 Max
+shaderfx_metal_probe: ok shader=SHADER_radialblurGPU backend=metal device=Apple M1 Max
 shaderfx_metal_probe: ok shader=SHADER_radialblurGPU backend=metal device=Apple M1 Max
 shaderfx_metal_probe: ok shader=SHADER_radialblurGPU backend=metal device=Apple M1 Max
 shaderfx_metal_probe: ok shader=SHADER_radialblurGPU backend=metal device=Apple M1 Max
@@ -434,7 +452,7 @@ WITH_GRAPHICS_METAL:BOOL=OFF
 The final ShaderFx artifact directory for this checkpoint was:
 
 ```text
-/private/tmp/opentoonz-shaderfx-compare-saved-scene
+/private/tmp/opentoonz-shaderfx-compare-input-saved-scenes
 ```
 
 Known validation gap: this checkpoint verifies that the production effect graph
@@ -443,12 +461,14 @@ can compile and route to the Metal `sunflare`, `caustics`, `starsky`, `wavy`,
 renderer-driven `ShaderFx` execution both match the lower-level Metal helpers
 for the migrated Metal paths including detached radial blur, that the HSL and
 radial blur input-texture paths can render through `ToonzScene`/
-`buildSceneFx(...)` graphs with real raster-level inputs, that the sunflare
-Metal helper matches a CPU formula reference, and that the production OpenGL and
-Metal `ShaderFx` outputs match within tolerance for all five no-input migrated
-shaders directly, when wrapped through `ToonzScene`/`buildSceneFx(...)`, and
-after saving and reloading minimal `.tnz` scene fixtures. It does not yet cover
-saved-and-reloaded HSL or radial blur scene fixtures, the remaining
-input-texture shader effects, transform-feedback bbox/ports shaders beyond the
-current input-texture bypasses, an actual generated `.metallib` artifact, or
-full GUI preview/export scene renders.
+`buildSceneFx(...)` graphs with real raster-level inputs, that the HSL and
+radial blur input-texture scene fixtures can be saved, reloaded, hydrated from
+their saved raster frame files, rebuilt through `buildSceneFx(...)`, and
+rendered through Metal, that the sunflare Metal helper matches a CPU formula
+reference, and that the production OpenGL and Metal `ShaderFx` outputs match
+within tolerance for all five no-input migrated shaders directly, when wrapped
+through `ToonzScene`/`buildSceneFx(...)`, and after saving and reloading minimal
+`.tnz` scene fixtures. It does not yet cover the remaining input-texture shader
+effects, transform-feedback bbox/ports shaders beyond the current input-texture
+bypasses, an actual generated `.metallib` artifact, or full GUI preview/export
+scene renders.

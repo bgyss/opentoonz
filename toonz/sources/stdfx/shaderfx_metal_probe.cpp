@@ -2,6 +2,7 @@
 
 #include "tfxcachemanager.h"
 #include "tgraphics.h"
+#include "timage_io.h"
 #include "tstream.h"
 #include "trenderer.h"
 #include "trasterfx.h"
@@ -19,6 +20,7 @@
 #include "toonz/txshleveltypes.h"
 #include "toonz/txshsimplelevel.h"
 #include "toonz/txsheet.h"
+#include "tnzimage.h"
 
 #include <QCoreApplication>
 #include <QEventLoop>
@@ -509,6 +511,31 @@ TLevelColumnFx* addProbeRasterColumn(ToonzScene& scene, int columnIndex,
   return dynamic_cast<TLevelColumnFx*>(column->getCellColumn()->getFx());
 }
 
+TLevelColumnFx* addSavedProbeRasterColumn(ToonzScene& scene,
+                                          const TFilePath& scenePath,
+                                          int columnIndex, int row,
+                                          const std::wstring& levelName,
+                                          TRaster32P raster) {
+  TLevelColumnFx* columnFx =
+      addProbeRasterColumn(scene, columnIndex, row, levelName, raster);
+  if (!columnFx) return nullptr;
+
+  TXshColumn* column = scene.getXsheet()->getColumn(columnIndex);
+  if (!column) return nullptr;
+
+  TXshCell cell = scene.getXsheet()->getCell(row, columnIndex);
+  TXshSimpleLevel* level =
+      cell.m_level ? cell.m_level->getSimpleLevel() : nullptr;
+  if (!level) return nullptr;
+
+  const TFilePath levelPath =
+      scenePath.getParentDir() + (levelName + L"..tif");
+  level->setPath(levelPath);
+  TImageWriter::save(levelPath.withFrame(TFrameId(1)),
+                     TImageP(new TRasterImage(raster)));
+  return columnFx;
+}
+
 TRaster32P renderHSLSceneForProbe(const Options& options, const TTile& tile,
                                   double frame,
                                   const TRenderSettings& settings) {
@@ -608,22 +635,79 @@ void writeProbeSceneFile(ToonzScene& scene, const TFilePath& scenePath) {
   if (!os.checkStatus()) throw TException("Could not write probe scene file");
 }
 
+bool hydrateSavedProbeLevel(ToonzScene& scene, const std::wstring& levelName,
+                            const TFilePath& scenePath) {
+  TXshLevel* xshLevel = scene.getLevelSet()->getLevel(levelName);
+  TXshSimpleLevel* level =
+      xshLevel ? xshLevel->getSimpleLevel() : nullptr;
+  if (!level) return false;
+
+  TFilePath levelPath = scenePath.getParentDir() + (levelName + L"..tif");
+  TImageP image;
+  TImageReader::load(levelPath.withFrame(TFrameId(1)), image);
+  if (!image) return false;
+
+  level->setPath(levelPath);
+  level->setFrame(TFrameId(1), image);
+  return true;
+}
+
+bool hydrateSavedProbeInputLevels(const Options& options, ToonzScene& scene,
+                                  const TFilePath& scenePath) {
+  if (options.shaderName == "SHADER_HSLBlendGPU") {
+    return hydrateSavedProbeLevel(scene, L"HSLProbeForeground", scenePath) &&
+           hydrateSavedProbeLevel(scene, L"HSLProbeBackground", scenePath);
+  }
+  if (options.shaderName == "SHADER_radialblurGPU") {
+    return hydrateSavedProbeLevel(scene, L"RadialBlurProbeForeground",
+                                  scenePath);
+  }
+  return true;
+}
+
 TRaster32P renderSavedLoadedSceneForProbe(const Options& options,
                                           const TTile& tile, double frame,
                                           const TRenderSettings& settings,
                                           TFxP foregroundFx,
                                           TFxP backgroundFx) {
-  TFxP root = makeProbeShaderFx(options, foregroundFx, backgroundFx);
+  ToonzScene sourceScene;
+  const TFilePath scenePath(options.saveLoadScenePath);
+
+  TFxP root;
+  if (options.shaderName == "SHADER_HSLBlendGPU") {
+    const int width  = tile.getRaster()->getLx() * 3;
+    const int height = tile.getRaster()->getLy() * 3;
+    TLevelColumnFx* foregroundColumnFx = addSavedProbeRasterColumn(
+        sourceScene, scenePath, 0, tfloor(frame), L"HSLProbeForeground",
+        makeHSLProbeSceneRaster(width, height, true));
+    TLevelColumnFx* backgroundColumnFx = addSavedProbeRasterColumn(
+        sourceScene, scenePath, 1, tfloor(frame), L"HSLProbeBackground",
+        makeHSLProbeSceneRaster(width, height, false));
+    if (!foregroundColumnFx || !backgroundColumnFx) return TRaster32P();
+    root = makeProbeShaderFx(options, TFxP(foregroundColumnFx),
+                             TFxP(backgroundColumnFx));
+  } else if (options.shaderName == "SHADER_radialblurGPU") {
+    const int width  = tile.getRaster()->getLx() * 3;
+    const int height = tile.getRaster()->getLy() * 3;
+    TLevelColumnFx* foregroundColumnFx = addSavedProbeRasterColumn(
+        sourceScene, scenePath, 0, tfloor(frame), L"RadialBlurProbeForeground",
+        makeHSLProbeSceneRaster(width, height, true));
+    if (!foregroundColumnFx) return TRaster32P();
+    root = makeProbeShaderFx(options, TFxP(foregroundColumnFx), TFxP());
+  } else {
+    root = makeProbeShaderFx(options, foregroundFx, backgroundFx);
+  }
   if (!root) return TRaster32P();
 
-  ToonzScene sourceScene;
   if (!attachRootFxToScene(sourceScene, root)) return TRaster32P();
 
-  const TFilePath scenePath(options.saveLoadScenePath);
   writeProbeSceneFile(sourceScene, scenePath);
 
   ToonzScene loadedScene;
   loadedScene.loadTnzFile(scenePath);
+  if (!hydrateSavedProbeInputLevels(options, loadedScene, scenePath))
+    return TRaster32P();
+
   TFxP builtFx = buildSceneFx(&loadedScene, loadedScene.getXsheet(), frame, 1,
                               true);
   return renderRasterFxWithRenderer(builtFx, tile, frame, settings);
@@ -692,6 +776,7 @@ int main(int argc, char* argv[]) {
   mainScope.setParent(&app);
   TThread::init();
   TRenderer::initialize();
+  initImageIo(true);
 
   loadShaderInterfaces(options.shaderFolder);
 
@@ -722,13 +807,6 @@ int main(int argc, char* argv[]) {
         TGraphics::activeBackendType() != TGraphics::BackendType::Metal)
       return fail("SHADER_HSLBlendGPU scene-render probe requires the Metal "
                   "backend")
-                 ? 0
-                 : 1;
-    if ((options.shaderName == "SHADER_HSLBlendGPU" ||
-         options.shaderName == "SHADER_radialblurGPU") &&
-        !options.saveLoadScenePath.empty())
-      return fail("input-texture ShaderFx saved-scene probe is not supported "
-                  "yet")
                  ? 0
                  : 1;
     TRaster32P renderedRaster;

@@ -87,6 +87,11 @@ fi
     --scene-render \
     --write-pam "$artifact_dir/HSLBlendGPU-metal-scene.pam"
   OPENTOONZ_GRAPHICS_BACKEND=metal "$probe" \
+    --shader SHADER_HSLBlendGPU \
+    --scene-render \
+    --save-load-scene "$artifact_dir/HSLBlendGPU-metal.tnz" \
+    --write-pam "$artifact_dir/HSLBlendGPU-metal-saved-scene.pam"
+  OPENTOONZ_GRAPHICS_BACKEND=metal "$probe" \
     --shader SHADER_radialblurGPU \
     --write-pam "$artifact_dir/radialblurGPU-metal.pam"
   OPENTOONZ_GRAPHICS_BACKEND=metal "$probe" \
@@ -97,6 +102,11 @@ fi
     --shader SHADER_radialblurGPU \
     --scene-render \
     --write-pam "$artifact_dir/radialblurGPU-metal-scene.pam"
+  OPENTOONZ_GRAPHICS_BACKEND=metal "$probe" \
+    --shader SHADER_radialblurGPU \
+    --scene-render \
+    --save-load-scene "$artifact_dir/radialblurGPU-metal.tnz" \
+    --write-pam "$artifact_dir/radialblurGPU-metal-saved-scene.pam"
 )
 
 echo "graphics_shaderfx_compare: ok"

@@ -349,12 +349,14 @@ if(BUILD_TARGET_APPLE AND WITH_GRAPHICS_METAL)
         tnzstdfx
         tnzcore
         tnzbase
+        image
     )
     add_custom_command(TARGET shaderfx_metal_probe POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:tnzcore> $<TARGET_FILE_DIR:shaderfx_metal_probe>
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:tnzbase> $<TARGET_FILE_DIR:shaderfx_metal_probe>
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:tnzext> $<TARGET_FILE_DIR:shaderfx_metal_probe>
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:toonzlib> $<TARGET_FILE_DIR:shaderfx_metal_probe>
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:image> $<TARGET_FILE_DIR:shaderfx_metal_probe>
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:tnzstdfx> $<TARGET_FILE_DIR:shaderfx_metal_probe>
     )
 endif()
