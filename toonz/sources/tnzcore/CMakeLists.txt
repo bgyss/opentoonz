@@ -396,3 +396,12 @@ target_link_libraries(tnzcore
     ${GL_LIB} ${GLUT_LIB} ${QT_LIB} ${Z_LIB} ${JPEG_LIB} ${LZ4_LIB}
     ${EXTRA_LIBS}
 )
+
+if(BUILD_TARGET_APPLE AND WITH_GRAPHICS_METAL)
+    add_executable(tgraphics_metal_probe
+        ../common/tgraphics/tgraphics_metal_probe.cpp
+    )
+    target_link_libraries(tgraphics_metal_probe
+        tnzcore
+    )
+endif()

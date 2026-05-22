@@ -1,7 +1,7 @@
 # macOS Graphics Modernization Milestone 3 Metal Probe Report
 
-Status: initial Milestone 3 build/probe, render-target, textured-draw, and
-offscreen-readback slices completed locally on 2026-05-22.
+Status: initial Milestone 3 build/probe, render-target, textured-draw,
+offscreen-readback, and automated probe slices completed locally on 2026-05-22.
 
 ## Objective
 
@@ -10,8 +10,8 @@ This checkpoint adds the first native macOS Metal implementation behind
 code, link against `Metal.framework` and `QuartzCore.framework`, create a
 default `MTLDevice`, create a command queue, configure a CAMetalLayer render
 target, compile a minimal Metal shader pipeline, upload raster textures, encode
-textured quad draws, and read back offscreen Metal targets while preserving
-OpenGL as the active renderer.
+textured quad draws, read back offscreen Metal targets, and run an automated
+offscreen Metal validation probe while preserving OpenGL as the active renderer.
 
 This is not yet a visible Metal scene viewer. The active backend intentionally
 continues to fall back to OpenGL until a Metal render target is wired into the
@@ -22,6 +22,7 @@ Qt viewer hierarchy.
 - `toonz/sources/include/tgraphics.h`
 - `toonz/sources/common/tgraphics/tgraphics.cpp`
 - `toonz/sources/common/tgraphics/tgraphics_metal.mm`
+- `toonz/sources/common/tgraphics/tgraphics_metal_probe.cpp`
 - `toonz/sources/common/tgraphics/tgraphics_metal_shaders.metal`
 - `toonz/sources/tnzcore/CMakeLists.txt`
 
@@ -57,6 +58,9 @@ Qt viewer hierarchy.
   - alpha-blended triangle draws for `DrawList2D` texture quads
   - drawable presentation
 - Added `MetalTextureRenderTarget` for offscreen render/readback validation.
+- Added the `tgraphics_metal_probe` executable when `WITH_GRAPHICS_METAL=ON` on
+  macOS. It renders an opaque solid `DrawList2D` texture through the Metal
+  offscreen target, reads it back, and fails on any pixel mismatch.
 - Added `tgraphics_metal_shaders.metal` to keep the minimal vertex/fragment
   shader source visible in the build tree.
 - Linked `tnzcore` against `Metal.framework` only when
@@ -94,18 +98,26 @@ Commands run:
 ```sh
 bash scripts/graphics_inventory.sh
 git diff --check
-nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --parallel 3
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=ON'
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tgraphics_metal_probe --parallel 3
+nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --parallel 3
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=OFF'
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --parallel 3
 ```
 
 Result: passed.
 
 The default OpenGL build does not compile `tgraphics_metal.mm`. The
 Metal-enabled build compiles `tgraphics_metal.mm`, includes the shader source in
-the CMake target metadata, links `tnzcore` against Metal and QuartzCore, and
-links `OpenToonz.app`.
+the CMake target metadata, links `tnzcore` against Metal and QuartzCore, builds
+`tgraphics_metal_probe`, and links `OpenToonz.app`.
+
+Probe output:
+
+```text
+tgraphics_metal_probe: ok on Apple M1 Max
+```
 
 ## Manual Smoke
 
@@ -124,7 +136,7 @@ OpenGL even if `OPENTOONZ_GRAPHICS_BACKEND=metal` is requested.
 
 - Integrate the CAMetalLayer render target with a narrow Qt viewer/native-view
   path.
-- Add a focused image-diff harness that renders a deterministic `DrawList2D`
-  through the offscreen Metal target and compares it with the OpenGL baseline.
+- Expand the offscreen probe into an image-diff harness with gradient/alpha
+  cases and an OpenGL baseline comparison.
 - Route only a narrow scene-viewer path to the Metal command encoder once
   drawable lifecycle and fallback behavior are stable.
