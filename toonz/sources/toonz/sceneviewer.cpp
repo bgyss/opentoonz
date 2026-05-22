@@ -179,47 +179,6 @@ void multMatrix4d(const GLdouble a[16], const GLdouble b[16],
   }
 }
 
-bool invertMatrix4d(const GLdouble matrix[16], GLdouble inverse[16]) {
-  GLdouble augmented[4][8];
-  for (int row = 0; row < 4; ++row) {
-    for (int col = 0; col < 4; ++col) {
-      augmented[row][col]     = matrix[row + col * 4];
-      augmented[row][col + 4] = (row == col) ? 1.0 : 0.0;
-    }
-  }
-
-  for (int col = 0; col < 4; ++col) {
-    int pivot = col;
-    for (int row = col + 1; row < 4; ++row) {
-      if (std::fabs(augmented[row][col]) > std::fabs(augmented[pivot][col]))
-        pivot = row;
-    }
-
-    if (std::fabs(augmented[pivot][col]) < 1.0e-12) return false;
-
-    if (pivot != col) {
-      for (int i = 0; i < 8; ++i)
-        std::swap(augmented[col][i], augmented[pivot][i]);
-    }
-
-    const GLdouble pivotValue = augmented[col][col];
-    for (int i = 0; i < 8; ++i) augmented[col][i] /= pivotValue;
-
-    for (int row = 0; row < 4; ++row) {
-      if (row == col) continue;
-      const GLdouble factor = augmented[row][col];
-      for (int i = 0; i < 8; ++i)
-        augmented[row][i] -= factor * augmented[col][i];
-    }
-  }
-
-  for (int row = 0; row < 4; ++row)
-    for (int col = 0; col < 4; ++col)
-      inverse[row + col * 4] = augmented[row][col + 4];
-
-  return true;
-}
-
 bool projectPoint(GLdouble objX, GLdouble objY, GLdouble objZ,
                   const GLdouble modelView[16], const GLdouble projection[16],
                   const GLint viewport[4], GLdouble* winX, GLdouble* winY,
@@ -243,32 +202,6 @@ bool projectPoint(GLdouble objX, GLdouble objY, GLdouble objZ,
   *winX = viewport[0] + (out[0] + 1.0) * viewport[2] * 0.5;
   *winY = viewport[1] + (out[1] + 1.0) * viewport[3] * 0.5;
   *winZ = (out[2] + 1.0) * 0.5;
-  return true;
-}
-
-bool unProjectPoint(GLdouble winX, GLdouble winY, GLdouble winZ,
-                    const GLdouble modelView[16], const GLdouble projection[16],
-                    const GLint viewport[4], GLdouble* objX, GLdouble* objY,
-                    GLdouble* objZ) {
-  GLdouble transform[16], inverse[16];
-  multMatrix4d(projection, modelView, transform);
-  if (!invertMatrix4d(transform, inverse)) return false;
-
-  const GLdouble in[4] = {(winX - viewport[0]) * 2.0 / viewport[2] - 1.0,
-                          (winY - viewport[1]) * 2.0 / viewport[3] - 1.0,
-                          2.0 * winZ - 1.0, 1.0};
-
-  GLdouble out[4];
-  for (int row = 0; row < 4; ++row) {
-    out[row] = inverse[row + 0 * 4] * in[0] + inverse[row + 1 * 4] * in[1] +
-               inverse[row + 2 * 4] * in[2] + inverse[row + 3 * 4] * in[3];
-  }
-
-  if (out[3] == 0.0) return false;
-
-  *objX = out[0] / out[3];
-  *objY = out[1] / out[3];
-  *objZ = out[2] / out[3];
   return true;
 }
 
@@ -325,22 +258,42 @@ void copyFrontBufferToBackBuffer() {
   glReadBuffer(GL_BACK);
 }
 //-----------------------------------------------------------------------------
-/*! Compute new 3D position and new 2D position. */
-T3DPointD computeNew3DPosition(T3DPointD start3DPos, TPointD delta2D,
-                               TPointD& new2dPos, GLdouble modelView3D[16],
-                               GLdouble projection3D[16], GLint viewport3D[4],
-                               int devPixRatio) {
+void drawProjectedRasterOverlay(const T3DPointD& start3DPos,
+                                const TPointD& delta2D, TPointD& new2dPos,
+                                const GLdouble modelView3D[16],
+                                const GLdouble projection3D[16],
+                                const GLint viewport3D[4], int devPixRatio,
+                                const TRaster32P& raster) {
+  if (!raster) return;
+
   GLdouble pos2D_x, pos2D_y, pos2D_z;
   if (!projectPoint(-start3DPos.x, -start3DPos.y, start3DPos.z, modelView3D,
                     projection3D, viewport3D, &pos2D_x, &pos2D_y, &pos2D_z))
-    return start3DPos;
-  new2dPos = TPointD(pos2D_x + delta2D.x, pos2D_y + delta2D.y);
-  GLdouble pos3D_x, pos3D_y, pos3D_z;
-  if (!unProjectPoint(new2dPos.x, new2dPos.y, 1, modelView3D, projection3D,
-                      viewport3D, &pos3D_x, &pos3D_y, &pos3D_z))
-    return start3DPos;
-  new2dPos.y = viewport3D[3] - new2dPos.y - 20 * devPixRatio;
-  return T3DPointD(pos3D_x, pos3D_y, pos3D_z);
+    return;
+
+  const TPointD rasterPos(pos2D_x + delta2D.x, pos2D_y + delta2D.y);
+  new2dPos = TPointD(rasterPos.x,
+                     viewport3D[3] - rasterPos.y - 20 * devPixRatio);
+
+  glMatrixMode(GL_PROJECTION);
+  glPushMatrix();
+  glLoadIdentity();
+  glOrtho(0.0, viewport3D[2], 0.0, viewport3D[3], -1.0, 1.0);
+
+  glMatrixMode(GL_MODELVIEW);
+  glPushMatrix();
+  glLoadIdentity();
+  glPushAttrib(GL_ENABLE_BIT);
+  glDisable(GL_DEPTH_TEST);
+  tglDraw(TRectD(rasterPos.x, rasterPos.y, rasterPos.x + raster->getLx(),
+                 rasterPos.y + raster->getLy()),
+          raster, true);
+  glPopAttrib();
+
+  glPopMatrix();
+  glMatrixMode(GL_PROJECTION);
+  glPopMatrix();
+  glMatrixMode(GL_MODELVIEW);
 }
 
 //-----------------------------------------------------------------------------
@@ -2546,37 +2499,21 @@ void SceneViewer::drawOverlay() {
     glGetIntegerv(GL_VIEWPORT, viewport3D);
 
     if (m_phi3D > 0) {
-      T3DPointD topRasterPos3D = computeNew3DPosition(
-          T3DPointD(500, 500, 1000), TPointD(-10, -10), m_topRasterPos,
-          modelView3D, projection3D, viewport3D, getDevPixRatio());
-      glRasterPos3f(topRasterPos3D.x, topRasterPos3D.y, topRasterPos3D.z);
-      glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-      glDrawPixels(m_3DTop->getWrap(), m_3DTop->getLy(), TGL_FMT, TGL_TYPE,
-                   m_3DTop->getRawData());
-
-      T3DPointD sideRasterPos3D = computeNew3DPosition(
-          T3DPointD(-500, -500, 1000), TPointD(-10, -10), m_sideRasterPos,
-          modelView3D, projection3D, viewport3D, getDevPixRatio());
-      glRasterPos3f(sideRasterPos3D.x, sideRasterPos3D.y, sideRasterPos3D.z);
-      glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-      glDrawPixels(m_3DSideR->getWrap(), m_3DSideR->getLy(), TGL_FMT, TGL_TYPE,
-                   m_3DSideR->getRawData());
+      drawProjectedRasterOverlay(T3DPointD(500, 500, 1000), TPointD(-10, -10),
+                                 m_topRasterPos, modelView3D, projection3D,
+                                 viewport3D, getDevPixRatio(), m_3DTop);
+      drawProjectedRasterOverlay(T3DPointD(-500, -500, 1000),
+                                 TPointD(-10, -10), m_sideRasterPos,
+                                 modelView3D, projection3D, viewport3D,
+                                 getDevPixRatio(), m_3DSideR);
     } else {
-      T3DPointD topRasterPos3D = computeNew3DPosition(
-          T3DPointD(-500, 500, 1000), TPointD(-10, -10), m_topRasterPos,
-          modelView3D, projection3D, viewport3D, getDevPixRatio());
-      glRasterPos3f(topRasterPos3D.x, topRasterPos3D.y, topRasterPos3D.z);
-      glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-      glDrawPixels(m_3DTop->getWrap(), m_3DTop->getLy(), TGL_FMT, TGL_TYPE,
-                   m_3DTop->getRawData());
-
-      T3DPointD sideRasterPos3D = computeNew3DPosition(
-          T3DPointD(500, -500, 1000), TPointD(-10, -10), m_sideRasterPos,
-          modelView3D, projection3D, viewport3D, getDevPixRatio());
-      glRasterPos3f(sideRasterPos3D.x, sideRasterPos3D.y, sideRasterPos3D.z);
-      glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-      glDrawPixels(m_3DSideL->getWrap(), m_3DSideL->getLy(), TGL_FMT, TGL_TYPE,
-                   m_3DSideL->getRawData());
+      drawProjectedRasterOverlay(T3DPointD(-500, 500, 1000), TPointD(-10, -10),
+                                 m_topRasterPos, modelView3D, projection3D,
+                                 viewport3D, getDevPixRatio(), m_3DTop);
+      drawProjectedRasterOverlay(T3DPointD(500, -500, 1000),
+                                 TPointD(-10, -10), m_sideRasterPos,
+                                 modelView3D, projection3D, viewport3D,
+                                 getDevPixRatio(), m_3DSideL);
     }
   }
 

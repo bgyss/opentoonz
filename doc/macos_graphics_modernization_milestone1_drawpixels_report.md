@@ -16,6 +16,9 @@ model needed for a future Metal backend.
 - `toonz/sources/common/tvrender/tofflinegl.cpp`
 - `toonz/sources/toonzqt/planeviewer.cpp`
 - `toonz/sources/toonz/sceneviewer.cpp`
+- `toonz/sources/toonzlib/imagepainter.cpp`
+- `toonz/sources/toonzlib/stagevisitor.cpp`
+- `toonz/sources/common/tvectorrenderer.cpp`
 
 ## Changes
 
@@ -42,6 +45,10 @@ model needed for a future Metal backend.
   uploads in `toonz/sources/common/tvectorrenderer.cpp` with the existing
   `tglDraw(TRectD, TRaster32P, false)` texture helper, and removed an inactive
   commented `glDrawPixels` block from the disabled Mesa experiment.
+- Follow-up: replaced scene viewer 3D top/side button `glDrawPixels` calls
+  with a projected screen-space `tglDraw(...)` texture overlay. The helper
+  preserves the same projected 3D anchor points and updates the existing 2D
+  button positions used by viewer interaction code.
 
 ## Inventory Before and After
 
@@ -119,15 +126,32 @@ glDrawPixels                       files=    2 matches=     5
 OpenGL selection                   files=    5 matches=    95
 ```
 
+Current source-like inventory after the 3D viewer button follow-up:
+
+```text
+OpenToonz graphics API inventory
+source_root=toonz/sources
+
+all graphics markers               files=  121 matches=  2864
+Qt legacy QGL                      files=    0 matches=     0
+Qt QOpenGL                         files=   32 matches=   218
+GLU                                files=    5 matches=    53
+GLEW or GLUT                       files=   10 matches=    30
+fixed-function drawing             files=   85 matches=  2009
+fixed-function matrix              files=   56 matches=   458
+glDrawPixels                       files=    1 matches=     1
+OpenGL selection                   files=    5 matches=    95
+```
+
 Remaining `glDrawPixels` sites:
 
-- `toonz/sources/toonz/sceneviewer.cpp`
 - `toonz/sources/toonzlib/imagepainter.cpp`
 
-These remaining sites should be handled with additional visual validation
-because they involve 3D side/top views and channel/bit-depth paths. The 3D
-scene viewer buttons still need a screen-space texture helper because the
-existing code positions the raster with `glRasterPos3f`.
+The remaining site is the no-texture `ImagePainter::onRasterImage()` display
+path. It can present 16bpc and float rasters when the 30-bit display preference
+is active, so replacing it with the current 8-bit texture helper would be a
+behavioral downgrade. It should be handled by a focused high-bit-depth texture
+upload path or an explicit fallback isolation decision.
 
 ## Validation Run
 
@@ -203,6 +227,26 @@ legacy source-inventory cleanup rather than as an active macOS application code
 path. If that renderer is reintroduced into a target, its background upload
 will use the shared texture draw helper instead of direct `glDrawPixels`.
 
+3D viewer button follow-up validation:
+
+```sh
+bash scripts/graphics_inventory.sh
+git diff --check
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target OpenToonz --parallel 3
+nix develop path:. --command cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=ON
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tgraphics_metal_probe OpenToonz --parallel 3
+nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
+nix develop path:. --command cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=OFF
+```
+
+Result: passed. The fallback build recompiled `sceneviewer.cpp` and linked
+`OpenToonz.app`. The source-like inventory now reports `glDrawPixels` at 1
+file / 1 match. The Metal-enabled build linked `OpenToonz.app`, copied the
+Metal shader source to Resources, and `tgraphics_metal_probe` reported
+`ok on Apple M1 Max`. The broader fallback and Metal rebuilds emitted existing
+unrelated warnings in image/trop/tool code, but the changed `sceneviewer.cpp`
+compiled cleanly.
+
 ## Manual Smoke
 
 Manual GUI smoke was not run in this checkpoint. These workflows should be
@@ -214,9 +258,10 @@ exercised before merging this milestone:
 - plane viewer redraw/flush paths
 - offscreen raster initialization paths
 - frozen scene viewer display
+- 3D viewer side/top button display and hit behavior
 
 ## Remaining Milestone 1 Work
 
-- Replace or isolate the remaining `glDrawPixels` paths in scene viewer,
-  and image-painter code.
+- Replace or isolate the remaining high-bit-depth `glDrawPixels` path in
+  image-painter code.
 - Start reducing `GL_SELECT` picking usage.
