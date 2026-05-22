@@ -49,7 +49,9 @@ widget now paints the same CPU-generated `QImage` through a normal `QWidget`
 paint event and applies color-calibration LUTs through the existing
 `LutManager` software conversion path. This is not the full style-editor
 surface migration, but it removes one direct OpenGL/FBO style-editor preview
-path while preserving the OpenGL fallback elsewhere.
+path while preserving the OpenGL fallback elsewhere. The follow-up probe target
+renders the migrated widget into a `QImage` and fails if the result is blank or
+missing saturated color-wheel pixels.
 
 ## Files Changed
 
@@ -68,6 +70,7 @@ path while preserving the OpenGL fallback elsewhere.
 - `toonz/sources/stdfx/shaderfx_metal_probe.cpp`
 - `toonz/sources/include/toonzqt/styleeditor.h`
 - `toonz/sources/toonzqt/styleeditor.cpp`
+- `toonz/sources/toonzqt/styleeditor_colorwheel_probe.cpp`
 
 ## Inventory Command
 
@@ -486,6 +489,8 @@ nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/bu
 nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe --shader SHADER_glitter --scene-render --save-load-scene /private/tmp/opentoonz-glitter-saved-scene.tnz --write-pam /private/tmp/opentoonz-glitter-saved-scene.pam'
 nix develop path:. --command bash scripts/graphics_shaderfx_compare.sh /private/tmp/opentoonz-shaderfx-compare-glitter
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target toonzqt --parallel 3
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target styleeditor_colorwheel_probe --parallel 3
+nix develop path:. --command toonz/build/nix-relwithdebinfo/toonzqt/styleeditor_colorwheel_probe
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=OFF'
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target OpenToonz --parallel 3
 nix develop path:. --command bash scripts/macos/assert-arm64-bundle.sh
@@ -543,6 +548,7 @@ shaderfx_metal_probe: ok shader=SHADER_fireball backend=metal device=Apple M1 Ma
 shaderfx_metal_probe: ok shader=SHADER_HSLBlendGPU backend=metal device=Apple M1 Max
 graphics_shaderfx_compare: ok
 toonzqt/libtoonzqt.dylib linked after style editor color wheel migration
+styleeditor_colorwheel_probe: ok
 Checked 281 Mach-O files for arm64.
 WITH_GRAPHICS_METAL:BOOL=OFF
 ```
@@ -571,6 +577,7 @@ through `ToonzScene`/`buildSceneFx(...)`, and after saving and reloading minimal
 `.tnz` scene fixtures. It does not yet cover additional non-migrated
 input-texture shaders beyond the current hand-routed subset, an actual generated
 `.metallib` artifact, or full GUI preview/export scene renders. The style
-editor validation for this checkpoint is compile-time and inventory-based; a
-manual GUI smoke should still open the style editor, drag inside the hexagonal
-color wheel, and repeat with color calibration enabled on a macOS desktop.
+editor validation now includes the build target plus a rendered color-wheel
+pixel probe, but a manual GUI smoke should still open the style editor, drag
+inside the hexagonal color wheel, and repeat with color calibration enabled on
+a macOS desktop.

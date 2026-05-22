@@ -255,3 +255,22 @@ elseif(BUILD_ENV_UNIXLIKE)
 endif()
 
 target_link_libraries(toonzqt Qt5::Core Qt5::Gui Qt5::Widgets Qt5::Network Qt5::OpenGL Qt5::Svg ${EXTRA_LIBS} ${GL_LIB})
+
+if(BUILD_TARGET_APPLE)
+    add_executable(styleeditor_colorwheel_probe
+        styleeditor_colorwheel_probe.cpp
+    )
+    target_link_libraries(styleeditor_colorwheel_probe
+        toonzqt
+        Qt5::Core
+        Qt5::Gui
+        Qt5::Widgets
+    )
+    add_custom_command(TARGET styleeditor_colorwheel_probe POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E create_symlink "$<TARGET_FILE:tnzcore>" "$<TARGET_FILE_DIR:styleeditor_colorwheel_probe>/libtnzcore.dylib"
+        COMMAND ${CMAKE_COMMAND} -E create_symlink "$<TARGET_FILE:tnzbase>" "$<TARGET_FILE_DIR:styleeditor_colorwheel_probe>/libtnzbase.dylib"
+        COMMAND ${CMAKE_COMMAND} -E create_symlink "$<TARGET_FILE:tnzext>" "$<TARGET_FILE_DIR:styleeditor_colorwheel_probe>/libtnzext.dylib"
+        COMMAND ${CMAKE_COMMAND} -E create_symlink "$<TARGET_FILE:toonzlib>" "$<TARGET_FILE_DIR:styleeditor_colorwheel_probe>/libtoonzlib.dylib"
+        COMMAND ${CMAKE_COMMAND} -E create_symlink "$<TARGET_FILE:sound>" "$<TARGET_FILE_DIR:styleeditor_colorwheel_probe>/libsound.dylib"
+    )
+endif()
