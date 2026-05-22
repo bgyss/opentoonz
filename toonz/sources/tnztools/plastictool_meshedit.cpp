@@ -106,6 +106,15 @@ void drawDashedLineWithTGraphics(const TPointD &p0, const TPointD &p1,
   TGraphics::drawWithOpenGLBackend(drawList);
 }
 
+void drawLinesWithTGraphics(const std::vector<std::pair<TPointD, TPointD>> &lines,
+                            const TPixel32 &color, double width) {
+  TGraphics::DrawList2D drawList;
+  for (const auto &line : lines) {
+    drawList.addColorLine(line.first, line.second, color, false, width);
+  }
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
+
 //============================================================================
 
 bool testSwapEdge(const TTextureMesh &mesh, int e) {
@@ -1287,11 +1296,6 @@ void PlasticTool::draw_mesh() {
     PlasticTool *m_this;
     double m_pixelSize;
 
-    void drawLine(const TPointD &a, const TPointD &b) {
-      glVertex2d(a.x, a.y);
-      glVertex2d(b.x, b.y);
-    }
-
     void drawVertexSelections() {
       typedef MeshSelection::objects_container objects_container;
       const objects_container &objects = m_this->m_mvSel.objects();
@@ -1311,10 +1315,7 @@ void PlasticTool::draw_mesh() {
       typedef MeshSelection::objects_container objects_container;
       const objects_container &objects = m_this->m_meSel.objects();
 
-      glColor3ub(0, 0, 255);  // Blue
-      glLineWidth(2.0f);
-
-      glBegin(GL_LINES);
+      std::vector<std::pair<TPointD, TPointD>> lines;
 
       objects_container::const_iterator et, eEnd = objects.end();
       for (et = objects.begin(); et != eEnd; ++et) {
@@ -1324,10 +1325,10 @@ void PlasticTool::draw_mesh() {
             &vx1 =
                 m_this->m_mi->meshes()[et->m_meshIdx]->edgeVertex(et->m_idx, 1);
 
-        drawLine(vx0.P(), vx1.P());
+        lines.push_back(std::make_pair(vx0.P(), vx1.P()));
       }
 
-      glEnd();
+      drawLinesWithTGraphics(lines, TPixel32::Blue, 2.0);
     }
 
     void drawVertexHighlights() {

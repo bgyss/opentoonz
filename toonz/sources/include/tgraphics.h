@@ -94,6 +94,7 @@ struct DVAPI ColorLine final {
   TPointD m_p0;
   TPointD m_p1;
   TPixel32 m_color;
+  double m_width  = 1.0;
   bool m_blending = false;
 };
 
@@ -115,6 +116,8 @@ public:
                        const TPixel32& color1);
   void addColorLine(const TPointD& p0, const TPointD& p1, const TPixel32& color,
                     bool blending);
+  void addColorLine(const TPointD& p0, const TPointD& p1, const TPixel32& color,
+                    bool blending, double width);
   void addTexture(const TRectD& rect, const TRaster32P& raster, bool blending);
   void addTextureQuad(const TPointD& p00, const TPointD& p10,
                       const TPointD& p11, const TPointD& p01,

@@ -715,6 +715,35 @@ int main(int argc, char* argv[]) {
   }
 
   {
+    const TPixel32 wideLineClearColor(17, 23, 31, 255);
+    const TPixel32 wideLineColor(245, 163, 48, 255);
+    TGraphics::DrawList2D drawList;
+    drawList.setClearColor(wideLineClearColor);
+    drawList.addColorLine(TPointD(1, 1), TPointD(7, 1), wideLineColor, false,
+                          2.0);
+    drawList.addColorLine(TPointD(2, 3), TPointD(2, 7), wideLineColor, false,
+                          3.0);
+    drawList.addColorLine(TPointD(4, 7), TPointD(8, 3), wideLineColor, false,
+                          2.0);
+
+    TRaster32P readback = renderMetal(drawList, width, height);
+    if (!readback)
+      return fail("could not read back wide color line Metal target");
+    if (!requireDimensions(readback, width, height)) {
+      return fail(
+          "wide color line readback dimensions do not match render target");
+    }
+
+    TRaster32P openGLReadback = renderOpenGL(drawList, width, height);
+    if (!openGLReadback)
+      return fail("could not read back wide color line OpenGL baseline");
+    if (!compareRasters(readback, openGLReadback, "wide color line",
+                        artifactDir)) {
+      return EXIT_FAILURE;
+    }
+  }
+
+  {
     const TPixel32 quadClearColor(11, 17, 23, 255);
     const TPixel32 baseColor(31, 67, 103, 255);
     const TPixel32 quadColor(219, 181, 47, 192);

@@ -260,6 +260,10 @@ highlighted vertex square outlines, and one-pixel dashed edge highlights from
 direct OpenGL square/line drawing to `DrawList2D` color commands. Width-2
 selected mesh edge overlays remain on legacy OpenGL until `tgraphics` has
 line-width semantics.
+The follow-up line-width checkpoint adds explicit width to `DrawList2D`
+`ColorLine` commands, validates wide line rendering against OpenGL and Metal in
+`tgraphics_metal_probe`, and moves width-2 selected plastic mesh edges through
+that shared command path.
 
 ## Files Changed
 
@@ -746,8 +750,9 @@ thicker plastic skeleton and mesh edit edge overlays remain on legacy OpenGL
 until width/stipple semantics are represented in `tgraphics`.
 Plastic mesh-edit selected vertex fills, highlighted vertex outlines, and
 one-pixel dashed edge highlights now also emit `tgraphics` color commands;
-width-2 selected mesh edges stay on legacy OpenGL until line-width semantics are
-represented in `tgraphics`.
+`DrawList2D` color lines now carry explicit width semantics validated by
+OpenGL/Metal probe coverage, and width-2 selected mesh edges now use that shared
+path too.
 Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
 effects and by moving the remaining preview/export and style-editor surfaces
 through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene

@@ -82,7 +82,7 @@ bool makeStrokedLineQuad(const ColorLine& line,
   const double length = std::sqrt(dx * dx + dy * dy);
   if (length <= 1e-6) return false;
 
-  const double halfWidth = 0.5;
+  const double halfWidth = std::max(1.0, line.m_width) * 0.5;
   const TPointD tangent(dx / length * halfWidth, dy / length * halfWidth);
   const TPointD normal(-dy / length * halfWidth, dx / length * halfWidth);
   const TPointD p0 = line.m_p0 - tangent;
@@ -199,10 +199,17 @@ void DrawList2D::addCheckerboard(const TRectD& rect,
 
 void DrawList2D::addColorLine(const TPointD& p0, const TPointD& p1,
                               const TPixel32& color, bool blending) {
+  addColorLine(p0, p1, color, blending, 1.0);
+}
+
+void DrawList2D::addColorLine(const TPointD& p0, const TPointD& p1,
+                              const TPixel32& color, bool blending,
+                              double width) {
   ColorLine colorLine;
   colorLine.m_p0       = p0;
   colorLine.m_p1       = p1;
   colorLine.m_color    = color;
+  colorLine.m_width    = std::max(1.0, width);
   colorLine.m_blending = blending;
   m_colorLines.push_back(colorLine);
 }
@@ -408,11 +415,23 @@ private:
     if (std::abs(line.m_p0.y - line.m_p1.y) <= epsilon) {
       const double x0 = std::min(line.m_p0.x, line.m_p1.x);
       const double x1 = std::max(line.m_p0.x, line.m_p1.x);
-      tglFillRect(TRectD(x0, line.m_p0.y, x1 + 1.0, line.m_p0.y + 1.0));
+      if (line.m_width <= 1.0) {
+        tglFillRect(TRectD(x0, line.m_p0.y, x1 + 1.0, line.m_p0.y + 1.0));
+      } else {
+        const double halfWidth = line.m_width * 0.5;
+        tglFillRect(TRectD(x0, line.m_p0.y - halfWidth, x1 + 1.0,
+                           line.m_p0.y + halfWidth));
+      }
     } else if (std::abs(line.m_p0.x - line.m_p1.x) <= epsilon) {
       const double y0 = std::min(line.m_p0.y, line.m_p1.y);
       const double y1 = std::max(line.m_p0.y, line.m_p1.y);
-      tglFillRect(TRectD(line.m_p0.x, y0, line.m_p0.x + 1.0, y1 + 1.0));
+      if (line.m_width <= 1.0) {
+        tglFillRect(TRectD(line.m_p0.x, y0, line.m_p0.x + 1.0, y1 + 1.0));
+      } else {
+        const double halfWidth = line.m_width * 0.5;
+        tglFillRect(TRectD(line.m_p0.x - halfWidth, y0,
+                           line.m_p0.x + halfWidth, y1 + 1.0));
+      }
     } else {
       std::array<TPointD, 4> points;
       if (makeStrokedLineQuad(line, points)) {

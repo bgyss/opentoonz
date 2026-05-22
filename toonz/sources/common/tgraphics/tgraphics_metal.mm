@@ -21,7 +21,7 @@ bool makeStrokedLineQuad(const ColorLine &line, std::array<TPointD, 4> &points) 
   const double length = std::sqrt(dx * dx + dy * dy);
   if (length <= 1e-6) return false;
 
-  const double halfWidth = 0.5;
+  const double halfWidth = std::max(1.0, line.m_width) * 0.5;
   const TPointD tangent(dx / length * halfWidth, dy / length * halfWidth);
   const TPointD normal(-dy / length * halfWidth, dx / length * halfWidth);
   const TPointD p0 = line.m_p0 - tangent;
@@ -1163,12 +1163,20 @@ private:
     if (std::abs(line.m_p0.y - line.m_p1.y) <= epsilon) {
       const double x0 = std::min(line.m_p0.x, line.m_p1.x);
       const double x1 = std::max(line.m_p0.x, line.m_p1.x);
-      return TRectD(x0, line.m_p0.y, x1 + 1.0, line.m_p0.y + 1.0);
+      if (line.m_width <= 1.0)
+        return TRectD(x0, line.m_p0.y, x1 + 1.0, line.m_p0.y + 1.0);
+      const double halfWidth = line.m_width * 0.5;
+      return TRectD(x0, line.m_p0.y - halfWidth, x1 + 1.0,
+                    line.m_p0.y + halfWidth);
     }
     if (std::abs(line.m_p0.x - line.m_p1.x) <= epsilon) {
       const double y0 = std::min(line.m_p0.y, line.m_p1.y);
       const double y1 = std::max(line.m_p0.y, line.m_p1.y);
-      return TRectD(line.m_p0.x, y0, line.m_p0.x + 1.0, y1 + 1.0);
+      if (line.m_width <= 1.0)
+        return TRectD(line.m_p0.x, y0, line.m_p0.x + 1.0, y1 + 1.0);
+      const double halfWidth = line.m_width * 0.5;
+      return TRectD(line.m_p0.x - halfWidth, y0, line.m_p0.x + halfWidth,
+                    y1 + 1.0);
     }
     return std::nullopt;
   }
