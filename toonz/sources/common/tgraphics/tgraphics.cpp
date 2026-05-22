@@ -95,6 +95,19 @@ void DrawList2D::addColorRect(const TRectD& rect, const TPixel32& color,
   m_colorRects.push_back(colorRect);
 }
 
+void DrawList2D::addColorQuad(const TPointD& p00, const TPointD& p10,
+                              const TPointD& p11, const TPointD& p01,
+                              const TPixel32& color, bool blending) {
+  ColorQuad colorQuad;
+  colorQuad.m_points[0] = p00;
+  colorQuad.m_points[1] = p10;
+  colorQuad.m_points[2] = p11;
+  colorQuad.m_points[3] = p01;
+  colorQuad.m_color     = color;
+  colorQuad.m_blending  = blending;
+  m_colorQuads.push_back(colorQuad);
+}
+
 void DrawList2D::addCheckerboard(const TRectD& rect,
                                  const TDimensionD& cellSize,
                                  const TPointD& origin, const TPixel32& color0,
@@ -183,6 +196,10 @@ const std::vector<ColorRect>& DrawList2D::colorRects() const {
   return m_colorRects;
 }
 
+const std::vector<ColorQuad>& DrawList2D::colorQuads() const {
+  return m_colorQuads;
+}
+
 const std::vector<ColorLine>& DrawList2D::colorLines() const {
   return m_colorLines;
 }
@@ -192,8 +209,8 @@ const std::vector<TextureQuad>& DrawList2D::textureQuads() const {
 }
 
 bool DrawList2D::empty() const {
-  return !m_hasClearColor && m_colorRects.empty() && m_colorLines.empty() &&
-         m_textureQuads.empty();
+  return !m_hasClearColor && m_colorRects.empty() && m_colorQuads.empty() &&
+         m_colorLines.empty() && m_textureQuads.empty();
 }
 
 class OpenGLImageRenderTarget final : public RenderTarget {
@@ -260,6 +277,10 @@ public:
       drawColorRect(rect);
     }
 
+    for (const ColorQuad& quad : drawList.colorQuads()) {
+      drawColorQuad(quad);
+    }
+
     for (const ColorLine& line : drawList.colorLines()) {
       drawColorLine(line);
     }
@@ -293,6 +314,24 @@ private:
 
     tglColor(rect.m_color);
     tglFillRect(rect.m_rect);
+    glDisable(GL_BLEND);
+  }
+
+  void drawColorQuad(const ColorQuad& quad) {
+    if (quad.m_blending) {
+      glEnable(GL_BLEND);
+      glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    } else {
+      glDisable(GL_BLEND);
+    }
+
+    tglColor(quad.m_color);
+    glBegin(GL_POLYGON);
+    tglVertex(quad.m_points[0]);
+    tglVertex(quad.m_points[1]);
+    tglVertex(quad.m_points[2]);
+    tglVertex(quad.m_points[3]);
+    glEnd();
     glDisable(GL_BLEND);
   }
 

@@ -107,6 +107,9 @@ before porting scene internals.
 - Added `DrawList2D::addColorRect(...)` and `ColorRect` so viewer components
   such as camera background/color-card fills can move to Metal without first
   rasterizing synthetic textures.
+- Added `DrawList2D::addColorQuad(...)` and `ColorQuad` so transformed
+  camera-card fills can retain their four-corner geometry in the direct Metal
+  path instead of collapsing to an axis-aligned bounding rectangle.
 - Added `DrawList2D::addCheckerboard(...)`, currently implemented by expanding
   clipped checker cells into `ColorRect` commands so both the Metal and OpenGL
   probe paths can share the existing solid-rectangle encoder.
@@ -130,8 +133,9 @@ before porting scene internals.
 - Updated the OpenGL baseline command encoder to draw `ColorRect` through the
   existing `tglFillRect` path, keeping the compatibility backend aligned with
   existing OpenGL behavior.
-- Updated the OpenGL and Metal command encoders to draw `ColorLine`, with
-  Metal/OpenGL parity covered by the probe for axis-aligned lines.
+- Updated the OpenGL and Metal command encoders to draw `ColorQuad` and
+  `ColorLine`, with Metal/OpenGL parity covered by the probe for filled color
+  quads and axis-aligned lines.
 - Updated the OpenGL and Metal command encoders to draw explicit texture quads,
   with Metal/OpenGL parity covered by the probe for a camera-transform-like
   scaled and translated raster quad.
@@ -179,11 +183,11 @@ before porting scene internals.
   active viewer background color before presenting the compatibility OpenGL
   framebuffer snapshot. This is the first direct viewer-side Metal command, not
   the final direct scene rendering path.
-- The same direct Metal draw list now adds a camera color-card `ColorRect` for
-  the narrow non-3D, non-editing, non-blank-frame viewer path when the camera BG
-  color toggle is enabled.
-- That draw list now also adds four direct Metal `ColorLine` commands for the
-  camera outline in the same narrow path.
+- The same direct Metal draw list now adds a transformed camera color-card
+  `ColorQuad` for the narrow non-3D, non-editing, non-blank-frame viewer path
+  when the camera BG color toggle is enabled.
+- That draw list now also adds four direct Metal `ColorLine` commands using the
+  transformed camera corners for the camera outline in the same narrow path.
 - The direct Metal viewer background path now adds a checkerboard using
   `Preferences::getChessboardColors(...)` when `ToonzCheck::eTransparency` is
   active.
@@ -224,18 +228,19 @@ before porting scene internals.
 The OpenGL baseline target intentionally adds a small number of Qt/OpenGL
 references to `tgraphics.cpp` so the Metal probe can compare against the current
 OpenGL `DrawList2D` behavior. The transformed texture-quad checkpoint adds a
-few more fixed-function OpenGL references to that compatibility/probe encoder:
+few more fixed-function OpenGL references to that compatibility/probe encoder;
+the color-quad checkpoint adds the corresponding OpenGL baseline polygon path:
 
 ```text
 OpenToonz graphics API inventory
 source_root=toonz/sources
 
-all graphics markers               files=  121 matches=  2903
+all graphics markers               files=  121 matches=  2910
 Qt legacy QGL                      files=    0 matches=     0
 Qt QOpenGL                         files=   32 matches=   216
 GLU                                files=    5 matches=    53
 GLEW or GLUT                       files=   10 matches=    30
-fixed-function drawing             files=   86 matches=  2039
+fixed-function drawing             files=   86 matches=  2046
 fixed-function matrix              files=   57 matches=   460
 glDrawPixels                       files=    4 matches=    10
 OpenGL selection                   files=    5 matches=    95
@@ -249,9 +254,9 @@ Commands run:
 bash scripts/graphics_inventory.sh
 git diff --check
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=ON'
-nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target OpenToonz tgraphics_metal_probe --parallel 3
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tgraphics_metal_probe OpenToonz --parallel 3
 nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
-nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe --write-images /private/tmp/opentoonz-metal-probe-images
+nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe --write-images /private/tmp/opentoonz-metal-probe-images-colorquad
 nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app/Contents/MacOS/OpenToonz >/tmp/opentoonz-metal-smoke.log 2>&1 & pid=$!; sleep 8; ...'
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --parallel 3
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=OFF'
@@ -268,19 +273,19 @@ QuartzCore, builds `tgraphics_metal_probe`, and links `OpenToonz.app`.
 Probe output after validating direct solid clear/background pixels, transparent
 clear pixels, solid-color rectangle drawing, solid-color rectangle alpha
 blending, checkerboard background drawing, deterministic axis-aligned color
-line drawing, opaque textured replace drawing, transformed texture-quad
-drawing, modulated half-alpha texture-quad drawing, OpenGL-compatible texture
-alpha blending over both solid and gradient destinations, and Metal/OpenGL
-readback parity:
+line drawing, filled color-quad blending, opaque textured replace drawing,
+transformed texture-quad drawing, modulated half-alpha texture-quad drawing,
+OpenGL-compatible texture alpha blending over both solid and gradient
+destinations, and Metal/OpenGL readback parity:
 
 ```text
 tgraphics_metal_probe: ok on Apple M1 Max
 ```
 
-The image-artifact probe run wrote 24 PNG files under
-`/private/tmp/opentoonz-metal-probe-images`: Metal, OpenGL, and amplified diff
-images for clear, color-rect, checker, color-line, gradient, transformed
-texture, modulated texture, and alpha cases.
+The image-artifact probe run wrote 27 PNG files under
+`/private/tmp/opentoonz-metal-probe-images-colorquad`: Metal, OpenGL, and
+amplified diff images for clear, color-rect, checker, color-line, color-quad,
+gradient, transformed texture, modulated texture, and alpha cases.
 
 ## Manual Smoke
 

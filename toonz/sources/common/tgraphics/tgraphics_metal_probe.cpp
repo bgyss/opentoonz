@@ -495,6 +495,30 @@ int main(int argc, char* argv[]) {
   }
 
   {
+    const TPixel32 quadClearColor(11, 17, 23, 255);
+    const TPixel32 baseColor(31, 67, 103, 255);
+    const TPixel32 quadColor(219, 181, 47, 192);
+    TGraphics::DrawList2D drawList;
+    drawList.setClearColor(quadClearColor);
+    drawList.addColorRect(TRectD(0, 0, width, height), baseColor, false);
+    drawList.addColorQuad(TPointD(1, 2), TPointD(7, 2), TPointD(7, 6),
+                          TPointD(1, 6), quadColor, true);
+
+    TRaster32P readback = renderMetal(drawList, width, height);
+    if (!readback) return fail("could not read back color quad Metal target");
+    if (!requireDimensions(readback, width, height)) {
+      return fail("color quad readback dimensions do not match render target");
+    }
+
+    TRaster32P openGLReadback = renderOpenGL(drawList, width, height);
+    if (!openGLReadback)
+      return fail("could not read back color quad OpenGL baseline");
+    if (!compareRasters(readback, openGLReadback, "color quad", artifactDir)) {
+      return EXIT_FAILURE;
+    }
+  }
+
+  {
     TGraphics::DrawList2D drawList;
     drawList.setClearColor(clearColor);
     drawList.addTexture(

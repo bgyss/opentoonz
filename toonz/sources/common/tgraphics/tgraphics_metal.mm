@@ -197,6 +197,21 @@ public:
       [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
     }
 
+    for (const ColorQuad &quad : drawList.colorQuads()) {
+      id<MTLRenderPipelineState> pipeline = colorPipelineState(quad.m_blending);
+      if (!pipeline) continue;
+
+      std::array<MetalVertex, 6> vertices = makeVertices(quad);
+      const float color[4]                = {quad.m_color.r / 255.0f, quad.m_color.g / 255.0f,
+                                             quad.m_color.b / 255.0f, quad.m_color.m / 255.0f};
+      [encoder setRenderPipelineState:pipeline];
+      [encoder setVertexBytes:vertices.data()
+                       length:vertices.size() * sizeof(MetalVertex)
+                      atIndex:0];
+      [encoder setFragmentBytes:color length:sizeof(color) atIndex:0];
+      [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+    }
+
     for (const ColorLine &line : drawList.colorLines()) {
       id<MTLRenderPipelineState> pipeline = colorPipelineState(line.m_blending);
       if (!pipeline) continue;
@@ -412,6 +427,20 @@ private:
   }
 
   std::array<MetalVertex, 6> makeVertices(const TextureQuad &quad) const {
+    const TPointD &p00 = quad.m_points[0];
+    const TPointD &p10 = quad.m_points[1];
+    const TPointD &p11 = quad.m_points[2];
+    const TPointD &p01 = quad.m_points[3];
+
+    return {{{pixelToClipX(p00.x), pixelToClipY(p00.y), 0.0f, 0.0f},
+             {pixelToClipX(p10.x), pixelToClipY(p10.y), 1.0f, 0.0f},
+             {pixelToClipX(p01.x), pixelToClipY(p01.y), 0.0f, 1.0f},
+             {pixelToClipX(p10.x), pixelToClipY(p10.y), 1.0f, 0.0f},
+             {pixelToClipX(p11.x), pixelToClipY(p11.y), 1.0f, 1.0f},
+             {pixelToClipX(p01.x), pixelToClipY(p01.y), 0.0f, 1.0f}}};
+  }
+
+  std::array<MetalVertex, 6> makeVertices(const ColorQuad &quad) const {
     const TPointD &p00 = quad.m_points[0];
     const TPointD &p10 = quad.m_points[1];
     const TPointD &p11 = quad.m_points[2];

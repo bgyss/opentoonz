@@ -1128,14 +1128,17 @@ bool SceneViewer::presentBackgroundWithMetal() {
                                       m_drawCameraAff * cameraRect.getP10(),
                                       m_drawCameraAff * cameraRect.getP11(),
                                       m_drawCameraAff * cameraRect.getP01()};
+    TPointD cameraPixels[4];
 
     double x0 = width;
     double x1 = 0.0;
     double y0 = height;
     double y1 = 0.0;
-    for (const TPointD& corner : cameraCorners) {
+    for (int i = 0; i < 4; ++i) {
+      const TPointD& corner = cameraCorners[i];
       const double x = width * 0.5 + corner.x;
       const double y = height - (height * 0.5 + corner.y);
+      cameraPixels[i] = TPointD(x, y);
       x0             = std::min(x0, x);
       x1             = std::max(x1, x);
       y0             = std::min(y0, y);
@@ -1159,17 +1162,19 @@ bool SceneViewer::presentBackgroundWithMetal() {
         }
       }
 
-      drawList.addColorRect(TRectD(x0, y0, x1, y1),
-                            TPixel32(color.r, color.g, color.b, color.m), true);
+      drawList.addColorQuad(cameraPixels[0], cameraPixels[1], cameraPixels[2],
+                            cameraPixels[3],
+                            TPixel32(color.r, color.g, color.b, color.m),
+                            true);
 
       const TPixel32 cameraLineColor(255, 0, 0, 255);
-      drawList.addColorLine(TPointD(x0, y0), TPointD(x0, y1), cameraLineColor,
+      drawList.addColorLine(cameraPixels[0], cameraPixels[1], cameraLineColor,
                             false);
-      drawList.addColorLine(TPointD(x0, y1), TPointD(x1, y1), cameraLineColor,
+      drawList.addColorLine(cameraPixels[1], cameraPixels[2], cameraLineColor,
                             false);
-      drawList.addColorLine(TPointD(x1, y1), TPointD(x1, y0), cameraLineColor,
+      drawList.addColorLine(cameraPixels[2], cameraPixels[3], cameraLineColor,
                             false);
-      drawList.addColorLine(TPointD(x1, y0), TPointD(x0, y0), cameraLineColor,
+      drawList.addColorLine(cameraPixels[3], cameraPixels[0], cameraLineColor,
                             false);
     }
   }
