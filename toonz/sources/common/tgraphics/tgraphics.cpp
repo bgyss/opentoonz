@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cctype>
+#include <cmath>
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -94,6 +95,16 @@ void DrawList2D::addColorRect(const TRectD& rect, const TPixel32& color,
   m_colorRects.push_back(colorRect);
 }
 
+void DrawList2D::addColorLine(const TPointD& p0, const TPointD& p1,
+                              const TPixel32& color, bool blending) {
+  ColorLine colorLine;
+  colorLine.m_p0       = p0;
+  colorLine.m_p1       = p1;
+  colorLine.m_color    = color;
+  colorLine.m_blending = blending;
+  m_colorLines.push_back(colorLine);
+}
+
 void DrawList2D::addTexture(const TRectD& rect, const TRaster32P& raster,
                             bool blending) {
   TextureQuad quad;
@@ -111,12 +122,17 @@ const std::vector<ColorRect>& DrawList2D::colorRects() const {
   return m_colorRects;
 }
 
+const std::vector<ColorLine>& DrawList2D::colorLines() const {
+  return m_colorLines;
+}
+
 const std::vector<TextureQuad>& DrawList2D::textureQuads() const {
   return m_textureQuads;
 }
 
 bool DrawList2D::empty() const {
-  return !m_hasClearColor && m_colorRects.empty() && m_textureQuads.empty();
+  return !m_hasClearColor && m_colorRects.empty() && m_colorLines.empty() &&
+         m_textureQuads.empty();
 }
 
 class OpenGLImageRenderTarget final : public RenderTarget {
@@ -183,6 +199,10 @@ public:
       drawColorRect(rect);
     }
 
+    for (const ColorLine& line : drawList.colorLines()) {
+      drawColorLine(line);
+    }
+
     for (const TextureQuad& quad : drawList.textureQuads()) {
       const RasterTexture* texture =
           dynamic_cast<const RasterTexture*>(quad.m_texture.get());
@@ -212,6 +232,30 @@ private:
 
     tglColor(rect.m_color);
     tglFillRect(rect.m_rect);
+    glDisable(GL_BLEND);
+  }
+
+  void drawColorLine(const ColorLine& line) {
+    if (line.m_blending) {
+      glEnable(GL_BLEND);
+      glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    } else {
+      glDisable(GL_BLEND);
+    }
+
+    tglColor(line.m_color);
+    const double epsilon = 1e-6;
+    if (std::abs(line.m_p0.y - line.m_p1.y) <= epsilon) {
+      const double x0 = std::min(line.m_p0.x, line.m_p1.x);
+      const double x1 = std::max(line.m_p0.x, line.m_p1.x);
+      tglFillRect(TRectD(x0, line.m_p0.y, x1 + 1.0, line.m_p0.y + 1.0));
+    } else if (std::abs(line.m_p0.x - line.m_p1.x) <= epsilon) {
+      const double y0 = std::min(line.m_p0.y, line.m_p1.y);
+      const double y1 = std::max(line.m_p0.y, line.m_p1.y);
+      tglFillRect(TRectD(line.m_p0.x, y0, line.m_p0.x + 1.0, y1 + 1.0));
+    } else {
+      tglDrawSegment(line.m_p0, line.m_p1);
+    }
     glDisable(GL_BLEND);
   }
 

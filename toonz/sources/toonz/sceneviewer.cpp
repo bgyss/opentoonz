@@ -1139,6 +1139,16 @@ bool SceneViewer::presentBackgroundWithMetal() {
 
       drawList.addColorRect(TRectD(x0, y0, x1, y1),
                             TPixel32(color.r, color.g, color.b, color.m), true);
+
+      const TPixel32 cameraLineColor(255, 0, 0, 255);
+      drawList.addColorLine(TPointD(x0, y0), TPointD(x0, y1), cameraLineColor,
+                            false);
+      drawList.addColorLine(TPointD(x0, y1), TPointD(x1, y1), cameraLineColor,
+                            false);
+      drawList.addColorLine(TPointD(x1, y1), TPointD(x1, y0), cameraLineColor,
+                            false);
+      drawList.addColorLine(TPointD(x1, y0), TPointD(x0, y0), cameraLineColor,
+                            false);
     }
   }
 

@@ -4,7 +4,8 @@ Status: initial Milestone 3 build/probe, render-target, textured-draw,
 offscreen-readback, replace/blend pipeline, OpenGL baseline comparison, first
 native-view Metal presentation slice, first direct Metal viewer-background
 command, and first direct Metal camera color-card command completed locally on
-2026-05-22.
+2026-05-22. Direct axis-aligned camera outline line commands are now also
+validated through the Metal/OpenGL probe.
 
 ## Objective
 
@@ -22,15 +23,15 @@ native `CAMetalLayer` child widget when `OPENTOONZ_GRAPHICS_BACKEND=metal` is
 requested, plus a first direct Metal viewer command that clears the Metal layer
 to the active viewer background color before the compatibility snapshot is
 presented. It now also emits a direct solid-color camera color-card rectangle
-for the narrow non-3D viewer path.
+and a direct camera outline for the narrow non-3D viewer path.
 
 This is not yet a full native Metal scene renderer. Scene composition still
 comes from the existing OpenGL viewer path, then the captured viewer framebuffer
 is uploaded to Metal and presented through `DrawList2D`. The direct Metal
-background/color-card work is intentionally narrow and is immediately followed
-by that compatibility snapshot. This is a deliberate transitional slice to
-validate Qt/native-view ownership, drawable lifecycle, direct command encoding,
-and Metal presentation before porting scene internals.
+background/color-card/outline work is intentionally narrow and is immediately
+followed by that compatibility snapshot. This is a deliberate transitional
+slice to validate Qt/native-view ownership, drawable lifecycle, direct command
+encoding, and Metal presentation before porting scene internals.
 
 ## Files Changed
 
@@ -87,6 +88,10 @@ and Metal presentation before porting scene internals.
 - Added `DrawList2D::addColorRect(...)` and `ColorRect` so viewer components
   such as camera background/color-card fills can move to Metal without first
   rasterizing synthetic textures.
+- Added `DrawList2D::addColorLine(...)` and `ColorLine` for simple overlay
+  strokes. Axis-aligned lines are rendered as deterministic one-pixel
+  rectangles in both backends to avoid backend-specific line endpoint
+  rasterization differences.
 - Added `DrawList2D::setClearColor(...)`, `hasClearColor()`, and
   `clearColor()` so small draw lists can represent a direct render-target clear
   without requiring a synthetic full-frame texture.
@@ -97,6 +102,8 @@ and Metal presentation before porting scene internals.
 - Updated the OpenGL baseline command encoder to draw `ColorRect` through the
   existing `tglFillRect` path, keeping the compatibility backend aligned with
   existing OpenGL behavior.
+- Updated the OpenGL and Metal command encoders to draw `ColorLine`, with
+  Metal/OpenGL parity covered by the probe for axis-aligned lines.
 - Matched Metal alpha blending to the existing `tglDraw` OpenGL baseline:
   `GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA` for both color and alpha channels.
 - Added `MetalTextureRenderTarget` for offscreen render/readback validation.
@@ -131,6 +138,8 @@ and Metal presentation before porting scene internals.
 - The same direct Metal draw list now adds a camera color-card `ColorRect` for
   the narrow non-3D, non-editing, non-blank-frame viewer path when the camera BG
   color toggle is enabled.
+- That draw list now also adds four direct Metal `ColorLine` commands for the
+  camera outline in the same narrow path.
 - Linked `tnzcore` against `Metal.framework` only when
   `WITH_GRAPHICS_METAL=ON`.
 - Linked `tnzcore` against `QuartzCore.framework` only when
@@ -151,12 +160,12 @@ OpenGL `DrawList2D` behavior:
 OpenToonz graphics API inventory
 source_root=toonz/sources
 
-all graphics markers               files=  121 matches=  2891
+all graphics markers               files=  121 matches=  2892
 Qt legacy QGL                      files=    0 matches=     0
 Qt QOpenGL                         files=   32 matches=   216
 GLU                                files=    5 matches=    53
 GLEW or GLUT                       files=   10 matches=    30
-fixed-function drawing             files=   86 matches=  2027
+fixed-function drawing             files=   86 matches=  2028
 fixed-function matrix              files=   57 matches=   460
 glDrawPixels                       files=    4 matches=    10
 OpenGL selection                   files=    5 matches=    95
@@ -187,9 +196,9 @@ QuartzCore, builds `tgraphics_metal_probe`, and links `OpenToonz.app`.
 
 Probe output after validating direct solid clear/background pixels, transparent
 clear pixels, solid-color rectangle drawing, solid-color rectangle alpha
-blending, opaque textured replace drawing, OpenGL-compatible texture alpha
-blending over both solid and gradient destinations, and Metal/OpenGL readback
-parity:
+blending, deterministic axis-aligned color line drawing, opaque textured
+replace drawing, OpenGL-compatible texture alpha blending over both solid and
+gradient destinations, and Metal/OpenGL readback parity:
 
 ```text
 tgraphics_metal_probe: ok on Apple M1 Max
@@ -208,9 +217,12 @@ inside the full UI.
 
 - Qt native-view integration exists only for presenting a captured viewer
   framebuffer through Metal.
-- The direct Metal viewer background clear and camera color-card rectangle are
-  currently superseded by the compatibility OpenGL framebuffer snapshot in the
-  same paint pass.
+- The direct Metal viewer background clear, camera color-card rectangle, and
+  camera outline lines are currently superseded by the compatibility OpenGL
+  framebuffer snapshot in the same paint pass.
+- Direct camera outline lines are limited to deterministic axis-aligned
+  one-pixel strokes; arbitrary anti-aliased or stippled overlay lines still need
+  a richer stroke pipeline.
 - Scene drawing, picking, overlays, and interaction still originate from the
   existing OpenGL viewer path.
 - Metal shader source is present in the build tree, but the experimental
@@ -224,7 +236,7 @@ inside the full UI.
 
 - Replace the compatibility OpenGL framebuffer snapshot with direct Metal
   drawing for more scene components: checker/background modes, raster image
-  textures, vector image textures, and simple overlays.
+  textures, vector image textures, and additional overlays.
 - Expand the offscreen probe from synthetic quads into baseline scene fixtures.
 - Route only a narrow scene-viewer path to the Metal command encoder once
   drawable lifecycle and fallback behavior are stable.

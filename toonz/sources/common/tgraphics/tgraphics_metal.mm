@@ -7,6 +7,8 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
+#include <optional>
 #include <string>
 
 namespace TGraphics {
@@ -190,6 +192,30 @@ public:
                       atIndex:0];
       [encoder setFragmentBytes:color length:sizeof(color) atIndex:0];
       [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+    }
+
+    for (const ColorLine &line : drawList.colorLines()) {
+      id<MTLRenderPipelineState> pipeline = colorPipelineState(line.m_blending);
+      if (!pipeline) continue;
+
+      const float color[4] = {line.m_color.r / 255.0f, line.m_color.g / 255.0f,
+                              line.m_color.b / 255.0f, line.m_color.m / 255.0f};
+      [encoder setRenderPipelineState:pipeline];
+      [encoder setFragmentBytes:color length:sizeof(color) atIndex:0];
+
+      if (std::optional<TRectD> lineRect = axisAlignedLineRect(line)) {
+        std::array<MetalVertex, 6> vertices = makeVertices(*lineRect);
+        [encoder setVertexBytes:vertices.data()
+                         length:vertices.size() * sizeof(MetalVertex)
+                        atIndex:0];
+        [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+      } else {
+        std::array<MetalVertex, 2> vertices = makeLineVertices(line);
+        [encoder setVertexBytes:vertices.data()
+                         length:vertices.size() * sizeof(MetalVertex)
+                        atIndex:0];
+        [encoder drawPrimitives:MTLPrimitiveTypeLine vertexStart:0 vertexCount:2];
+      }
     }
 
     id<MTLSamplerState> sampler = samplerState();
@@ -377,6 +403,26 @@ private:
              {right, top, 1.0f, 0.0f},
              {right, bottom, 1.0f, 1.0f},
              {left, bottom, 0.0f, 1.0f}}};
+  }
+
+  std::array<MetalVertex, 2> makeLineVertices(const ColorLine &line) const {
+    return {{{pixelToClipX(line.m_p0.x), pixelToClipY(line.m_p0.y), 0.0f, 0.0f},
+             {pixelToClipX(line.m_p1.x), pixelToClipY(line.m_p1.y), 0.0f, 0.0f}}};
+  }
+
+  std::optional<TRectD> axisAlignedLineRect(const ColorLine &line) const {
+    const double epsilon = 1e-6;
+    if (std::abs(line.m_p0.y - line.m_p1.y) <= epsilon) {
+      const double x0 = std::min(line.m_p0.x, line.m_p1.x);
+      const double x1 = std::max(line.m_p0.x, line.m_p1.x);
+      return TRectD(x0, line.m_p0.y, x1 + 1.0, line.m_p0.y + 1.0);
+    }
+    if (std::abs(line.m_p0.x - line.m_p1.x) <= epsilon) {
+      const double y0 = std::min(line.m_p0.y, line.m_p1.y);
+      const double y1 = std::max(line.m_p0.y, line.m_p1.y);
+      return TRectD(line.m_p0.x, y0, line.m_p0.x + 1.0, y1 + 1.0);
+    }
+    return std::nullopt;
   }
 
   float pixelToClipX(double x) const { return static_cast<float>((2.0 * x / targetWidth()) - 1.0); }

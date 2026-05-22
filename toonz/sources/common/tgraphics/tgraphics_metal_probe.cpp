@@ -327,6 +327,30 @@ int main(int argc, char* argv[]) {
   }
 
   {
+    const TPixel32 lineClearColor(7, 9, 11, 255);
+    const TPixel32 lineColor(240, 30, 50, 255);
+    TGraphics::DrawList2D drawList;
+    drawList.setClearColor(lineClearColor);
+    drawList.addColorLine(TPointD(1, 1), TPointD(6, 1), lineColor, false);
+    drawList.addColorLine(TPointD(6, 1), TPointD(6, 6), lineColor, false);
+    drawList.addColorLine(TPointD(6, 6), TPointD(1, 6), lineColor, false);
+    drawList.addColorLine(TPointD(1, 6), TPointD(1, 1), lineColor, false);
+
+    TRaster32P readback = renderMetal(drawList, width, height);
+    if (!readback) return fail("could not read back color line Metal target");
+    if (!requireDimensions(readback, width, height)) {
+      return fail("color line readback dimensions do not match render target");
+    }
+
+    TRaster32P openGLReadback = renderOpenGL(drawList, width, height);
+    if (!openGLReadback)
+      return fail("could not read back color line OpenGL baseline");
+    if (!compareRasters(readback, openGLReadback, "color line")) {
+      return EXIT_FAILURE;
+    }
+  }
+
+  {
     TGraphics::DrawList2D drawList;
     drawList.setClearColor(clearColor);
     drawList.addTexture(
