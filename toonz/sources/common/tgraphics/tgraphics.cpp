@@ -10,6 +10,12 @@
 #include <string>
 
 namespace TGraphics {
+
+#ifdef OPENTOONZ_WITH_GRAPHICS_METAL
+bool probeMetalDevice();
+const char *probeMetalDeviceName();
+#endif
+
 namespace {
 
 std::string normalizedBackendName() {
@@ -27,10 +33,19 @@ void warnMetalUnavailableOnce() {
   static bool alreadyWarned = false;
   if (alreadyWarned) return;
 
-  std::cerr << "OPENTOONZ_GRAPHICS_BACKEND=metal was requested, but the "
-               "Metal backend is not available in this build. Falling back "
-               "to OpenGL."
-            << std::endl;
+  if (isMetalBuildEnabled() && isMetalDeviceAvailable()) {
+    std::cerr << "OPENTOONZ_GRAPHICS_BACKEND=metal was requested, and Metal "
+                 "device \""
+              << metalDeviceName()
+              << "\" is available, but Metal rendering is not wired to a "
+                 "viewer render target yet. Falling back to OpenGL."
+              << std::endl;
+  } else {
+    std::cerr << "OPENTOONZ_GRAPHICS_BACKEND=metal was requested, but the "
+                 "Metal backend is not available in this build. Falling back "
+                 "to OpenGL."
+              << std::endl;
+  }
   alreadyWarned = true;
 }
 
@@ -104,7 +119,26 @@ bool isMetalBuildEnabled() {
 #endif
 }
 
+bool isMetalDeviceAvailable() {
+#ifdef OPENTOONZ_WITH_GRAPHICS_METAL
+  return probeMetalDevice();
+#else
+  return false;
+#endif
+}
+
+const char *metalDeviceName() {
+#ifdef OPENTOONZ_WITH_GRAPHICS_METAL
+  return probeMetalDeviceName();
+#else
+  return "";
+#endif
+}
+
 bool isMetalBackendAvailable() {
+  // A native Metal device and command queue can exist before the renderer can
+  // present into Qt widgets. Keep OpenGL active until a Metal render target is
+  // wired into the viewer.
   return false;
 }
 

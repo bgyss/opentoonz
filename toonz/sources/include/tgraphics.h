@@ -104,6 +104,8 @@ public:
 
 DVAPI Device &openGLDevice();
 DVAPI bool isMetalBuildEnabled();
+DVAPI bool isMetalDeviceAvailable();
+DVAPI const char *metalDeviceName();
 DVAPI bool isMetalBackendAvailable();
 DVAPI BackendType requestedBackendType();
 DVAPI BackendType activeBackendType();

@@ -260,6 +260,11 @@ elseif(BUILD_TARGET_APPLE)
     set(SOURCES ${SOURCES}
         ../common/tsound/tsound_qt.cpp
     )
+    if(WITH_GRAPHICS_METAL)
+        set(SOURCES ${SOURCES}
+            ../common/tgraphics/tgraphics_metal.mm
+        )
+    endif()
 elseif(BUILD_TARGET_UNIX)
     set(SOURCES ${SOURCES}
         ../common/tsound/tsound_qt.cpp
@@ -350,6 +355,13 @@ elseif(BUILD_ENV_APPLE)
         ${AUDIOTB_LIB}
         ${CARBON_LIB}
     )
+    if(WITH_GRAPHICS_METAL)
+        find_library(METAL_LIB Metal REQUIRED)
+        set(EXTRA_LIBS
+            ${EXTRA_LIBS}
+            ${METAL_LIB}
+        )
+    endif()
 elseif(BUILD_ENV_UNIXLIKE)
     if(NOT BUILD_TARGET_WIN)
         include_directories(
