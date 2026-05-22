@@ -907,14 +907,18 @@ void SkeletonTool::drawSkeleton(const Skeleton &skeleton, int row) {
           tglDrawDisk(pm, r);
           glPopName();
         } else {
+          const bool highlighted = m_device == TD_ChangeParent;
           if (m_device == TD_ChangeParent) {
-            glColor4d(0.47 * alpha, 0.6 * alpha, 0.65 * alpha, alpha);
             r *= 1.5;
-          } else
-            glColor4d(0.37 * alpha, 0.5 * alpha, 0.55 * alpha, alpha);
-          glRectd(pm.x - r, pm.y - r, pm.x + r, pm.y + r);
-          glColor3d(0, 0, 0);
-          tglDrawRect(pm.x - r, pm.y - r, pm.x + r, pm.y + r);
+          }
+          TGraphics::DrawList2D drawList;
+          drawList.addColorRect(
+              makePointRect(pm, r),
+              highlighted ? TPixel32(120, 153, 166, tround(alpha * 255))
+                          : TPixel32(94, 128, 140, tround(alpha * 255)),
+              alpha < 1.0);
+          appendRectOutline(drawList, makePointRect(pm, r), TPixel32::Black);
+          TGraphics::drawWithOpenGLBackend(drawList);
         }
       }
     }

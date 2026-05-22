@@ -182,6 +182,11 @@ active lock square fills from `glRectd(...)`, `tglDrawRect(...)`, and
 `tglFillRect(...)` to `DrawList2D` color-rect and color-line commands. Circular
 free-joint drawing remains on the existing tool drawing path.
 
+The follow-up skeleton change-parent checkpoint moves the visible change-parent
+square gadget from `glRectd(...)` plus `tglDrawRect(...)` to `DrawList2D`
+color-rect and color-line commands. Picking still uses the existing disk/name
+path.
+
 ## Files Changed
 
 - `scripts/graphics_shader_inventory.sh`
@@ -639,7 +644,8 @@ commands instead of immediate-mode `GL_LINES`. Control-point editor square
 handles now emit `tgraphics` color-rect commands instead of repeated direct
 `tglFillRect(...)` calls. Pinned skeleton IK joint square markers now emit
 `tgraphics` color-rect and color-line commands instead of direct rectangle
-drawing calls.
+drawing calls. Skeleton change-parent square gadgets now also emit `tgraphics`
+color-rect and color-line commands instead of direct rectangle drawing calls.
 Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
 effects and by moving the remaining preview/export and style-editor surfaces
 through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene
