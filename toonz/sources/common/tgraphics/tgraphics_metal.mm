@@ -105,6 +105,9 @@ NSString *shaderSource() {
           "struct WavyUniforms { float a11; float a12; float a13; float "
           "a21; float a22; float a23; float4 color1; float4 color2; float "
           "time; };\n"
+          "struct FireballUniforms { float a11; float a12; float a13; float "
+          "a21; float a22; float a23; float4 color1; float4 color2; float "
+          "detail; float time; };\n"
           "fragment float4 tgraphicsSunflareFragment(VertexOut in "
           "[[stage_in]], constant SunflareUniforms &u [[buffer(0)]]) {\n"
           "  float2 world = float2(in.position.x * u.a11 + in.position.y * "
@@ -240,6 +243,47 @@ NSString *shaderSource() {
           "  float coeff1 = c.x - off;\n"
           "  float coeff2 = cos(c.z);\n"
           "  return (coeff1 * col1 + coeff2 * col2) / (coeff1 + coeff2);\n"
+          "}\n"
+          "float3 fireballMod(float3 x, float y) {\n"
+          "  return x - y * floor(x / y);\n"
+          "}\n"
+          "float fireballSnoise(float3 uv, float res) {\n"
+          "  const float3 s = float3(1.0e0, 1.0e2, 1.0e4);\n"
+          "  uv *= res;\n"
+          "  float3 uv0 = floor(fireballMod(uv, res)) * s;\n"
+          "  float3 uv1 = floor(fireballMod(uv + float3(1.0), res)) * s;\n"
+          "  float3 f = fract(uv);\n"
+          "  f = f * f * (3.0 - 2.0 * f);\n"
+          "  float4 v = float4(uv0.x + uv0.y + uv0.z, uv1.x + uv0.y + "
+          "uv0.z, uv0.x + uv1.y + uv0.z, uv1.x + uv1.y + uv0.z);\n"
+          "  float4 r = fract(sin(v * 1.0e-3) * 1.0e5);\n"
+          "  float r0 = mix(mix(r.x, r.y, f.x), mix(r.z, r.w, f.x), f.y);\n"
+          "  r = fract(sin((v + uv1.z - uv0.z) * 1.0e-3) * 1.0e5);\n"
+          "  float r1 = mix(mix(r.x, r.y, f.x), mix(r.z, r.w, f.x), f.y);\n"
+          "  return 2.0 * mix(r0, r1, f.z) - 1.0;\n"
+          "}\n"
+          "fragment float4 tgraphicsFireballFragment(VertexOut in "
+          "[[stage_in]], constant FireballUniforms &u [[buffer(0)]]) {\n"
+          "  constexpr float piTwice = 6.283185307;\n"
+          "  float2 p = 0.002 * float2(in.position.x * u.a11 + "
+          "in.position.y * u.a12 + u.a13, in.position.x * u.a21 + "
+          "in.position.y * u.a22 + u.a23);\n"
+          "  float color = 3.0 * (1.0 - 2.0 * length(p));\n"
+          "  float3 coord = float3(atan2(p.y, p.x) / piTwice, length(p) * "
+          "0.4, 0.0);\n"
+          "  for (int i = 1; i <= 7; ++i) {\n"
+          "    float power = pow(2.0, float(i));\n"
+          "    float3 timed = float3(0.0, -u.time * 0.02, u.time * 0.01);\n"
+          "    color += 1.5 * fireballSnoise(coord + timed, power * "
+          "u.detail) / power;\n"
+          "  }\n"
+          "  color = max(color, 0.0);\n"
+          "  float4 col1 = u.color1 * u.color1.a;\n"
+          "  float4 col2 = u.color2 * u.color2.a;\n"
+          "  float4 outColor = mix(col1, col2, color / 3.0);\n"
+          "  outColor.a *= smoothstep(0.0, 1.0, color);\n"
+          "  outColor.rgb *= outColor.a;\n"
+          "  return outColor;\n"
           "}\n";
 }
 
@@ -368,6 +412,20 @@ struct WavyUniforms {
   float m_time        = 0.0f;
 };
 
+struct FireballUniforms {
+  float m_a11         = 1.0f;
+  float m_a12         = 0.0f;
+  float m_a13         = 0.0f;
+  float m_a21         = 0.0f;
+  float m_a22         = 1.0f;
+  float m_a23         = 0.0f;
+  float m_padding0[2] = {0.0f, 0.0f};
+  float m_color1[4]   = {1.0f, 0.0f, 0.0f, 1.0f};
+  float m_color2[4]   = {225.0f / 255.0f, 200.0f / 255.0f, 0.0f, 1.0f};
+  float m_detail      = 12.0f;
+  float m_time        = 0.0f;
+};
+
 id<MTLRenderPipelineState> proceduralShaderPipelineState(id<MTLRenderPipelineState> &pipeline,
                                                          bool &attempted, NSString *label,
                                                          NSString *fragmentFunctionName) {
@@ -433,6 +491,13 @@ id<MTLRenderPipelineState> wavyPipelineState() {
   static bool attempted                      = false;
   return proceduralShaderPipelineState(pipeline, attempted, @"create wavy pipeline",
                                        @"tgraphicsWavyFragment");
+}
+
+id<MTLRenderPipelineState> fireballPipelineState() {
+  static id<MTLRenderPipelineState> pipeline = nil;
+  static bool attempted                      = false;
+  return proceduralShaderPipelineState(pipeline, attempted, @"create fireball pipeline",
+                                       @"tgraphicsFireballFragment");
 }
 
 class MetalCommandEncoder final : public CommandEncoder {
@@ -1112,6 +1177,67 @@ TRaster32P renderNativeMetalWavy(int width, int height, const TAffine &outputToW
   uniforms.m_color2[1] = color2.g / 255.0f;
   uniforms.m_color2[2] = color2.b / 255.0f;
   uniforms.m_color2[3] = color2.m / 255.0f;
+  uniforms.m_time      = static_cast<float>(time);
+
+  [encoder setRenderPipelineState:pipeline];
+  [encoder setVertexBytes:vertices length:sizeof(vertices) atIndex:0];
+  [encoder setFragmentBytes:&uniforms length:sizeof(uniforms) atIndex:0];
+  [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+  [encoder endEncoding];
+  [commandBuffer commit];
+  [commandBuffer waitUntilCompleted];
+
+  return readNativeMetalRenderTarget(&target);
+}
+
+TRaster32P renderNativeMetalFireball(int width, int height, const TAffine &outputToWorld,
+                                     const TPixel32 &color1, const TPixel32 &color2,
+                                     double detail, double time) {
+  if (!probeMetalDevice() || width <= 0 || height <= 0) return TRaster32P();
+
+  MetalTextureRenderTarget target(width, height);
+  if (!target.texture()) return TRaster32P();
+
+  id<MTLRenderPipelineState> pipeline = fireballPipelineState();
+  if (!pipeline) return TRaster32P();
+
+  MetalState &state = metalState();
+
+  MTLRenderPassDescriptor *pass        = [MTLRenderPassDescriptor renderPassDescriptor];
+  pass.colorAttachments[0].texture     = target.texture();
+  pass.colorAttachments[0].loadAction  = MTLLoadActionClear;
+  pass.colorAttachments[0].storeAction = MTLStoreActionStore;
+  pass.colorAttachments[0].clearColor  = MTLClearColorMake(0.0, 0.0, 0.0, 0.0);
+
+  id<MTLCommandBuffer> commandBuffer  = [state.m_commandQueue commandBuffer];
+  commandBuffer.label                 = @"OpenToonz TGraphics Fireball";
+  id<MTLRenderCommandEncoder> encoder = [commandBuffer renderCommandEncoderWithDescriptor:pass];
+  encoder.label                       = @"Fireball";
+
+  const float left              = -1.0f;
+  const float right             = 1.0f;
+  const float top               = 1.0f;
+  const float bottom            = -1.0f;
+  const MetalVertex vertices[6] = {{left, top, 0.0f, 0.0f},     {right, top, 1.0f, 0.0f},
+                                   {left, bottom, 0.0f, 1.0f},  {right, top, 1.0f, 0.0f},
+                                   {right, bottom, 1.0f, 1.0f}, {left, bottom, 0.0f, 1.0f}};
+
+  FireballUniforms uniforms;
+  uniforms.m_a11       = static_cast<float>(outputToWorld.a11);
+  uniforms.m_a12       = static_cast<float>(outputToWorld.a12);
+  uniforms.m_a13       = static_cast<float>(outputToWorld.a13);
+  uniforms.m_a21       = static_cast<float>(outputToWorld.a21);
+  uniforms.m_a22       = static_cast<float>(outputToWorld.a22);
+  uniforms.m_a23       = static_cast<float>(outputToWorld.a23);
+  uniforms.m_color1[0] = color1.r / 255.0f;
+  uniforms.m_color1[1] = color1.g / 255.0f;
+  uniforms.m_color1[2] = color1.b / 255.0f;
+  uniforms.m_color1[3] = color1.m / 255.0f;
+  uniforms.m_color2[0] = color2.r / 255.0f;
+  uniforms.m_color2[1] = color2.g / 255.0f;
+  uniforms.m_color2[2] = color2.b / 255.0f;
+  uniforms.m_color2[3] = color2.m / 255.0f;
+  uniforms.m_detail    = static_cast<float>(detail);
   uniforms.m_time      = static_cast<float>(time);
 
   [encoder setRenderPipelineState:pipeline];

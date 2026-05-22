@@ -83,6 +83,19 @@ struct WavyUniforms {
   float time;
 };
 
+struct FireballUniforms {
+  float a11;
+  float a12;
+  float a13;
+  float a21;
+  float a22;
+  float a23;
+  float4 color1;
+  float4 color2;
+  float detail;
+  float time;
+};
+
 fragment float4 tgraphicsSunflareFragment(
     VertexOut in [[stage_in]],
     constant SunflareUniforms &u [[buffer(0)]]) {
@@ -230,4 +243,58 @@ fragment float4 tgraphicsWavyFragment(
   float coeff1 = c.x - off;
   float coeff2 = cos(c.z);
   return (coeff1 * col1 + coeff2 * col2) / (coeff1 + coeff2);
+}
+
+float3 fireballMod(float3 x, float y) { return x - y * floor(x / y); }
+
+float fireballSnoise(float3 uv, float res) {
+  const float3 s = float3(1.0e0, 1.0e2, 1.0e4);
+
+  uv *= res;
+
+  float3 uv0 = floor(fireballMod(uv, res)) * s;
+  float3 uv1 = floor(fireballMod(uv + float3(1.0), res)) * s;
+
+  float3 f = fract(uv);
+  f = f * f * (3.0 - 2.0 * f);
+
+  float4 v =
+      float4(uv0.x + uv0.y + uv0.z, uv1.x + uv0.y + uv0.z,
+             uv0.x + uv1.y + uv0.z, uv1.x + uv1.y + uv0.z);
+
+  float4 r = fract(sin(v * 1.0e-3) * 1.0e5);
+  float r0 = mix(mix(r.x, r.y, f.x), mix(r.z, r.w, f.x), f.y);
+
+  r = fract(sin((v + uv1.z - uv0.z) * 1.0e-3) * 1.0e5);
+  float r1 = mix(mix(r.x, r.y, f.x), mix(r.z, r.w, f.x), f.y);
+
+  return 2.0 * mix(r0, r1, f.z) - 1.0;
+}
+
+fragment float4 tgraphicsFireballFragment(
+    VertexOut in [[stage_in]],
+    constant FireballUniforms &u [[buffer(0)]]) {
+  constexpr float piTwice = 6.283185307;
+  float2 p =
+      0.002 * float2(in.position.x * u.a11 + in.position.y * u.a12 + u.a13,
+                     in.position.x * u.a21 + in.position.y * u.a22 + u.a23);
+
+  float color = 3.0 * (1.0 - 2.0 * length(p));
+  float3 coord =
+      float3(atan2(p.y, p.x) / piTwice, length(p) * 0.4, 0.0);
+
+  for (int i = 1; i <= 7; ++i) {
+    float power = pow(2.0, float(i));
+    float3 timed = float3(0.0, -u.time * 0.02, u.time * 0.01);
+    color += 1.5 * fireballSnoise(coord + timed, power * u.detail) / power;
+  }
+
+  color = max(color, 0.0);
+
+  float4 col1 = u.color1 * u.color1.a;
+  float4 col2 = u.color2 * u.color2.a;
+  float4 outColor = mix(col1, col2, color / 3.0);
+  outColor.a *= smoothstep(0.0, 1.0, color);
+  outColor.rgb *= outColor.a;
+  return outColor;
 }

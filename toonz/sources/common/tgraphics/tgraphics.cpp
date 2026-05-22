@@ -48,6 +48,11 @@ TRaster32P renderNativeMetalWavy(int width, int height,
                                  const TAffine& outputToWorld,
                                  const TPixel32& color1, const TPixel32& color2,
                                  double time);
+TRaster32P renderNativeMetalFireball(int width, int height,
+                                     const TAffine& outputToWorld,
+                                     const TPixel32& color1,
+                                     const TPixel32& color2, double detail,
+                                     double time);
 #endif
 
 namespace {
@@ -798,6 +803,25 @@ TRaster32P renderWavyWithMetalBackend(int width, int height,
   (void)outputToWorld;
   (void)color1;
   (void)color2;
+  (void)time;
+  return TRaster32P();
+#endif
+}
+
+TRaster32P renderFireballWithMetalBackend(
+    int width, int height, const TAffine& outputToWorld,
+    const TPixel32& color1, const TPixel32& color2, double detail,
+    double time) {
+#ifdef OPENTOONZ_WITH_GRAPHICS_METAL
+  return renderNativeMetalFireball(width, height, outputToWorld, color1, color2,
+                                   detail, time);
+#else
+  (void)width;
+  (void)height;
+  (void)outputToWorld;
+  (void)color1;
+  (void)color2;
+  (void)detail;
   (void)time;
   return TRaster32P();
 #endif

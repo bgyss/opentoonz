@@ -251,6 +251,11 @@ TRaster32P renderExpectedMetalHelper(const Options& options, int width,
                                                  TPixel32(0, 0, 255, 255),
                                                  TPixel32(255, 0, 0, 255), 0.0);
   }
+  if (options.shaderName == "SHADER_fireball") {
+    return TGraphics::renderFireballWithMetalBackend(
+        width, height, outputToWorld, TPixel32(255, 0, 0, 255),
+        TPixel32(225, 200, 0, 255), 12.0, 0.0);
+  }
   return TRaster32P();
 }
 

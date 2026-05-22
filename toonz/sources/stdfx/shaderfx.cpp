@@ -948,13 +948,19 @@ bool renderProceduralShaderWithMetal(const ShaderInterface *shaderInterface,
   const bool isCaustics    = shaderName == QStringLiteral("SHADER_caustics");
   const bool isStarsky     = shaderName == QStringLiteral("SHADER_starsky");
   const bool isWavy        = shaderName == QStringLiteral("SHADER_wavy");
-  if (!isSunflare && !isCaustics && !isStarsky && !isWavy) return false;
+  const bool isFireball    = shaderName == QStringLiteral("SHADER_fireball");
+  if (!isSunflare && !isCaustics && !isStarsky && !isWavy && !isFireball)
+    return false;
 
   TPixel32 color = TPixel32(255, 170, 75, 255);
   if (isCaustics) color = TPixel32(0, 120, 255, 255);
   if (isStarsky) color = TPixel32(128, 0, 255, 255);
   TPixel32 color1  = TPixel32(0, 0, 255, 255);
   TPixel32 color2  = TPixel32(255, 0, 0, 255);
+  if (isFireball) {
+    color1 = TPixel32(255, 0, 0, 255);
+    color2 = TPixel32(225, 200, 0, 255);
+  }
   int blades       = 6;
   double intensity = 1.0;
   double angle     = 0.0;
@@ -962,6 +968,7 @@ bool renderProceduralShaderWithMetal(const ShaderInterface *shaderInterface,
   double sharpness = 3.0;
   double time       = 0.0;
   double brightness = 1.0;
+  double detail     = 12.0;
 
   const std::vector<ShaderInterface::Parameter> &siParams =
       shaderInterface->parameters();
@@ -1008,6 +1015,8 @@ bool renderProceduralShaderWithMetal(const ShaderInterface *shaderInterface,
         time = param->getValue(frame);
       else if (name == QStringLiteral("brightness"))
         brightness = param->getValue(frame);
+      else if (name == QStringLiteral("detail"))
+        detail = param->getValue(frame);
       break;
     }
     default:
@@ -1029,6 +1038,10 @@ bool renderProceduralShaderWithMetal(const ShaderInterface *shaderInterface,
     rendered = TGraphics::renderWavyWithMetalBackend(
         outputRaster->getLx(), outputRaster->getLy(), outputToWorld, color1,
         color2, time);
+  } else if (isFireball) {
+    rendered = TGraphics::renderFireballWithMetalBackend(
+        outputRaster->getLx(), outputRaster->getLy(), outputToWorld, color1,
+        color2, detail, time);
   } else {
     rendered = TGraphics::renderSunflareWithMetalBackend(
         outputRaster->getLx(), outputRaster->getLy(), outputToWorld, color,

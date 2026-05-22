@@ -17,7 +17,12 @@ fi
 
 (
   cd "$repo_root"
-  for shader in SHADER_sunflare SHADER_caustics SHADER_starsky SHADER_wavy; do
+  for shader in SHADER_sunflare SHADER_caustics SHADER_starsky SHADER_wavy SHADER_fireball; do
+    shader_tolerance="$tolerance"
+    if [[ "$shader" == "SHADER_fireball" ]]; then
+      shader_tolerance="${SHADERFX_FIREBALL_COMPARE_TOLERANCE:-32}"
+    fi
+
     stem="${shader#SHADER_}"
     opengl_pam="$artifact_dir/$stem-opengl.pam"
     metal_pam="$artifact_dir/$stem-metal.pam"
@@ -31,7 +36,7 @@ fi
       --compare-pam "$opengl_pam" \
       --write-pam "$metal_pam" \
       --write-diff-pam "$diff_pam" \
-      --tolerance "$tolerance"
+      --tolerance "$shader_tolerance"
   done
 )
 
