@@ -5,6 +5,7 @@
 #include "tvectorimage.h"
 #include "drawutil.h"
 #include "tenv.h"
+#include "tgraphics.h"
 
 #include "tools/tool.h"
 #include "tools/toolutils.h"
@@ -23,6 +24,18 @@
 #include <QKeyEvent>
 
 using namespace ToolUtils;
+
+namespace {
+
+void appendPointRect(TGraphics::DrawList2D &drawList, const TPointD &point,
+                     double radius, const TPixel32 &color) {
+  drawList.addColorRect(
+      TRectD(point.x - radius, point.y - radius, point.x + radius,
+             point.y + radius),
+      color, false);
+}
+
+}  // namespace
 
 TEnv::StringVar CPSelectionType("ControlPointEditorToolSelectionType",
                                 "Rectangular");
@@ -296,9 +309,9 @@ void ControlPointEditorTool::drawMovingSegment() {
 //---------------------------------------------------------------------------
 
 void ControlPointEditorTool::drawControlPoint() {
-  TPixel color1         = TPixel(79, 128, 255);
-  TPixel color2         = TPixel::White;
-  TPixel color_handle   = TPixel(96, 64, 201);
+  TPixel32 color1       = TPixel32(79, 128, 255);
+  TPixel32 color2       = TPixel32::White;
+  TPixel32 color_handle = TPixel32(96, 64, 201);
   int controlPointCount = m_controlPointEditorStroke.getControlPointCount();
 
   double pix    = getPixelSize() * 2.0f;
@@ -311,6 +324,7 @@ void ControlPointEditorTool::drawControlPoint() {
   ControlPointEditorStroke::PointType pointType =
       m_controlPointEditorStroke.getPointTypeAt(m_pos, maxDist2, pointIndex);
   int i;
+  TGraphics::DrawList2D drawList;
   for (i = 0; i < controlPointCount; i++) {
     TThickPoint point = m_controlPointEditorStroke.getControlPoint(i);
     TPointD pa        = m_controlPointEditorStroke.getSpeedInPoint(i);
@@ -318,36 +332,30 @@ void ControlPointEditorTool::drawControlPoint() {
     tglColor(color_handle);
     tglDrawSegment(pa, point);
     if (i == pointIndex && pointType == ControlPointEditorStroke::SPEED_IN)
-      tglFillRect(pa.x - pix2_5, pa.y - pix2_5, pa.x + pix2_5, pa.y + pix2_5);
+      appendPointRect(drawList, pa, pix2_5, color_handle);
     else
-      tglFillRect(pa.x - pix1_5, pa.y - pix1_5, pa.x + pix1_5, pa.y + pix1_5);
+      appendPointRect(drawList, pa, pix1_5, color_handle);
 
     tglDrawSegment(pb, point);
     if (i == pointIndex && pointType == ControlPointEditorStroke::SPEED_OUT)
-      tglFillRect(pb.x - pix2_5, pb.y - pix2_5, pb.x + pix2_5, pb.y + pix2_5);
+      appendPointRect(drawList, pb, pix2_5, color_handle);
     else
-      tglFillRect(pb.x - pix1_5, pb.y - pix1_5, pb.x + pix1_5, pb.y + pix1_5);
-
-    tglColor(color1);
+      appendPointRect(drawList, pb, pix1_5, color_handle);
 
     if (i == pointIndex &&
         pointType == ControlPointEditorStroke::CONTROL_POINT) {
-      tglFillRect(point.x - pix3_5, point.y - pix3_5, point.x + pix3_5,
-                  point.y + pix3_5);
+      appendPointRect(drawList, point, pix3_5, color1);
       if (!m_selection.isSelected(i)) {
-        tglColor(color2);
-        tglFillRect(point.x - pix2_5, point.y - pix2_5, point.x + pix2_5,
-                    point.y + pix2_5);
+        appendPointRect(drawList, point, pix2_5, color2);
       }
     } else {
-      tglFillRect(point.x - pix2, point.y - pix2, point.x + pix2,
-                  point.y + pix2);
+      appendPointRect(drawList, point, pix2, color1);
       if (!m_selection.isSelected(i)) {
-        tglColor(color2);
-        tglFillRect(point.x - pix, point.y - pix, point.x + pix, point.y + pix);
+        appendPointRect(drawList, point, pix, color2);
       }
     }
   }
+  TGraphics::drawWithOpenGLBackend(drawList);
 }
 
 //---------------------------------------------------------------------------

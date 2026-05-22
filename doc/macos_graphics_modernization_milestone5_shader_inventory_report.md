@@ -172,6 +172,11 @@ until `tgraphics` has a contrast-blend line mode.
 The view-tools checkpoint moves the zoom tool drag cross from immediate-mode
 `GL_LINES` to two `DrawList2D` color-line commands in world coordinates.
 
+The control-point editor checkpoint moves speed-handle and control-point square
+fills from repeated `tglFillRect(...)` calls to `DrawList2D` color-rect
+commands. The Bezier handle connector segments remain on the existing tool
+drawing path.
+
 ## Files Changed
 
 - `scripts/graphics_shader_inventory.sh`
@@ -184,6 +189,7 @@ The view-tools checkpoint moves the zoom tool drag cross from immediate-mode
 - `toonz/sources/common/tgraphics/tgraphics_metal_probe.cpp`
 - `toonz/sources/common/tvrender/tofflinegl_probe.cpp`
 - `toonz/sources/tnzcore/CMakeLists.txt`
+- `toonz/sources/tnztools/controlpointeditortool.cpp`
 - `toonz/sources/tnztools/edittool.cpp`
 - `toonz/sources/tnztools/hooktool.cpp`
 - `toonz/sources/tnztools/selectiontool.cpp`
@@ -623,7 +629,9 @@ Viewer safe-area guides now emit explicit dashed `tgraphics` color-line
 commands instead of OpenGL line stipple and direct `tglDrawRect(...)` calls.
 Polyline selection previews now emit `tgraphics` color-line commands instead of
 a direct `GL_LINE_STRIP`. Zoom tool drag crosses now emit `tgraphics` color-line
-commands instead of immediate-mode `GL_LINES`.
+commands instead of immediate-mode `GL_LINES`. Control-point editor square
+handles now emit `tgraphics` color-rect commands instead of repeated direct
+`tglFillRect(...)` calls.
 Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
 effects and by moving the remaining preview/export and style-editor surfaces
 through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene
