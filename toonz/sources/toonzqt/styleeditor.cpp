@@ -56,6 +56,8 @@
 #include <QSplitter>
 #include <QMenu>
 #include <QOpenGLFramebufferObject>
+#include <QOpenGLPaintDevice>
+#include <QPainterPath>
 
 namespace {
 enum ColorSliderAppearance {
@@ -626,15 +628,11 @@ void HexagonalColorWheel::showEvent(QShowEvent *) {
 void HexagonalColorWheel::initializeGL() {
   initializeOpenGLFunctions();
 
-  // to be computed once through the software
   if (m_lutCalibrator && !m_lutCalibrator->isInitialized()) {
     m_lutCalibrator->initialize();
     connect(context(), SIGNAL(aboutToBeDestroyed()), this,
             SLOT(onContextAboutToBeDestroyed()));
   }
-
-  QColor const color = getBGColor();
-  glClearColor(color.redF(), color.greenF(), color.blueF(), color.alphaF());
 
   // Without the following lines, the wheel in a floating style editor
   // disappears on switching the room due to context switching.
@@ -689,12 +687,6 @@ void HexagonalColorWheel::resizeGL(int w, int h) {
   m_leftp[2].setX(m_leftp[1].x());
   m_leftp[2].setY(0.0f);
 
-  // GL settings
-  glViewport(0, 0, w, h);
-  glMatrixMode(GL_PROJECTION);
-  glLoadIdentity();
-  glOrtho(0.0, (GLdouble)w, (GLdouble)h, 0.0, 1.0, -1.0);
-
   // remake fbo with new size
   if (m_lutCalibrator && m_lutCalibrator->isValid()) {
     if (m_fbo) delete m_fbo;
@@ -705,67 +697,105 @@ void HexagonalColorWheel::resizeGL(int w, int h) {
 //-----------------------------------------------------------------------------
 
 void HexagonalColorWheel::paintGL() {
-  // call ClearColor() here in order to update bg color when the stylesheet is
-  // switched
-  QColor const color = getBGColor();
-  glClearColor(color.redF(), color.greenF(), color.blueF(), color.alphaF());
-
-  glMatrixMode(GL_MODELVIEW);
-
-  if (m_lutCalibrator && m_lutCalibrator->isValid()) m_fbo->bind();
-
-  glClear(GL_COLOR_BUFFER_BIT);
-
-  float v = (float)m_color.getValue(eValue) / 100.0f;
-
-  glPushMatrix();
-
-  // draw hexagonal color wheel
-  glTranslatef(m_wheelPosition.rx(), m_wheelPosition.ry(), 0.0f);
-  glBegin(GL_TRIANGLE_FAN);
-  glColor3f(v, v, v);
-  glVertex2f(m_wp[0].x(), m_wp[0].y());
-
-  glColor3f(0.0f, v, 0.0f);
-  glVertex2f(m_wp[1].x(), m_wp[1].y());
-  glColor3f(0.0f, v, v);
-  glVertex2f(m_wp[2].x(), m_wp[2].y());
-  glColor3f(0.0f, 0.0f, v);
-  glVertex2f(m_wp[3].x(), m_wp[3].y());
-  glColor3f(v, 0.0f, v);
-  glVertex2f(m_wp[4].x(), m_wp[4].y());
-  glColor3f(v, 0.0f, 0.0f);
-  glVertex2f(m_wp[5].x(), m_wp[5].y());
-  glColor3f(v, v, 0.0f);
-  glVertex2f(m_wp[6].x(), m_wp[6].y());
-  glColor3f(0.0f, v, 0.0f);
-  glVertex2f(m_wp[1].x(), m_wp[1].y());
-  glEnd();
-
-  QColor leftCol = QColor().fromHsv(m_color.getValue(eHue), 255, 255);
-
-  // draw triangle color picker
-  glBegin(GL_TRIANGLES);
-  glColor3f(leftCol.redF(), leftCol.greenF(), leftCol.blueF());
-  glVertex2f(m_leftp[0].x(), m_leftp[0].y());
-  glColor3f(0.0f, 0.0f, 0.0f);
-  glVertex2f(m_leftp[1].x(), m_leftp[1].y());
-  glColor3f(1.0f, 1.0f, 1.0f);
-  glVertex2f(m_leftp[2].x(), m_leftp[2].y());
-  glEnd();
-
-  // draw small quad at current color position
-  drawCurrentColorMark();
-
-  glPopMatrix();
-
-  if (m_lutCalibrator && m_lutCalibrator->isValid())
+  if (m_lutCalibrator && m_lutCalibrator->isValid()) {
+    if (!m_fbo) return;
+    m_fbo->bind();
+    QOpenGLPaintDevice device(m_fbo->size());
+    QPainter p(&device);
+    drawColorWheel(p);
+    p.end();
     m_lutCalibrator->onEndDraw(m_fbo);
+    return;
+  }
+
+  QPainter p(this);
+  p.scale(1.0 / getDevPixRatio(), 1.0 / getDevPixRatio());
+  drawColorWheel(p);
 }
 
 //-----------------------------------------------------------------------------
 
-void HexagonalColorWheel::drawCurrentColorMark() {
+void HexagonalColorWheel::drawColorWheel(QPainter &p) {
+  const int w = width() * getDevPixRatio();
+  const int h = height() * getDevPixRatio();
+  if (w <= 0 || h <= 0) return;
+
+  QImage image(w, h, QImage::Format_ARGB32_Premultiplied);
+  image.fill(getBGColor().rgba());
+
+  QPolygonF wheelPolygon;
+  wheelPolygon << m_wp[1] << m_wp[2] << m_wp[3] << m_wp[4] << m_wp[5]
+               << m_wp[6];
+  wheelPolygon.translate(m_wheelPosition);
+
+  QPolygonF trianglePolygon;
+  trianglePolygon << m_leftp[0] << m_leftp[1] << m_leftp[2];
+  trianglePolygon.translate(m_wheelPosition);
+
+  QPainterPath wheelPath;
+  wheelPath.addPolygon(wheelPolygon);
+  QPainterPath trianglePath;
+  trianglePath.addPolygon(trianglePolygon);
+
+  QRect wheelBounds = wheelPolygon.boundingRect().toAlignedRect();
+  wheelBounds       = wheelBounds.intersected(image.rect());
+  const QPointF center = m_wp[0] + m_wheelPosition;
+  const int value      = m_color.getValue(eValue) * 255 / 100;
+  for (int y = wheelBounds.top(); y <= wheelBounds.bottom(); ++y) {
+    QRgb *scanLine = reinterpret_cast<QRgb *>(image.scanLine(y));
+    for (int x = wheelBounds.left(); x <= wheelBounds.right(); ++x) {
+      const QPointF pos(x + 0.5, y + 0.5);
+      if (!wheelPath.contains(pos)) continue;
+
+      QLineF ray(center, pos);
+      QLineF horizontal(0, 0, 1, 0);
+      float theta = (ray.dy() >= 0) ? horizontal.angleTo(ray)
+                                    : 360 - ray.angleTo(horizontal);
+      float phi = theta;
+      while (phi >= 60.0f) phi -= 60.0f;
+      phi -= 30.0f;
+      const float d =
+          m_triHeight / cosf(phi / 180.0f * 3.1415f);
+      int hue = (int)theta;
+      if (hue > 359) hue = 359;
+      const int saturation =
+          (int)(std::min(ray.length() / d, 1.0) * 255.0f);
+      scanLine[x] = QColor::fromHsv(hue, saturation, value).rgba();
+    }
+  }
+
+  QRect triangleBounds = trianglePolygon.boundingRect().toAlignedRect();
+  triangleBounds       = triangleBounds.intersected(image.rect());
+  const int hue        = m_color.getValue(eHue);
+  for (int y = triangleBounds.top(); y <= triangleBounds.bottom(); ++y) {
+    QRgb *scanLine = reinterpret_cast<QRgb *>(image.scanLine(y));
+    for (int x = triangleBounds.left(); x <= triangleBounds.right(); ++x) {
+      const QPointF pos(x + 0.5, y + 0.5);
+      if (!trianglePath.contains(pos)) continue;
+
+      int saturation = 0;
+      int value      = 0;
+      QPointF triPos = m_leftp[1] + m_wheelPosition - pos;
+      if (triPos.ry() > 0.0f) {
+        const float valueRatio =
+            std::min((float)(triPos.ry() / (m_triHeight * 2.0f)), 1.0f);
+        const float saturationRatio =
+            triPos.rx() / (m_triEdgeLen * valueRatio);
+        value = (int)(valueRatio * 255.0f);
+        saturation =
+            (int)(std::min(std::max(saturationRatio, 0.0f), 1.0f) * 255.0f);
+      }
+      scanLine[x] = QColor::fromHsv(hue, saturation, value).rgba();
+    }
+  }
+
+  p.drawImage(QPointF(0, 0), image);
+  drawCurrentColorMark(p);
+}
+
+//-----------------------------------------------------------------------------
+
+void HexagonalColorWheel::drawCurrentColorMark(QPainter &p) {
   int h;
   float s, v;
 
@@ -782,35 +812,28 @@ void HexagonalColorWheel::drawCurrentColorMark() {
 
   // set marker color
   if (v > 0.4f)
-    glColor3f(0.0f, 0.0f, 0.0f);
+    p.setPen(QPen(Qt::black, std::max(1, getDevPixRatio())));
   else
-    glColor3f(1.0f, 1.0f, 1.0f);
+    p.setPen(QPen(Qt::white, std::max(1, getDevPixRatio())));
+  p.setBrush(Qt::NoBrush);
 
   // draw marker (in the wheel)
-  glPushMatrix();
-  glTranslatef(m_wp[0].x(), m_wp[0].y(), 0.1f);
-  glRotatef(h, 0.0, 0.0, 1.0);
-  glTranslatef(d, 0.0f, 0.0f);
-  glRotatef(-h, 0.0, 0.0, 1.0);
-  glBegin(GL_LINE_LOOP);
-  glVertex2f(-3, -3);
-  glVertex2f(3, -3);
-  glVertex2f(3, 3);
-  glVertex2f(-3, 3);
-  glEnd();
-  glPopMatrix();
+  p.save();
+  p.translate(m_wheelPosition);
+  p.translate(m_wp[0]);
+  p.rotate(h);
+  p.translate(d, 0.0f);
+  p.rotate(-h);
+  p.drawRect(QRectF(-3, -3, 6, 6));
+  p.restore();
 
   // draw marker (in the triangle)
-  glPushMatrix();
-  glTranslatef(m_leftp[1].x(), m_leftp[1].y(), 0.1f);
-  glTranslatef(-m_triEdgeLen * v * s, -m_triHeight * v * 2.0f, 0.0f);
-  glBegin(GL_LINE_LOOP);
-  glVertex2f(-3, -3);
-  glVertex2f(3, -3);
-  glVertex2f(3, 3);
-  glVertex2f(-3, 3);
-  glEnd();
-  glPopMatrix();
+  p.save();
+  p.translate(m_wheelPosition);
+  p.translate(m_leftp[1]);
+  p.translate(-m_triEdgeLen * v * s, -m_triHeight * v * 2.0f);
+  p.drawRect(QRectF(-3, -3, 6, 6));
+  p.restore();
 }
 
 //-----------------------------------------------------------------------------

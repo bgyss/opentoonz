@@ -67,6 +67,7 @@ class QPushButton;
 class QTabWidget;
 class QToolBar;
 class QOpenGLFramebufferObject;
+class QPainter;
 
 class ColorSquaredWheel;
 class TabBarContainter;
@@ -158,7 +159,8 @@ class DVAPI HexagonalColorWheel final : public GLWidgetForHighDpi {
   bool m_cuedCalibrationUpdate = false;
 
 private:
-  void drawCurrentColorMark();
+  void drawColorWheel(QPainter &p);
+  void drawCurrentColorMark(QPainter &p);
   void clickLeftWheel(const QPoint &pos);
   void clickRightTriangle(const QPoint &pos);
 
