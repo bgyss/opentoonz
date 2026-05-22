@@ -532,11 +532,33 @@ TRaster32P renderHSLSceneForProbe(const Options& options, const TTile& tile,
   return renderRasterFxWithRenderer(builtFx, tile, frame, settings);
 }
 
+TRaster32P renderRadialBlurSceneForProbe(const Options& options,
+                                         const TTile& tile, double frame,
+                                         const TRenderSettings& settings) {
+  ToonzScene scene;
+  const int width  = tile.getRaster()->getLx() * 3;
+  const int height = tile.getRaster()->getLy() * 3;
+
+  TLevelColumnFx* foregroundFx = addProbeRasterColumn(
+      scene, 0, tfloor(frame), L"RadialBlurProbeForeground",
+      makeHSLProbeSceneRaster(width, height, true));
+  if (!foregroundFx) return TRaster32P();
+
+  TFxP root = makeProbeShaderFx(options, TFxP(foregroundFx), TFxP());
+  if (!root) return TRaster32P();
+
+  TFxP builtFx = buildSceneFx(&scene, frame, scene.getXsheet(), root,
+                              BSFX_DEFAULT_TR, true);
+  return renderRasterFxWithRenderer(builtFx, tile, frame, settings);
+}
+
 TRaster32P renderSceneForProbe(const Options& options, const TTile& tile,
                                double frame, const TRenderSettings& settings,
                                TFxP foregroundFx, TFxP backgroundFx) {
   if (options.shaderName == "SHADER_HSLBlendGPU")
     return renderHSLSceneForProbe(options, tile, frame, settings);
+  if (options.shaderName == "SHADER_radialblurGPU")
+    return renderRadialBlurSceneForProbe(options, tile, frame, settings);
 
   TFxP root = makeProbeShaderFx(options, foregroundFx, backgroundFx);
   if (!root) return TRaster32P();
