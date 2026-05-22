@@ -14,6 +14,7 @@
 #include "tdata.h"
 #include "tconvert.h"
 #include "tgl.h"
+#include "tgraphics.h"
 #include "tstroke.h"
 #include "tvectorimage.h"
 
@@ -41,6 +42,17 @@ class TrackerTool;
 
 //=============================================================================
 namespace {
+//-----------------------------------------------------------------------------
+
+void drawRectOutlineWithTGraphics(const TRectD &rect, const TPixel32 &color) {
+  TGraphics::DrawList2D drawList;
+  drawList.addColorLine(rect.getP00(), rect.getP10(), color, false);
+  drawList.addColorLine(rect.getP10(), rect.getP11(), color, false);
+  drawList.addColorLine(rect.getP11(), rect.getP01(), color, false);
+  drawList.addColorLine(rect.getP01(), rect.getP00(), color, false);
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
+
 //-----------------------------------------------------------------------------
 //=============================================================================
 // TrackerRegionSelection
@@ -319,8 +331,7 @@ void TrackerTool::draw() {
       } else
         trackerObjectColor = TPixel32(0, 0, 0);
 
-      tglColor(trackerObjectColor);
-      tglDrawRect(rect);
+      drawRectOutlineWithTGraphics(rect, trackerObjectColor);
       tglColor(textColor);
       glPushMatrix();
       glTranslated(hook->getPos(fid).x, hook->getPos(fid).y, 0);

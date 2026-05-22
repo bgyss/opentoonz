@@ -146,6 +146,10 @@ direct `tglDrawRect(...)` calls to `DrawList2D` color-line rectangles. The main
 dashed save-box outline remains on `ToolUtils::drawRect(...)`, but the repeated
 handle geometry now has a backend-neutral draw-list representation.
 
+The tracker tool checkpoint moves tracker-region rectangle outlines from direct
+`tglDrawRect(...)` calls to `DrawList2D` color-line commands. Hook handles,
+labels, and balloon drawing remain on the existing tool drawing path.
+
 ## Files Changed
 
 - `scripts/graphics_shader_inventory.sh`
@@ -159,6 +163,7 @@ handle geometry now has a backend-neutral draw-list representation.
 - `toonz/sources/common/tvrender/tofflinegl_probe.cpp`
 - `toonz/sources/tnzcore/CMakeLists.txt`
 - `toonz/sources/tnztools/setsaveboxtool.cpp`
+- `toonz/sources/tnztools/trackertool.cpp`
 - `toonz/sources/toonz/CMakeLists.txt`
 - `toonz/sources/toonz/cleanuppreview.cpp`
 - `toonz/sources/toonz/imageviewer.cpp`
@@ -582,6 +587,8 @@ state. Flipbook safe-area rectangles now use explicit dashed `tgraphics`
 color-line segments instead of OpenGL line stipple state and direct
 `tglDrawRect(...)` calls. Save-box resize handles now emit `tgraphics`
 color-line rectangles instead of repeated direct `tglDrawRect(...)` calls.
+Tracker-region outlines now also emit `tgraphics` color-line rectangles instead
+of direct `tglDrawRect(...)` calls.
 Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
 effects and by moving the remaining preview/export and style-editor surfaces
 through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene
