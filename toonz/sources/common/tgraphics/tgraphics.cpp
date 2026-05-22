@@ -753,6 +753,17 @@ TRaster32P renderDrawListWithActiveBackend(const DrawList2D& drawList,
   return renderDrawListWithOpenGLBackend(drawList, width, height);
 }
 
+DrawList2D makeCheckerboardBackgroundDrawList(
+    const TRectD& rect, const TDimensionD& cellSize, const TPointD& origin,
+    const TPixel32& color0, const TPixel32& color1) {
+  DrawList2D drawList;
+  drawList.setClearColor(color0);
+  if (color0 != color1) {
+    drawList.addCheckerboard(rect, cellSize, origin, color0, color1);
+  }
+  return drawList;
+}
+
 TRaster32P renderLegacyOfflineRasterPlacementWithActiveBackend(
     int width, int height, const TPixel32& clearColor,
     const TRectD& placement) {

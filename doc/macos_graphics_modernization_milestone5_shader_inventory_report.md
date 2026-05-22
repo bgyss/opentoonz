@@ -68,6 +68,14 @@ path while preserving the OpenGL fallback elsewhere. The follow-up probe target
 renders the migrated widget into a `QImage` and fails if the result is blank or
 missing saturated color-wheel pixels.
 
+The preview-swatch checkpoint moves `PlaneViewer::drawBackground()`, shared by
+export, vectorizer, and adjustment preview swatches, from hand-authored
+fixed-function OpenGL checkerboard quads to
+`TGraphics::makeCheckerboardBackgroundDrawList(...)`. The current widget path
+still presents through the OpenGL compatibility backend, but the same draw-list
+helper is now validated by `tgraphics_metal_probe` against both OpenGL and
+Metal offscreen targets with a shifted checker origin.
+
 ## Files Changed
 
 - `scripts/graphics_shader_inventory.sh`
@@ -81,6 +89,7 @@ missing saturated color-wheel pixels.
 - `toonz/sources/common/tvrender/tofflinegl_probe.cpp`
 - `toonz/sources/tnzcore/CMakeLists.txt`
 - `toonz/sources/toonz/CMakeLists.txt`
+- `toonz/sources/toonzqt/planeviewer.cpp`
 - `toonz/sources/include/stdfx/shaderfx.h`
 - `toonz/sources/stdfx/CMakeLists.txt`
 - `toonz/sources/stdfx/shaderfx.cpp`
@@ -472,10 +481,12 @@ the same direct connected, detached renderer, `ToonzScene`/`buildSceneFx(...)`
 scene-render, saved-and-reloaded `.tnz` scene-render coverage, and CPU-side
 bbox/input geometry expansion. The style editor color wheel no longer requires
 a direct OpenGL widget/FBO path; it now uses QWidget/QImage rendering with
-software LUT application. Continue by broadening input-texture ShaderFx
-coverage beyond these hand-routed effects and by moving the remaining
-preview/export and style-editor surfaces through `tgraphics`. Keep OpenGL
-`ShaderFx` as the default until full scene parity is broader.
+software LUT application. Preview-swatch checker backgrounds now go through a
+shared `tgraphics` draw-list helper with OpenGL/Metal offscreen validation.
+Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
+effects and by moving the remaining preview/export and style-editor surfaces
+through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene
+parity is broader.
 
 ## Validation Run
 
@@ -513,6 +524,9 @@ nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tofflinegl_p
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=ON'
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tofflinegl_probe tgraphics_metal_probe --parallel 3
 nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/tnzcore/tofflinegl_probe'
+nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target toonzqt --parallel 3
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tgraphics_metal_probe toonzqt --parallel 3
 nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=OFF'
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target OpenToonz --parallel 3
@@ -574,6 +588,7 @@ toonzqt/libtoonzqt.dylib linked after style editor color wheel migration
 styleeditor_colorwheel_probe: ok
 tofflinegl_probe: ok backend=opengl
 tofflinegl_probe: ok backend=metal
+tgraphics_metal_probe: ok on Apple M1 Max
 tgraphics_metal_probe: ok on Apple M1 Max
 Checked 281 Mach-O files for arm64.
 WITH_GRAPHICS_METAL:BOOL=OFF

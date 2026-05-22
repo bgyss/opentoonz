@@ -19,6 +19,7 @@
 #include "trop.h"
 #include "tvectorrenderdata.h"
 #include "tgl.h"
+#include "tgraphics.h"
 #include "tvectorgl.h"
 #include "tpalette.h"
 
@@ -63,6 +64,10 @@ bool PlaneViewerZoomer::fit() {
   planeViewer.fitView();
 
   return true;
+}
+
+TPixel32 opaquePixelFromFloat(double red, double green, double blue) {
+  return TPixel32(red * 255.0, green * 255.0, blue * 255.0, 255);
 }
 }  // namespace
 
@@ -114,40 +119,17 @@ void PlaneViewer::getBgColor(TPixel32 &color1, TPixel32 &color2) const {
 //------------------------------------------------------------------------
 
 void PlaneViewer::drawBackground() {
-  glClearColor(m_bgColorF[0], m_bgColorF[1], m_bgColorF[2], 1.0);
-  glClear(GL_COLOR_BUFFER_BIT);
+  const TPixel32 color0 =
+      opaquePixelFromFloat(m_bgColorF[0], m_bgColorF[1], m_bgColorF[2]);
+  const TPixel32 color1 =
+      opaquePixelFromFloat(m_bgColorF[3], m_bgColorF[4], m_bgColorF[5]);
+  const TRectD rect(winToWorld(0, 0), winToWorld(width(), height()));
+  TGraphics::DrawList2D drawList =
+      TGraphics::makeCheckerboardBackgroundDrawList(
+          rect, TDimensionD(m_chessSize, m_chessSize), TPointD(), color0,
+          color1);
 
-  if (m_bgColorF[0] != m_bgColorF[3] || m_bgColorF[1] != m_bgColorF[4] ||
-      m_bgColorF[2] != m_bgColorF[5]) {
-    // Cast the widget rect to world rect
-    TRectD rect(winToWorld(0, 0), winToWorld(width(), height()));
-
-    // Deduce chess geometry
-    TRect chessRect(tfloor(rect.x0 / m_chessSize),
-                    tfloor(rect.y0 / m_chessSize), tceil(rect.x1 / m_chessSize),
-                    tceil(rect.y1 / m_chessSize));
-
-    // Draw chess squares
-    glColor3f(m_bgColorF[3], m_bgColorF[4], m_bgColorF[5]);
-    glBegin(GL_QUADS);
-
-    int x, y;
-    TPointD pos;
-    double chessSize2 = 2.0 * m_chessSize;
-
-    for (y = chessRect.y0; y < chessRect.y1; ++y) {
-      pos.y = y * m_chessSize;
-      for (x = chessRect.x0 + ((chessRect.x0 + y) % 2), pos.x = x * m_chessSize;
-           x < chessRect.x1; x += 2, pos.x += chessSize2) {
-        glVertex2d(pos.x, pos.y);
-        glVertex2d(pos.x + m_chessSize, pos.y);
-        glVertex2d(pos.x + m_chessSize, pos.y + m_chessSize);
-        glVertex2d(pos.x, pos.y + m_chessSize);
-      }
-    }
-
-    glEnd();
-  }
+  TGraphics::drawWithOpenGLBackend(drawList);
 }
 
 //=========================================================================================

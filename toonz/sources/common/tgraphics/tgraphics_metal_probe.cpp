@@ -641,6 +641,31 @@ int main(int argc, char* argv[]) {
   }
 
   {
+    const TPixel32 backgroundColor0(43, 47, 53, 255);
+    const TPixel32 backgroundColor1(87, 93, 101, 255);
+    TGraphics::DrawList2D drawList =
+        TGraphics::makeCheckerboardBackgroundDrawList(
+            TRectD(0, 0, width, height), TDimensionD(3, 2), TPointD(1, -1),
+            backgroundColor0, backgroundColor1);
+
+    TRaster32P readback = renderMetal(drawList, width, height);
+    if (!readback)
+      return fail("could not read back checker background Metal target");
+    if (!requireDimensions(readback, width, height)) {
+      return fail(
+          "checker background readback dimensions do not match render target");
+    }
+
+    TRaster32P openGLReadback = renderOpenGL(drawList, width, height);
+    if (!openGLReadback)
+      return fail("could not read back checker background OpenGL baseline");
+    if (!compareRasters(readback, openGLReadback, "checker background",
+                        artifactDir)) {
+      return EXIT_FAILURE;
+    }
+  }
+
+  {
     const TPixel32 lineClearColor(7, 9, 11, 255);
     const TPixel32 lineColor(240, 30, 50, 255);
     TGraphics::DrawList2D drawList;
