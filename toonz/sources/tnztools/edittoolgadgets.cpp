@@ -749,6 +749,7 @@ public:
                 const TPointD &pos);
 
   void draw(bool picking) override;
+  int pickCpu(const TPointD &viewerPos) override;
 
   void leftButtonDown(const TPointD &pos, const TMouseEvent &) override;
   void leftButtonDrag(const TPointD &pos, const TMouseEvent &) override;
@@ -796,6 +797,20 @@ void AngleFxGadget::draw(bool picking) {
 
 //---------------------------------------------------------------------------
 
+int AngleFxGadget::pickCpu(const TPointD &viewerPos) {
+  const double pixelSize =
+      sqrt(tglGetPixelSize2()) * m_controller->getDevPixRatio();
+  const double r         = pixelSize * 40.0;
+  const double phi       = getValue(m_param) * M_PI_180;
+  const TPointD end = m_pos + TPointD(cos(phi), sin(phi)) * r;
+  if (hitViewerPoint(m_controller, viewerPos, end, 8.0) ||
+      hitViewerSegment(m_controller, viewerPos, m_pos, end, 5.0))
+    return static_cast<int>(getId());
+  return -1;
+}
+
+//---------------------------------------------------------------------------
+
 void AngleFxGadget::leftButtonDown(const TPointD &pos, const TMouseEvent &) {}
 
 //---------------------------------------------------------------------------
@@ -823,6 +838,7 @@ public:
                      const TDoubleParamP &endAngle, const TPointParamP &center);
 
   void draw(bool picking) override;
+  int pickCpu(const TPointD &viewerPos) override;
 
   void leftButtonDown(const TPointD &pos, const TMouseEvent &) override;
   void leftButtonDrag(const TPointD &pos, const TMouseEvent &) override;
@@ -925,6 +941,26 @@ void AngleRangeFxGadget::draw(bool picking) {
   glEnd();
 
   glPopMatrix();
+}
+
+//---------------------------------------------------------------------------
+
+int AngleRangeFxGadget::pickCpu(const TPointD &viewerPos) {
+  const double pixelSize =
+      sqrt(tglGetPixelSize2()) * m_controller->getDevPixRatio();
+  const double r         = pixelSize * 200.0;
+  const TPointD center   = getValue(m_center);
+  const double start     = getValue(m_startAngle) * M_PI_180;
+  const double end       = getValue(m_endAngle) * M_PI_180;
+  const TPointD startEnd = center + TPointD(cos(start), sin(start)) * r;
+  const TPointD endEnd   = center + TPointD(cos(end), sin(end)) * r;
+  if (hitViewerSegment(m_controller, viewerPos, center, startEnd, 6.0) ||
+      hitViewerPoint(m_controller, viewerPos, startEnd, 10.0))
+    return static_cast<int>(getId() + StartAngle);
+  if (hitViewerSegment(m_controller, viewerPos, center, endEnd, 6.0) ||
+      hitViewerPoint(m_controller, viewerPos, endEnd, 10.0))
+    return static_cast<int>(getId() + EndAngle);
+  return -1;
 }
 
 //---------------------------------------------------------------------------
@@ -1152,6 +1188,7 @@ public:
   }
 
   void draw(bool picking) override;
+  int pickCpu(const TPointD &viewerPos) override;
 
   void leftButtonDown(const TPointD &pos, const TMouseEvent &) override;
   void leftButtonDrag(const TPointD &pos, const TMouseEvent &) override;
@@ -1193,6 +1230,28 @@ void RectFxGadget::draw(bool picking) {
   drawDot(-w_2, -h_2);
 
   glPopMatrix();
+}
+
+//---------------------------------------------------------------------------
+
+int RectFxGadget::pickCpu(const TPointD &viewerPos) {
+  const TPointD center = getCenter();
+  const double w_2     = 0.5 * getValue(m_width);
+  const double h_2     = 0.5 * getValue(m_height);
+  const TPointD p00    = center + TPointD(-w_2, -h_2);
+  const TPointD p10    = center + TPointD(w_2, -h_2);
+  const TPointD p11    = center + TPointD(w_2, h_2);
+  const TPointD p01    = center + TPointD(-w_2, h_2);
+  if (hitViewerPoint(m_controller, viewerPos, p00, 8.0) ||
+      hitViewerPoint(m_controller, viewerPos, p10, 8.0) ||
+      hitViewerPoint(m_controller, viewerPos, p11, 8.0) ||
+      hitViewerPoint(m_controller, viewerPos, p01, 8.0) ||
+      hitViewerSegment(m_controller, viewerPos, p00, p10, 5.0) ||
+      hitViewerSegment(m_controller, viewerPos, p10, p11, 5.0) ||
+      hitViewerSegment(m_controller, viewerPos, p11, p01, 5.0) ||
+      hitViewerSegment(m_controller, viewerPos, p01, p00, 5.0))
+    return static_cast<int>(getId());
+  return -1;
 }
 
 //---------------------------------------------------------------------------
@@ -1285,6 +1344,16 @@ public:
       TPointD toolTipPos = m_pos + r * TPointD(cos(phiRad), sin(phiRad));
       drawTooltip(toolTipPos, getLabel());
     }
+  }
+
+  int pickCpu(const TPointD &viewerPos) override {
+    const double r   = getValue(m_lengthParam);
+    const double phi = getValue(m_phiParam) * M_PI_180;
+    const TPointD end = m_pos + TPointD(cos(phi), sin(phi)) * r;
+    if (hitViewerPoint(m_controller, viewerPos, end, 8.0) ||
+        hitViewerSegment(m_controller, viewerPos, m_pos, end, 5.0))
+      return static_cast<int>(getId());
+    return -1;
   }
 
   void leftButtonDown(const TPointD &pos, const TMouseEvent &) override {}
