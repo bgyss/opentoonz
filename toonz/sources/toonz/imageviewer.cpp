@@ -102,6 +102,16 @@ void appendDashedPolyline(TGraphics::DrawList2D &drawList,
     appendDashedLine(drawList, points[i - 1], points[i], color);
 }
 
+void appendDashedScreenRectOutline(TGraphics::DrawList2D &drawList,
+                                   const TRectD &rect,
+                                   const TPixel32 &color) {
+  const TPointD points[5] = {
+      TPointD(rect.x0, rect.y0), TPointD(rect.x0, rect.y1),
+      TPointD(rect.x1, rect.y1), TPointD(rect.x1, rect.y0),
+      TPointD(rect.x0, rect.y0)};
+  appendDashedPolyline(drawList, points, 5, color);
+}
+
 //-----------------------------------------------------------------------------
 
 // enable to choose safe area from a list, and enable to draw multiple lines
@@ -109,11 +119,8 @@ void drawSafeArea(const TRectD box) {
   glPushMatrix();
   glLoadIdentity();
 
-  tglColor(TPixel32::Red);
-  glLineStipple(1, 0xCCCC);
-  glEnable(GL_LINE_STIPPLE);
-
-  tglDrawRect(box);
+  TGraphics::DrawList2D drawList;
+  appendDashedScreenRectOutline(drawList, box, TPixel32::Red);
 
   QList<QList<double>> sizeList;
 
@@ -121,18 +128,19 @@ void drawSafeArea(const TRectD box) {
 
   for (int i = 0; i < sizeList.size(); i++) {
     QList<double> curSize = sizeList.at(i);
-    if (curSize.size() == 5)
-      tglColor(
-          TPixel((int)curSize.at(2), (int)curSize.at(3), (int)curSize.at(4)));
-    else
-      tglColor(TPixel32::Red);
+    TPixel32 color = TPixel32::Red;
+    if (curSize.size() == 5) {
+      color = TPixel32((int)curSize.at(2), (int)curSize.at(3),
+                       (int)curSize.at(4));
+    }
 
     double facX = -0.5 * (1 - curSize.at(0) / 100.0);
     double facY = -0.5 * (1 - curSize.at(1) / 100.0);
-    tglDrawRect(box.enlarge(facX * box.getLx(), facY * box.getLy()));
+    appendDashedScreenRectOutline(
+        drawList, box.enlarge(facX * box.getLx(), facY * box.getLy()), color);
   }
 
-  glDisable(GL_LINE_STIPPLE);
+  TGraphics::drawWithOpenGLBackend(drawList);
   glPopMatrix();
 }
 

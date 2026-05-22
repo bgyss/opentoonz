@@ -118,6 +118,9 @@ The follow-up image-viewer drag-overlay checkpoint moves the zoom-selection and
 rectangular RGB-pick overlays from direct `GL_LINE_STRIP` drawing to
 `DrawList2D` color-line commands. The RGB-pick overlay keeps the cursor gap and
 uses explicit dash segmentation instead of deprecated `glLineStipple`.
+The safe-area checkpoint moves `ImageViewer` safe-area rectangles from
+`glLineStipple(...)` plus `tglDrawRect(...)` to explicit dashed `DrawList2D`
+color-line segments while preserving the identity screen-space transform.
 
 The cleanup-preview camera-test checkpoint moves the cleanup camera and closest
 field camera outline/cross primitives from direct immediate-mode line strips and
@@ -568,7 +571,9 @@ current pixel size. Vectorizer swatch in-progress borders now emit `tgraphics`
 color-rect commands in window coordinates instead of widened immediate-mode line
 strips. Scanner crop-box borders now emit one-pixel `tgraphics` color-rect
 commands instead of direct `tglDrawRect(...)` calls and OpenGL line stipple
-state.
+state. Flipbook safe-area rectangles now use explicit dashed `tgraphics`
+color-line segments instead of OpenGL line stipple state and direct
+`tglDrawRect(...)` calls.
 Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
 effects and by moving the remaining preview/export and style-editor surfaces
 through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene
