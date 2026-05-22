@@ -110,6 +110,13 @@ void drawDashedRectOutlineWithTGraphics(const TRectD &rect,
   TGraphics::drawWithOpenGLBackend(drawList);
 }
 
+void drawLineWithTGraphics(const TPointD &p0, const TPointD &p1,
+                           const TPixel32 &color) {
+  TGraphics::DrawList2D drawList;
+  drawList.addColorLine(p0, p1, color, false);
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
+
 void drawLinePairWithTGraphics(const TPointD &a0, const TPointD &a1,
                                const TPointD &b0, const TPointD &b1,
                                const TPixel32 &color) {
@@ -1327,8 +1334,7 @@ void EditTool::drawMainHandle() {
     tglDrawDisk(p, unit * 5);
   if (m_highlightedDevice == Rotation && !dragging && !isPicking())
     drawText(p, unit, "Rotate");
-  tglColor(normalColor);
-  tglDrawSegment(p, center);
+  drawLineWithTGraphics(p, center, normalColor);
 
   // draw scale handle
   p        = center + m_currentScaleFactor * unit * delta * TPointD(-1, -1);
@@ -1351,8 +1357,7 @@ void EditTool::drawMainHandle() {
   if (m_highlightedDevice == Scale && !dragging && !isPicking())
     drawText(scaleTooltipPos, unit, "Scale");
 
-  tglColor(normalColor);
-  tglDrawSegment(p, center);
+  drawLineWithTGraphics(p, center, normalColor);
 
   TPointD q;
   double dd = unit * 10;
@@ -1388,8 +1393,7 @@ void EditTool::drawMainHandle() {
   }
   if (m_highlightedDevice == Shear && !dragging)
     drawText(p + TPointD(0, -unit * 10), unit, "Shear");
-  tglColor(normalColor);
-  tglDrawSegment(p, center);
+  drawLineWithTGraphics(p, center, normalColor);
 
   if (objId.isCamera()) {
     if (xsh->getStageObjectTree()->getCurrentCameraId() != objId) {

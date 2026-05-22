@@ -288,6 +288,11 @@ The geometric polygon checkpoint moves regular polygon preview outlines from
 direct `GL_LINE_LOOP` drawing to `DrawList2D` color-line commands. Circle,
 ellipse, snap, stroke centerline, and disk preview paths remain on legacy
 OpenGL until the corresponding primitives are represented in `tgraphics`.
+The edit-tool connector checkpoint moves the rotation, scale, and shear handle
+connector lines in the main transform handle from direct `tglDrawSegment(...)`
+drawing to `DrawList2D` color-line commands. Handle circles, filled pick
+regions, text, and arrow glyphs remain on their existing paths until
+`tgraphics` has matching circle, fill, text, and 3D arrow primitives.
 
 ## Files Changed
 
@@ -767,6 +772,8 @@ and line primitives now also emit `tgraphics` color commands. Geometric
 rectangle, line, arc construction, and polygon outline previews now also emit
 `tgraphics` color-line commands.
 Edit-tool shear-handle visible outlines now also emit `tgraphics` color-line commands.
+Edit-tool rotation, scale, and shear connector lines now also emit `tgraphics`
+color-line commands.
 Edit-tool camera and Z-translation icons now also emit `tgraphics` color-line
 commands. Scene-viewer FPS graph panels now emit `tgraphics` color commands
 instead of direct immediate-mode drawing. Scene-viewer spline/motion-path
