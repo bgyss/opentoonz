@@ -5,6 +5,7 @@
 #include "ttoonzimage.h"
 #include "tvectorimage.h"
 #include "drawutil.h"
+#include "tgraphics.h"
 
 // TnzLib includes
 #include "toonz/toonzscene.h"
@@ -377,24 +378,21 @@ void VectorizerSwatchArea::Swatch::drawVectors() {
 //-----------------------------------------------------------------------------
 
 void VectorizerSwatchArea::Swatch::drawInProgress() {
-  glColor3d(1.0, 0.0, 0.0);
-  glLineWidth(3.0);
-
   pushGLWinCoordinates();
 
-  glBegin(GL_LINE_STRIP);
+  const double borderWidth = 3.0;
+  const double right       = width();
+  const double top         = height();
+  const TPixel32 red(255, 0, 0, 255);
 
-  glVertex2d(0.5, 0.5);
-  glVertex2d(width() - 0.5, 0.5);
-  glVertex2d(width() - 0.5, height() - 0.5);
-  glVertex2d(0.5, height() - 0.5);
-  glVertex2d(0.5, 0.5);
-
-  glEnd();
+  TGraphics::DrawList2D drawList;
+  drawList.addColorRect(TRectD(0, 0, right, borderWidth), red, false);
+  drawList.addColorRect(TRectD(0, top - borderWidth, right, top), red, false);
+  drawList.addColorRect(TRectD(0, 0, borderWidth, top), red, false);
+  drawList.addColorRect(TRectD(right - borderWidth, 0, right, top), red, false);
+  TGraphics::drawWithOpenGLBackend(drawList);
 
   popGLCoordinates();
-
-  glLineWidth(1.0);
 }
 
 //*****************************************************************************

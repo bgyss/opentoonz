@@ -126,6 +126,12 @@ argument. Text labels and handle drawing remain on the legacy tool drawing path,
 but the preview camera frame geometry now has an OpenGL-compatible draw-list
 shape that can be mirrored by Metal.
 
+The vectorizer-swatch checkpoint moves the in-progress red swatch border from a
+direct `GL_LINE_STRIP` with widened line state to four `DrawList2D` color-rect
+commands in window coordinates. Vector stroke centerline preview drawing remains
+on the legacy path, but the simple preview-progress frame no longer depends on
+immediate-mode line drawing.
+
 ## Files Changed
 
 - `scripts/graphics_shader_inventory.sh`
@@ -142,6 +148,7 @@ shape that can be mirrored by Metal.
 - `toonz/sources/toonz/cleanuppreview.cpp`
 - `toonz/sources/toonz/imageviewer.cpp`
 - `toonz/sources/toonz/sceneviewer.cpp`
+- `toonz/sources/toonz/vectorizerswatch.cpp`
 - `toonz/sources/toonz/viewerdraw.cpp`
 - `toonz/sources/toonzqt/planeviewer.cpp`
 - `toonz/sources/include/stdfx/shaderfx.h`
@@ -550,7 +557,9 @@ emit `tgraphics` color-line commands for their screen-space overlay, and
 image-viewer zoom/RGB-pick drag overlays now emit `tgraphics` color-line
 commands instead of immediate-mode line strips. Cleanup preview camera-test
 frame/cross outlines now emit `tgraphics` color-quad commands sized by the
-current pixel size.
+current pixel size. Vectorizer swatch in-progress borders now emit `tgraphics`
+color-rect commands in window coordinates instead of widened immediate-mode line
+strips.
 Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
 effects and by moving the remaining preview/export and style-editor surfaces
 through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene
