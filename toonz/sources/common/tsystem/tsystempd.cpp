@@ -14,6 +14,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <cstdlib>
 
 // Project-specific headers
 #include "tsystem.h"
@@ -537,18 +538,8 @@ void TSystem::moveFileToRecycleBin(const TFilePath &fp) {
   int ret = SHFileOperationW(&data);  // do it!
 
 #elif defined(MACOSX)
-  FSRef foundRef;
-  OSErr err = FSFindFolder(kOnSystemDisk, kTrashFolderType, kDontCreateFolder,
-                           &foundRef);
-
-  if (err) {
-    assert(false);
-    deleteFile(fp);
-    return;
-  }
-  UInt8 path[255];
-  err = FSRefMakePath(&foundRef, path, 254);
-  if (err) {
+  const char *home = getenv("HOME");
+  if (!home || !home[0]) {
     assert(false);
     deleteFile(fp);
     return;
@@ -557,7 +548,7 @@ void TSystem::moveFileToRecycleBin(const TFilePath &fp) {
   string fullNameWithExt = ::to_string(fp);
   int i                  = fullNameWithExt.rfind("/");
   string nameWithExt     = fullNameWithExt.substr(i + 1);
-  TFilePath dest         = TFilePath((char *)path) + nameWithExt;
+  TFilePath dest = TFilePath(std::string(home) + "/.Trash") + nameWithExt;
 
   try {
     renameFile(dest, fp);

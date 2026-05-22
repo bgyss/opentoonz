@@ -2579,12 +2579,14 @@ void SettingsPage::setStyle(const TColorStyleP &editedStyle) {
   // function may be invoked when signals emitted from this function are still
   // "flying"...
 
+  TColorStyle *oldEditedStyle = m_editedStyle.getPointer();
+  TColorStyle *newEditedStyle = editedStyle.getPointer();
   bool clearLayout =
-      m_editedStyle &&
-      !(editedStyle && typeid(*m_editedStyle) == typeid(*editedStyle));
+      oldEditedStyle &&
+      !(newEditedStyle && typeid(*oldEditedStyle) == typeid(*newEditedStyle));
   bool buildLayout =
-      editedStyle &&
-      !(m_editedStyle && typeid(*m_editedStyle) == typeid(*editedStyle));
+      newEditedStyle &&
+      !(oldEditedStyle && typeid(*oldEditedStyle) == typeid(*newEditedStyle));
 
   m_editedStyle = editedStyle;
 

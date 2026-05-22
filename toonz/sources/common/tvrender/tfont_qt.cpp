@@ -183,7 +183,8 @@ TPoint TFont::drawChar(QImage &outImage, TPoint &unused, wchar_t charcode,
   QImage image = raw.alphaMapForGlyph(indices[0], QRawFont::PixelAntialiasing);
   if (image.format() != QImage::Format_Indexed8 &&
       image.format() != QImage::Format_Alpha8)
-    throw TException(L"bad QImage format " + image.format());
+    throw TException(std::wstring(L"bad QImage format ") +
+                     std::to_wstring(image.format()));
 
   QRectF boundingRect = raw.boundingRect(indices[0]);
 

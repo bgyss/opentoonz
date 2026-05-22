@@ -10,7 +10,7 @@
 
 #include <QString>
 #include <QSettings>
-#include <QMutex>
+#include <QRecursiveMutex>
 
 #undef DVAPI
 #undef DVVAR
@@ -38,7 +38,7 @@ class DVAPI TCacheResourcePool final : public QObject {
 
   typedef std::map<std::string, TCacheResource *> MemResources;
   MemResources m_memResources;
-  QMutex m_memMutex;
+  QRecursiveMutex m_memMutex;
 
   unsigned int m_searchCount;
   bool m_foundIterator;

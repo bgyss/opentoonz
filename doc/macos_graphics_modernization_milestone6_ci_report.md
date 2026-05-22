@@ -184,6 +184,63 @@ gh auth status
   deliberate until maintainers decide whether release DMGs should be
   Metal-enabled before Metal becomes the default backend.
 
+## Warning Cleanup Follow-up
+
+Additional macOS warning-noise cleanup was added locally on 2026-05-22 after
+the first matrix checkpoint. This is separate from the Metal backend work, but
+it directly supports the Milestone 6 warning-count gate and the original macOS
+arm64 build-time investigation by removing repeated deprecation warnings from
+source files that rebuild frequently.
+
+Cleaned warning categories:
+
+- Deprecated `sprintf` calls in `toonz/sources/toonz/crashhandler.cpp` now use
+  bounded `snprintf`.
+- Deprecated Qt recursive mutex construction in sound, palette, cache-resource,
+  and passive-cache code now uses `QRecursiveMutex` directly for the Qt 5.15
+  build.
+- Deprecated macOS Carbon Trash-folder lookup in
+  `toonz/sources/common/tsystem/tsystempd.cpp` now uses the current user's
+  `$HOME/.Trash` path, preserving the existing permanent-delete fallback if the
+  Trash path cannot be resolved.
+- The invalid wide-string plus integer expression in
+  `toonz/sources/common/tvrender/tfont_qt.cpp` now formats the `QImage` format
+  value explicitly.
+- Potentially evaluated `typeid` expressions in palette/style-editor code now
+  operate on stored raw pointers.
+
+Local warning-cleanup validation:
+
+```sh
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tnzcore sound toonzlib OpenToonz --parallel 3
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tnzcore tnzbase sound toonzqt OpenToonz --parallel 3
+OPENTOONZ_CI_BUILD_LABEL=macos-arm64-warning-cleanup-local \
+OPENTOONZ_BUILD_PARALLEL=3 \
+scripts/macos/ci-build-summary.sh
+git diff --check
+bash scripts/graphics_inventory.sh
+```
+
+Observed local warning-cleanup summary:
+
+```text
+status: 0
+elapsed_seconds: 13
+WITH_GRAPHICS_METAL: OFF
+total_warnings: 0
+apple_opengl_deprecation_warnings: 0
+qt_qgl_warning_lines: 0
+qt_qopengl_deprecation_warning_lines: 0
+ccache hit rate: 21522 / 25110 (85.71%)
+```
+
+This summary was produced from an incremental local build, so it should be
+treated as evidence that the cleaned files are no longer producing warnings in
+the current build tree, not as a fresh full-build warning baseline. A broader
+rebuild still surfaced unrelated warning families such as non-trivial `memcpy`
+pixel copies, abstract-final class declarations, and return-type cleanup in
+tool/editor code; those are outside this scoped macOS deprecation cleanup.
+
 ## Next Recommendation
 
 Run the new `workflow_macos.yml` matrix on the fork, record the run IDs and

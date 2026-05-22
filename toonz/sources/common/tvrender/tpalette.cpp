@@ -242,7 +242,7 @@ TPalette::TPalette()
     , m_isCleanupPalette(false)
     , m_currentFrame(-1)
     , m_dirtyFlag(false)
-    , m_mutex(QMutex::Recursive)
+    , m_mutex()
     , m_isLocked(false)
     , m_askOverwriteFlag(false)
     , m_shortcutScopeIndex(0)
@@ -350,8 +350,8 @@ void TPalette::setStyle(int styleId, TColorStyle *style) {
       if (style == getStyle(i)) return;
 
     // Substitution can take place
-    if (typeid(*m_styles[styleId].second.getPointer()) != typeid(*style))
-      m_styleAnimationTable.erase(styleId);
+    TColorStyle *oldStyle = m_styles[styleId].second.getPointer();
+    if (typeid(*oldStyle) != typeid(*style)) m_styleAnimationTable.erase(styleId);
 
     m_styles[styleId].second = styleOwner.release();
   }
