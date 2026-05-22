@@ -212,6 +212,33 @@ TRectD spinBlurredRect(const TRectD &rect, const TPointD &center,
   return blurredRect;
 }
 
+void addRadialBlurredPointBox(TRectD &rect, const TPointD &point,
+                              const TPointD &center, double radius,
+                              double blur) {
+  TPointD direction = point - center;
+  const double length =
+      std::sqrt(direction.x * direction.x + direction.y * direction.y);
+  const double dist  = std::max(length - radius, 0.0);
+  const double scale = blur * dist / std::max(length, 0.01);
+  direction *= scale;
+  addPointToRect(rect, point - direction);
+  addPointToRect(rect, point + direction);
+}
+
+TRectD radialBlurredRect(const TRectD &rect, const TPointD &center,
+                         double radius, double blur) {
+  TRectD blurredRect = rect;
+  addRadialBlurredPointBox(blurredRect, TPointD(rect.x0, rect.y0), center,
+                           radius, blur);
+  addRadialBlurredPointBox(blurredRect, TPointD(rect.x0, rect.y1), center,
+                           radius, blur);
+  addRadialBlurredPointBox(blurredRect, TPointD(rect.x1, rect.y0), center,
+                           radius, blur);
+  addRadialBlurredPointBox(blurredRect, TPointD(rect.x1, rect.y1), center,
+                           radius, blur);
+  return blurredRect;
+}
+
 TRectD transformRect(const TAffine &affine, const TRectD &rect) {
   TRectD transformed(affine * TPointD(rect.x0, rect.y0),
                      TDimensionD(0.0, 0.0));
@@ -682,7 +709,40 @@ bool ShaderFx::doGetBBox(double frame, TRectD &bbox,
       m_inputPorts.size() == 1) {
     TRasterFxPort &port = m_inputPorts[0];
     if (!port.isConnected()) return true;
-    return port->doGetBBox(frame, bbox, info);
+    if (!port->doGetBBox(frame, bbox, info)) return false;
+    if (bbox == TConsts::infiniteRectD) return true;
+
+    TPointD center(0.0, 0.0);
+    double radius = 3.0;
+    double blur   = 0.3;
+    const std::vector<ShaderInterface::Parameter> &siParams =
+        m_shaderInterface->parameters();
+    if (siParams.size() == m_params.size()) {
+      for (int i = 0, count = int(siParams.size()); i != count; ++i) {
+        const QString &name = siParams[i].m_name;
+        switch (siParams[i].m_type) {
+        case ShaderInterface::VEC2: {
+          const TPointParamP &param =
+              *boost::unsafe_any_cast<TPointParamP>(&m_params[i]);
+          if (name == QStringLiteral("center")) center = param->getValue(frame);
+          break;
+        }
+        case ShaderInterface::FLOAT: {
+          const TDoubleParamP &param =
+              *boost::unsafe_any_cast<TDoubleParamP>(&m_params[i]);
+          if (name == QStringLiteral("radius"))
+            radius = param->getValue(frame);
+          else if (name == QStringLiteral("blur"))
+            blur = param->getValue(frame);
+          break;
+        }
+        default:
+          break;
+        }
+      }
+    }
+    bbox = radialBlurredRect(bbox, center, std::max(radius, 0.0), blur);
+    return true;
   }
 
   if (TGraphics::activeBackendType() == TGraphics::BackendType::Metal &&
@@ -1368,7 +1428,18 @@ bool renderRadialBlurShaderWithMetal(const ShaderInterface *shaderInterface,
   const TRectD outRect = ::tileRect(tile);
   if (outRect.getLx() <= 0.0 || outRect.getLy() <= 0.0) return false;
 
-  TRectD inputRect = outRect;
+  const TAffine worldToOutput = TTranslation(-tile.m_pos) * info.m_affine;
+  const double scale =
+      std::sqrt(std::abs(worldToOutput.a11 * worldToOutput.a22 -
+                         worldToOutput.a12 * worldToOutput.a21));
+  const TPointD centerInOutput = worldToOutput * center;
+  const TRectD outputRect(TPointD(0.0, 0.0),
+                          TDimensionD(outputRaster->getLx(),
+                                      outputRaster->getLy()));
+  const TRectD blurredOutputRect =
+      radialBlurredRect(outputRect, centerInOutput,
+                        scale * std::max(radius, 0.0), blur);
+  TRectD inputRect = transformRect(worldToOutput.inv(), blurredOutputRect);
   ::ceilRect(inputRect);
   const TDimension inputSize(tround(inputRect.getLx()),
                              tround(inputRect.getLy()));
@@ -1386,7 +1457,6 @@ bool renderRadialBlurShaderWithMetal(const ShaderInterface *shaderInterface,
       TTranslation(inputRect.getP00()) *
       TScale(inputRect.getLx(), inputRect.getLy());
   const TAffine outputToTexture = textureToOutput.inv();
-  const TAffine worldToOutput = TTranslation(-tile.m_pos) * info.m_affine;
 
   TRaster32P rendered = TGraphics::renderRadialBlurWithMetalBackend(
       outputRaster->getLx(), outputRaster->getLy(),
@@ -1854,6 +1924,37 @@ void ShaderFx::doDryCompute(TRectD &rect, double frame,
       m_inputPorts.size() == 1) {
     TRectD inputRect = rect;
     if (inputRect.getLx() <= 0.0 || inputRect.getLy() <= 0.0) return;
+    TPointD center(0.0, 0.0);
+    double radius = 3.0;
+    double blur   = 0.3;
+    const std::vector<ShaderInterface::Parameter> &siParams =
+        m_shaderInterface->parameters();
+    if (siParams.size() == m_params.size()) {
+      for (int i = 0, count = int(siParams.size()); i != count; ++i) {
+        const QString &name = siParams[i].m_name;
+        switch (siParams[i].m_type) {
+        case ShaderInterface::VEC2: {
+          const TPointParamP &param =
+              *boost::unsafe_any_cast<TPointParamP>(&m_params[i]);
+          if (name == QStringLiteral("center")) center = param->getValue(frame);
+          break;
+        }
+        case ShaderInterface::FLOAT: {
+          const TDoubleParamP &param =
+              *boost::unsafe_any_cast<TDoubleParamP>(&m_params[i]);
+          if (name == QStringLiteral("radius"))
+            radius = param->getValue(frame);
+          else if (name == QStringLiteral("blur"))
+            blur = param->getValue(frame);
+          break;
+        }
+        default:
+          break;
+        }
+      }
+    }
+    inputRect = radialBlurredRect(inputRect, center, std::max(radius, 0.0),
+                                  blur);
     ::ceilRect(inputRect);
 
     TRenderSettings inputInfo(info);

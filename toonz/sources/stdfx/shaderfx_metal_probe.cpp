@@ -221,6 +221,33 @@ TRectD spinBlurredRect(const TRectD& rect, const TPointD& center,
   return blurredRect;
 }
 
+void addRadialBlurredPointBox(TRectD& rect, const TPointD& point,
+                              const TPointD& center, double radius,
+                              double blur) {
+  TPointD direction = point - center;
+  const double length =
+      std::sqrt(direction.x * direction.x + direction.y * direction.y);
+  const double dist  = std::max(length - radius, 0.0);
+  const double scale = blur * dist / std::max(length, 0.01);
+  direction *= scale;
+  addPointToRect(rect, point - direction);
+  addPointToRect(rect, point + direction);
+}
+
+TRectD radialBlurredRect(const TRectD& rect, const TPointD& center,
+                         double radius, double blur) {
+  TRectD blurredRect = rect;
+  addRadialBlurredPointBox(blurredRect, TPointD(rect.x0, rect.y0), center,
+                           radius, blur);
+  addRadialBlurredPointBox(blurredRect, TPointD(rect.x0, rect.y1), center,
+                           radius, blur);
+  addRadialBlurredPointBox(blurredRect, TPointD(rect.x1, rect.y0), center,
+                           radius, blur);
+  addRadialBlurredPointBox(blurredRect, TPointD(rect.x1, rect.y1), center,
+                           radius, blur);
+  return blurredRect;
+}
+
 TRectD transformRect(const TAffine& affine, const TRectD& rect) {
   TRectD transformed(affine * TPointD(rect.x0, rect.y0),
                      TDimensionD(0.0, 0.0));
@@ -845,10 +872,28 @@ TRaster32P renderExpectedMetalHelper(const Options& options, int width,
         outputToTexture, true, true, false, 1.0, false);
   }
   if (options.shaderName == "SHADER_radialblurGPU") {
-    const TAffine outputToTexture = TScale(1.0 / width, 1.0 / height);
     const TAffine worldToOutput = TTranslation(-tile.m_pos) * settings.m_affine;
+    const double scale =
+        std::sqrt(std::abs(worldToOutput.a11 * worldToOutput.a22 -
+                           worldToOutput.a12 * worldToOutput.a21));
+    const TRectD outputRect(TPointD(0.0, 0.0), TDimensionD(width, height));
+    const TRectD blurredOutputRect =
+        radialBlurredRect(outputRect, worldToOutput * TPointD(0.0, 0.0),
+                          scale * 3.0, 0.3);
+    TRectD inputRect = transformRect(worldToOutput.inv(), blurredOutputRect);
+    inputRect.x0 = tfloor(inputRect.x0), inputRect.y0 = tfloor(inputRect.y0);
+    inputRect.x1 = tceil(inputRect.x1), inputRect.y1 = tceil(inputRect.y1);
+    const int inputWidth  = tround(inputRect.getLx());
+    const int inputHeight = tround(inputRect.getLy());
+    if (inputWidth <= 0 || inputHeight <= 0) return TRaster32P();
+    const TAffine textureToOutput =
+        TTranslation(-tile.m_pos) * settings.m_affine *
+        settings.m_affine.inv() * TTranslation(inputRect.getP00()) *
+        TScale(inputRect.getLx(), inputRect.getLy());
+    const TAffine outputToTexture = textureToOutput.inv();
     return TGraphics::renderRadialBlurWithMetalBackend(
-        width, height, makeHSLProbeRaster(width, height, tile.m_pos, true),
+        width, height,
+        makeHSLProbeRaster(inputWidth, inputHeight, inputRect.getP00(), true),
         outputToTexture, worldToOutput, TPointD(0.0, 0.0), 3.0, 0.3);
   }
   if (options.shaderName == "SHADER_spinblurGPU") {

@@ -70,6 +70,10 @@ find "$program_dir" -type f \( -name '*.frag' -o -name '*.vert' -o -name '*.glsl
       classification="migrated_hand_routed_metal_input"
       notes="has explicit tgraphics Metal helper and ShaderFx Metal route"
       ;;
+    radialblurGPU_ports.vert|radialblurGPU_bbox.vert)
+      classification="migrated_cpu_metal_geometry"
+      notes="Metal ShaderFx path computes equivalent input/bbox geometry on CPU; GLSL remains for OpenGL fallback"
+      ;;
     *_ports.vert|*_bbox.vert)
       classification="blocked_by_opengl_transform_feedback"
       notes="ShaderFx uses GL transform feedback varyings for geometry/bbox"

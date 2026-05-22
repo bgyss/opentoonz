@@ -185,8 +185,9 @@ Remaining shared shader-generation candidates:
 simple connected 32-bit tile path, detached `TRenderer` execution, a
 `ToonzScene`/`buildSceneFx(...)` scene-render fixture with a real raster-level
 input column, and saved/reloaded scene-render coverage for that input-texture
-fixture. Transform-feedback bbox/port parity is still open before it should be
-counted as a fully migrated effect.
+fixture. Its Metal path now uses CPU-side bbox/input-rect expansion matching
+the legacy radial blur ports/bbox shaders, so the migrated Metal route no
+longer compiles the transform-feedback geometry shaders.
 
 `spinblurGPU.frag` now has a direct hand-routed Metal implementation for the
 simple connected 32-bit tile path, detached `TRenderer` execution, a
@@ -238,8 +239,9 @@ Input-texture Metal groundwork:
   radial blur helper for the current simple 32-bit tile path.
 - `shaderfx_metal_probe --shader SHADER_radialblurGPU --renderer` validates the
   same route through `TRenderer` with precomputing enabled. The Metal radial
-  bbox path delegates to the connected input bbox instead of compiling the
-  legacy `radialblurGPU_bbox.vert` transform-feedback shader.
+  bbox and port paths now expand rectangles on the CPU instead of compiling the
+  legacy `radialblurGPU_bbox.vert` and `radialblurGPU_ports.vert`
+  transform-feedback shaders.
 - `shaderfx_metal_probe --shader SHADER_radialblurGPU --scene-render` validates
   radial blur through a `ToonzScene` render tree with a real foreground raster
   level column. The scene fixture uses the same visible-pixel validation style
@@ -284,8 +286,6 @@ Blocked by OpenGL-specific transform feedback:
 - `HSLBlendGPU_ports.vert`
 - `glitter_ports.vert`
 - `glitter_bbox.vert`
-- `radialblurGPU_ports.vert`
-- `radialblurGPU_bbox.vert`
 - `spinblurGPU_ports.vert`
 - `spinblurGPU_bbox.vert`
 
@@ -293,6 +293,15 @@ These are vertex programs used by `ShaderFx` to compute input-port rectangles
 or output bboxes through transform feedback. A Metal port should replace this
 with CPU bbox/port computation or a Metal buffer pass, not a direct one-for-one
 GLSL translation.
+
+Migrated CPU-side Metal geometry bypasses:
+
+- `radialblurGPU_ports.vert`
+- `radialblurGPU_bbox.vert`
+
+These GLSL sources remain packaged for the OpenGL fallback. The Metal
+`SHADER_radialblurGPU` route now computes equivalent input and bbox expansion in
+CPU code before rendering through the Metal helper.
 
 Current Metal shader source:
 
@@ -418,12 +427,14 @@ coverage. The first complete direct input-texture route (`HSLBlendGPU`) now has
 direct, renderer-driven, `ToonzScene`/`buildSceneFx(...)` scene-render, and
 saved-and-reloaded `.tnz` scene-render coverage. `radialblurGPU` now has direct
 connected, detached renderer, `ToonzScene`/`buildSceneFx(...)` scene-render,
-and saved-and-reloaded `.tnz` scene-render coverage. `spinblurGPU` now has the
-same direct connected, detached renderer, `ToonzScene`/`buildSceneFx(...)`
+and saved-and-reloaded `.tnz` scene-render coverage, and its Metal route now
+uses CPU-side bbox/input geometry expansion. `spinblurGPU` now has the same
+direct connected, detached renderer, `ToonzScene`/`buildSceneFx(...)`
 scene-render, and saved-and-reloaded `.tnz` scene-render coverage. Continue by
-replacing transform-feedback bbox/port shaders with backend-neutral CPU or Metal
-buffer computation for the migrated input-texture effects. Keep OpenGL
-`ShaderFx` as the default until full scene parity is broader.
+replacing the remaining transform-feedback bbox/port shaders with
+backend-neutral CPU or Metal buffer computation for the migrated input-texture
+effects. Keep OpenGL `ShaderFx` as the default until full scene parity is
+broader.
 
 ## Validation Run
 
@@ -534,6 +545,6 @@ matches a CPU formula reference, and that the production OpenGL and Metal
 `ShaderFx` outputs match
 within tolerance for all five no-input migrated shaders directly, when wrapped
 through `ToonzScene`/`buildSceneFx(...)`, and after saving and reloading minimal
-`.tnz` scene fixtures. It does not yet cover transform-feedback bbox/ports
-shaders beyond the current input-texture bypasses, an actual generated
+`.tnz` scene fixtures. It does not yet cover the remaining transform-feedback
+bbox/ports shaders beyond the current input-texture bypasses, an actual generated
 `.metallib` artifact, or full GUI preview/export scene renders.
