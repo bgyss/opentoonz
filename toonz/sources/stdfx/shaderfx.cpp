@@ -1970,6 +1970,37 @@ void ShaderFx::doDryCompute(TRectD &rect, double frame,
       m_inputPorts.size() == 1) {
     TRectD inputRect = rect;
     if (inputRect.getLx() <= 0.0 || inputRect.getLy() <= 0.0) return;
+    TPointD center(0.0, 0.0);
+    double radius = 3.0;
+    double blur   = 1.0;
+    const std::vector<ShaderInterface::Parameter> &siParams =
+        m_shaderInterface->parameters();
+    if (siParams.size() == m_params.size()) {
+      for (int i = 0, count = int(siParams.size()); i != count; ++i) {
+        const QString &name = siParams[i].m_name;
+        switch (siParams[i].m_type) {
+        case ShaderInterface::VEC2: {
+          const TPointParamP &param =
+              *boost::unsafe_any_cast<TPointParamP>(&m_params[i]);
+          if (name == QStringLiteral("center")) center = param->getValue(frame);
+          break;
+        }
+        case ShaderInterface::FLOAT: {
+          const TDoubleParamP &param =
+              *boost::unsafe_any_cast<TDoubleParamP>(&m_params[i]);
+          if (name == QStringLiteral("radius"))
+            radius = param->getValue(frame);
+          else if (name == QStringLiteral("blur"))
+            blur = param->getValue(frame);
+          break;
+        }
+        default:
+          break;
+        }
+      }
+    }
+    inputRect = spinBlurredRect(inputRect, center, radius,
+                                std::max(blur, 0.0));
     ::ceilRect(inputRect);
 
     TRenderSettings inputInfo(info);
@@ -1984,6 +2015,24 @@ void ShaderFx::doDryCompute(TRectD &rect, double frame,
       m_inputPorts.size() == 1) {
     TRectD inputRect = rect;
     if (inputRect.getLx() <= 0.0 || inputRect.getLy() <= 0.0) return;
+    double radius = 5.333333333;
+    const std::vector<ShaderInterface::Parameter> &siParams =
+        m_shaderInterface->parameters();
+    if (siParams.size() == m_params.size()) {
+      for (int i = 0, count = int(siParams.size()); i != count; ++i) {
+        if (siParams[i].m_type != ShaderInterface::FLOAT ||
+            siParams[i].m_name != QStringLiteral("radius"))
+          continue;
+        const TDoubleParamP &param =
+            *boost::unsafe_any_cast<TDoubleParamP>(&m_params[i]);
+        radius = param->getValue(frame);
+      }
+    }
+    const double rad = std::max(radius, 0.0);
+    inputRect.x0 -= rad;
+    inputRect.y0 -= rad;
+    inputRect.x1 += rad;
+    inputRect.y1 += rad;
     ::ceilRect(inputRect);
 
     TRenderSettings inputInfo(info);

@@ -146,7 +146,9 @@ Production integration status:
   `SHADER_HSLBlendGPU` `ShaderFx::doCompute(...)` path through the Metal HSL
   helper for 32-bit output. This supported path bypasses the OpenGL transform
   feedback ports shader because `HSLBlendGPU_ports.vert` maps both input rects
-  and affines directly from the output rect for the identity case.
+  and affines directly from the output rect for the identity case; the Metal
+  render and dry-compute paths now express that identity geometry directly in
+  CPU code.
 - `shaderfx_metal_probe` validates the `ShaderFx::doCompute(...)` Metal branch
   against the lower-level Metal helper for transformed 96x64 tiles.
 - `shaderfx_metal_probe --renderer` validates the same migrated Metal shader
@@ -194,14 +196,16 @@ simple connected 32-bit tile path, detached `TRenderer` execution, a
 `ToonzScene`/`buildSceneFx(...)` scene-render fixture with a real raster-level
 input column, and saved/reloaded scene-render coverage for that input-texture
 fixture. Its Metal path uses CPU-side bbox/input-rect expansion for the migrated
-route instead of compiling the legacy transform-feedback bbox/ports shaders.
+route, including dry-compute upstream invalidation, instead of compiling the
+legacy transform-feedback bbox/ports shaders.
 
 `glitter.frag` now has a direct hand-routed Metal implementation for the simple
 connected 32-bit tile path, detached `TRenderer` execution, a
 `ToonzScene`/`buildSceneFx(...)` scene-render fixture with a real raster-level
 input column, and saved/reloaded scene-render coverage for that input-texture
 fixture. Its Metal path uses CPU-side bbox/input-rect expansion for the migrated
-route instead of compiling the legacy transform-feedback bbox/ports shaders.
+route, including dry-compute upstream invalidation, instead of compiling the
+legacy transform-feedback bbox/ports shaders.
 
 Input-texture Metal groundwork:
 
@@ -283,25 +287,27 @@ Input-texture Metal groundwork:
 
 Blocked by OpenGL-specific transform feedback:
 
-- `HSLBlendGPU_ports.vert`
-- `glitter_ports.vert`
-- `glitter_bbox.vert`
-- `spinblurGPU_ports.vert`
-- `spinblurGPU_bbox.vert`
+- None in the currently migrated Metal input-texture `ShaderFx` subset.
 
-These are vertex programs used by `ShaderFx` to compute input-port rectangles
-or output bboxes through transform feedback. A Metal port should replace this
-with CPU bbox/port computation or a Metal buffer pass, not a direct one-for-one
+The GLSL transform-feedback vertex programs remain packaged for the OpenGL
+fallback. Metal routes should continue replacing additional bbox/port geometry
+with CPU bbox/port computation or a Metal buffer pass, not direct one-for-one
 GLSL translation.
 
 Migrated CPU-side Metal geometry bypasses:
 
+- `HSLBlendGPU_ports.vert` (identity input geometry)
 - `radialblurGPU_ports.vert`
 - `radialblurGPU_bbox.vert`
+- `spinblurGPU_ports.vert`
+- `spinblurGPU_bbox.vert`
+- `glitter_ports.vert`
+- `glitter_bbox.vert`
 
 These GLSL sources remain packaged for the OpenGL fallback. The Metal
-`SHADER_radialblurGPU` route now computes equivalent input and bbox expansion in
-CPU code before rendering through the Metal helper.
+`SHADER_HSLBlendGPU`, `SHADER_radialblurGPU`, `SHADER_spinblurGPU`, and
+`SHADER_glitter` routes now compute equivalent input and bbox expansion in CPU
+code before rendering through their Metal helpers.
 
 Current Metal shader source:
 
@@ -430,11 +436,14 @@ connected, detached renderer, `ToonzScene`/`buildSceneFx(...)` scene-render,
 and saved-and-reloaded `.tnz` scene-render coverage, and its Metal route now
 uses CPU-side bbox/input geometry expansion. `spinblurGPU` now has the same
 direct connected, detached renderer, `ToonzScene`/`buildSceneFx(...)`
-scene-render, and saved-and-reloaded `.tnz` scene-render coverage. Continue by
-replacing the remaining transform-feedback bbox/port shaders with
-backend-neutral CPU or Metal buffer computation for the migrated input-texture
-effects. Keep OpenGL `ShaderFx` as the default until full scene parity is
-broader.
+scene-render, and saved-and-reloaded `.tnz` scene-render coverage, and its
+Metal route now uses CPU-side bbox/input geometry expansion. `glitter` now has
+the same direct connected, detached renderer, `ToonzScene`/`buildSceneFx(...)`
+scene-render, saved-and-reloaded `.tnz` scene-render coverage, and CPU-side
+bbox/input geometry expansion. Continue by broadening input-texture ShaderFx
+coverage beyond these hand-routed effects and by moving preview/export and
+style-editor surfaces through `tgraphics`. Keep OpenGL `ShaderFx` as the
+default until full scene parity is broader.
 
 ## Validation Run
 
@@ -545,6 +554,6 @@ matches a CPU formula reference, and that the production OpenGL and Metal
 `ShaderFx` outputs match
 within tolerance for all five no-input migrated shaders directly, when wrapped
 through `ToonzScene`/`buildSceneFx(...)`, and after saving and reloading minimal
-`.tnz` scene fixtures. It does not yet cover the remaining transform-feedback
-bbox/ports shaders beyond the current input-texture bypasses, an actual generated
+`.tnz` scene fixtures. It does not yet cover additional non-migrated
+input-texture shaders beyond the current hand-routed subset, an actual generated
 `.metallib` artifact, or full GUI preview/export scene renders.
