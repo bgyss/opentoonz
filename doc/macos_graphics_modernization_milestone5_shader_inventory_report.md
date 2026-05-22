@@ -230,6 +230,10 @@ arrow/label line art from direct immediate-mode `GL_LINE_STRIP`/`GL_LINE_LOOP`
 to `DrawList2D` color-line commands with explicit caller colors. Picking and 3D
 arrow body drawing remain on the existing OpenGL paths.
 
+The scene-viewer FPS graph checkpoint moves the debug FPS graph panel from
+direct `glRectd(...)`, `GL_LINE_STRIP`, and `GL_LINES` drawing to `DrawList2D`
+color-rect and color-line commands in the existing identity screen transform.
+
 ## Files Changed
 
 - `scripts/graphics_shader_inventory.sh`
@@ -702,7 +706,9 @@ emit `tgraphics` color-line commands instead of immediate-mode `GL_LINES`.
 Shared plain tool rectangles, filled rectangles, and square outlines now also
 emit `tgraphics` color commands. Edit-tool shear-handle visible outlines now
 also emit `tgraphics` color-line commands. Edit-tool camera and Z-translation
-icons now also emit `tgraphics` color-line commands.
+icons now also emit `tgraphics` color-line commands. Scene-viewer FPS graph
+panels now emit `tgraphics` color commands instead of direct immediate-mode
+drawing.
 Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
 effects and by moving the remaining preview/export and style-editor surfaces
 through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene

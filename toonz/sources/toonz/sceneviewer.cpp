@@ -2677,7 +2677,6 @@ void SceneViewer::drawViewerIndicators() {
 //-----------------------------------------------------------------------------
 
 static void drawFpsGraph(int t0, int t1) {
-  glDisable(GL_BLEND);
   static std::deque<std::pair<int, int>> times;
   times.push_back(std::make_pair(t0, t1));
   while (times.size() > 200) times.pop_front();
@@ -2686,33 +2685,25 @@ static void drawFpsGraph(int t0, int t1) {
   double y1 = y0 + 150;
   glPushMatrix();
   glLoadIdentity();
-  glColor3d(0, 0, 0);
-  glRectd(x0, y0, x1, y1);
-  glColor3d(0, 0.5, 1);
-  glBegin(GL_LINE_STRIP);
-  glVertex2d(x0, y0);
-  glVertex2d(x1, y0);
-  glVertex2d(x1, y1);
-  glVertex2d(x0, y1);
-  glVertex2d(x0, y0);
-  glEnd();
-  glColor3d(0.5, 0.5, 0.5);
-  glBegin(GL_LINES);
+
+  TGraphics::DrawList2D drawList;
+  drawList.addColorRect(TRectD(x0, y0, x1, y1), TPixel32::Black, false);
+  appendRectOutline(drawList, TRectD(x0, y0, x1, y1), TPixel32(0, 128, 255));
   for (int y = y0 + 5; y < y1; y += 20) {
-    glVertex2d(x0, y);
-    glVertex2d(x1, y);
+    drawList.addColorLine(TPointD(x0, y), TPointD(x1, y),
+                          TPixel32(128, 128, 128), false);
   }
   int i = 0;
   for (const auto& time : times) {
     double x = x1 - i++;
-    glColor3d(1, 0, 0);
-    glVertex2d(x, y0);
-    glVertex2d(x, y0 + 5 + time.first / 5);
-    glColor3d(0, 1, 0);
-    glVertex2d(x, y0 + 5 + time.first / 5);
-    glVertex2d(x, y0 + 5 + time.second / 5);
+    const double splitY = y0 + 5 + time.first / 5;
+    drawList.addColorLine(TPointD(x, y0), TPointD(x, splitY),
+                          TPixel32::Red, false);
+    drawList.addColorLine(TPointD(x, splitY),
+                          TPointD(x, y0 + 5 + time.second / 5),
+                          TPixel32::Green, false);
   }
-  glEnd();
+  TGraphics::drawWithOpenGLBackend(drawList);
   glPopMatrix();
 }
 
