@@ -153,7 +153,7 @@ void DVAPI getStrokeStyleInformationInArea(
 //*********************************************************************************************
 
 /*!
-  \brief    Temporary class used to deal with QTBUG #7556 - QGLWidgets going
+  \brief    Temporary class used to deal with QTBUG #7556 - OpenGL widgets going
   fullscreen \a need
             a containing widget that leaves a small margin to prevent the widget
   from covering other

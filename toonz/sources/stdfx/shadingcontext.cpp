@@ -128,9 +128,9 @@ ShadingContext::ShadingContext(QOffscreenSurface *surface) : m_imp(new Imp) {
 //--------------------------------------------------------
 
 ShadingContext::~ShadingContext() {
-  // Destructor of QGLPixelBuffer calls QOpenGLContext::makeCurrent()
+  // Destructor of the OpenGL context calls QOpenGLContext::makeCurrent()
   // internally,
-  // so the current thread must be the owner of QGLPixelBuffer context,
+  // so the current thread must be the owner of the OpenGL context,
   // when the destructor of m_imp->m_context is called.
   m_imp->m_context->moveToThread(QThread::currentThread());
 }

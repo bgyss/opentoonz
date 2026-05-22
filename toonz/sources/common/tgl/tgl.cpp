@@ -20,7 +20,7 @@
 #endif
 
 #if defined(MACOSX) || defined(LINUX) || defined(FREEBSD) || defined(HAIKU)
-#include <QGLContext>
+#include <QOpenGLContext>
 #endif
 
 //#include "tthread.h"
@@ -601,22 +601,19 @@ void tglDoneCurrent(TGlContext) { wglMakeCurrent(NULL, NULL); }
 #elif defined(LINUX) || defined(FREEBSD) || defined(__sgi) || defined(MACOSX) || defined(HAIKU)
 
 TGlContext tglGetCurrentContext() {
-  return reinterpret_cast<TGlContext>(
-      const_cast<QGLContext *>(QGLContext::currentContext()));
-
-  // (Daniele) I'm not sure why QGLContext::currentContext() returns
-  // const. I think it shouldn't, and guess (hope) this is safe...
+  return reinterpret_cast<TGlContext>(QOpenGLContext::currentContext());
 }
 
 void tglMakeCurrent(TGlContext context) {
-  if (context)
-    reinterpret_cast<QGLContext *>(context)->makeCurrent();
-  else
+  if (context) {
+    QOpenGLContext *glContext = reinterpret_cast<QOpenGLContext *>(context);
+    if (glContext->surface()) glContext->makeCurrent(glContext->surface());
+  } else
     tglDoneCurrent(tglGetCurrentContext());
 }
 
 void tglDoneCurrent(TGlContext context) {
-  if (context) reinterpret_cast<QGLContext *>(context)->doneCurrent();
+  if (context) reinterpret_cast<QOpenGLContext *>(context)->doneCurrent();
 }
 
 #else

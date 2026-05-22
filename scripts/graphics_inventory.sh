@@ -13,10 +13,25 @@ if [[ ! -d "$ROOT" ]]; then
   exit 1
 fi
 
+RG_CODE_GLOBS=(
+  --glob '*.c'
+  --glob '*.cc'
+  --glob '*.cpp'
+  --glob '*.cxx'
+  --glob '*.h'
+  --glob '*.hh'
+  --glob '*.hpp'
+  --glob '*.m'
+  --glob '*.mm'
+  --glob '*.frag'
+  --glob '*.glsl'
+  --glob '*.metal'
+)
+
 count_files() {
   local pattern="$1"
   local matches
-  matches="$(rg -l -e "$pattern" "$ROOT" || true)"
+  matches="$(rg "${RG_CODE_GLOBS[@]}" -l -e "$pattern" "$ROOT" || true)"
   if [[ -z "$matches" ]]; then
     echo 0
   else
@@ -27,7 +42,7 @@ count_files() {
 count_matches() {
   local pattern="$1"
   local matches
-  matches="$(rg -n -e "$pattern" "$ROOT" || true)"
+  matches="$(rg "${RG_CODE_GLOBS[@]}" -n -e "$pattern" "$ROOT" || true)"
   if [[ -z "$matches" ]]; then
     echo 0
   else
@@ -60,7 +75,7 @@ print_metric "OpenGL selection" 'gl(RenderMode|SelectBuffer|InitNames|PushName|P
 
 echo
 echo "Top files by graphics marker matches:"
-top_matches="$(rg -n -e "$combined_pattern" "$ROOT" || true)"
+top_matches="$(rg "${RG_CODE_GLOBS[@]}" -n -e "$combined_pattern" "$ROOT" || true)"
 if [[ -z "$top_matches" ]]; then
   echo "  none"
 else

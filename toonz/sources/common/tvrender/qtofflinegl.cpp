@@ -125,40 +125,6 @@ void QtOfflineGL::createContext(TDimension rasterSize,
 
 */
 
-  QGLFormat fmt;
-
-#if defined(_WIN32)
-  fmt.setAlphaBufferSize(8);
-  fmt.setAlpha(true);
-  fmt.setRgba(true);
-  fmt.setDepthBufferSize(32);
-  fmt.setDepth(true);
-  fmt.setStencilBufferSize(32);
-  fmt.setStencil(true);
-  fmt.setAccum(false);
-  fmt.setPlane(0);
-#elif defined(MACOSX)
-  fmt = QGLFormat::defaultFormat();
-  // printf("GL Version: %s\n",glGetString(GL_VERSION));
-  fmt.setVersion(2, 1); /* 3.2 might not work on OSX10.8 */
-#if 0
-  fmt.setAlphaBufferSize(8);
-  fmt.setAlpha(true);
-  fmt.setRgba(true);
-  fmt.setDepthBufferSize(32);
-  fmt.setDepth(true);
-  fmt.setStencilBufferSize(8);
-  fmt.setStencil(true);
-  fmt.setAccum(false);
-  fmt.setPlane(0);
-  fmt.setDirectRendering(false);
-#endif
-#elif defined(LINUX) || defined(FREEBSD)
-  fmt = QGLFormat::defaultFormat();
-  // printf("GL Version: %s\n",glGetString(GL_VERSION));
-  fmt.setVersion(2, 1); /* XXX? */
-#endif
-
   QSurfaceFormat format;
   format.setProfile(QSurfaceFormat::CompatibilityProfile);
 
@@ -205,7 +171,7 @@ void QtOfflineGL::doneCurrent() {
 //-----------------------------------------------------------------------------
 
 void QtOfflineGL::saveCurrentContext() {
-  //  m_oldContext = const_cast<QGLContext*>(QGLContext::currentContext());
+  //  m_oldContext = QOpenGLContext::currentContext();
 }
 
 //-----------------------------------------------------------------------------
@@ -227,148 +193,5 @@ void QtOfflineGL::getRaster(TRaster32P raster) {
   raster->lock();
   raster->copy(TRaster32P(lx, ly, m_fbo->width(),
                           (TPixelRGBM32 *)m_fbo->toImage(false).bits(), false));
-  raster->unlock();
-}
-
-// QGLPixelBuffer::hasOpenGLPbuffers() (statica) -> true se la scheda supporta i
-// PBuffer
-
-//=============================================================================
-// QtOfflineGLPBuffer : implem. offlineGL usando QT e PBuffer
-//-----------------------------------------------------------------------------
-
-QtOfflineGLPBuffer::QtOfflineGLPBuffer(TDimension rasterSize)
-    : TOfflineGL::Imp(rasterSize.lx, rasterSize.ly), m_context(0) {
-  createContext(rasterSize);
-
-  makeCurrent();
-
-  glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-  glClear(GL_COLOR_BUFFER_BIT);
-
-  doneCurrent();
-}
-
-//-----------------------------------------------------------------------------
-
-QtOfflineGLPBuffer::~QtOfflineGLPBuffer() {}
-
-//-----------------------------------------------------------------------------
-
-void QtOfflineGLPBuffer::createContext(TDimension rasterSize) {
-  // Imposto il formato dei Pixel (pixelFormat)
-  /*
-32,                    // 32-bit color depth
-0, 0, 0, 0, 0, 0,      // color bits ignored
-8,                     // no alpha buffer
-0,                     // shift bit ignored
-0,                     // no accumulation buffer
-0, 0, 0, 0,            // accum bits ignored
-32,                    // 32-bit z-buffer
-32,                    // max stencil buffer
-0,                     // no auxiliary buffer
-PFD_MAIN_PLANE,        // main layer
-0,                     // reserved
-0, 0, 0                // layer masks ignored
-
-ATTENZIONE !! SU MAC IL FORMATO E' DIVERSO (casomai possiamo mettere un ifdef)
-
-SPECIFICHE  MAC = depth_size 24, stencil_size 8, alpha_size 1
-
-*/
-
-  QGLFormat fmt;
-
-#if defined(_WIN32)
-  fmt.setAlphaBufferSize(8);
-  fmt.setAlpha(false);
-  fmt.setRgba(true);
-  fmt.setDepthBufferSize(32);
-  fmt.setDepth(true);
-  fmt.setStencilBufferSize(32);
-  fmt.setStencil(true);
-  fmt.setAccum(false);
-  fmt.setPlane(0);
-#elif defined(MACOSX)
-  fmt.setAlphaBufferSize(1);
-  fmt.setAlpha(false);
-  fmt.setRgba(true);
-  fmt.setDepthBufferSize(24);
-  fmt.setDepth(true);
-  fmt.setStencilBufferSize(8);
-  fmt.setStencil(true);
-  fmt.setAccum(false);
-  fmt.setPlane(0);
-#elif defined(LINUX) || defined(FREEBSD)
-  fmt.setAlphaBufferSize(1);
-  fmt.setAlpha(false);
-  fmt.setRgba(true);
-  fmt.setDepthBufferSize(24);
-  fmt.setDepth(true);
-  fmt.setStencilBufferSize(8);
-  fmt.setStencil(true);
-  fmt.setAccum(false);
-  fmt.setPlane(0);
-#endif
-
-  // Il PixelBuffer deve essere con width ed height potenze di 2
-
-  int sizeMax = std::max(rasterSize.lx, rasterSize.ly);
-
-  // trovo la potenza di 2 che "contiene" sizeMax e la utilizzo per il PBuffer
-  int pBufferSize = 2;
-  while (pBufferSize < sizeMax) pBufferSize *= 2;
-
-  m_context =
-      std::make_shared<QGLPixelBuffer>(QSize(pBufferSize, pBufferSize), fmt);
-}
-
-//-----------------------------------------------------------------------------
-
-void QtOfflineGLPBuffer::makeCurrent() {
-  if (m_context) {
-    m_context->makeCurrent();
-  }
-}
-
-//-----------------------------------------------------------------------------
-
-void QtOfflineGLPBuffer::doneCurrent() {
-  if (m_context) m_context->doneCurrent();
-}
-
-//-----------------------------------------------------------------------------
-
-void QtOfflineGLPBuffer::getRaster(TRaster32P raster) {
-  makeCurrent();
-  glFlush();
-
-  // The image is stored using a 32-bit ARGB format (0xAARRGGBB).
-  QImage image = m_context->toImage();
-
-  int lx = raster->getLx(), ly = raster->getLy();
-
-  static const TRaster32P emptyRaster;
-  if (image.height() == 0 || image.width() == 0) return;
-
-  // devo iniziare a leggere la Y da un certo offset
-  // dato dalla differenza tra la y della image e la y del raster
-  int yOffset = image.height() - ly;
-  raster->lock();
-
-  for (int y = 0; y < ly; y++) {
-    QRgb *inpPix = (QRgb *)image.scanLine(yOffset + y);
-
-    TPixel32 *pix    = raster->pixels(ly - 1 - y);
-    TPixel32 *endPix = pix + lx;
-
-    for (; pix < endPix; ++pix) {
-      pix->m = 255;
-      pix->r = qRed(*inpPix);
-      pix->g = qGreen(*inpPix);
-      pix->b = qBlue(*inpPix);
-      inpPix++;
-    }
-  }
   raster->unlock();
 }

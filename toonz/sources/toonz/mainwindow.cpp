@@ -52,7 +52,7 @@
 #include <QStackedWidget>
 #include <QSettings>
 #include <QApplication>
-#include <QGLPixelBuffer>
+#include <QOpenGLFramebufferObject>
 #include <QDebug>
 #include <QDesktopServices>
 #include <QButtonGroup>
@@ -1485,7 +1485,7 @@ void MainWindow::onMenuCheckboxChanged() {
   else if (cm->getAction(MI_FieldGuide) == action)
     FieldGuideToggleAction = isChecked;
   else if (cm->getAction(MI_RasterizePli) == action) {
-    if (!QGLPixelBuffer::hasOpenGLPbuffers()) isChecked = 0;
+    if (!QOpenGLFramebufferObject::hasOpenGLFramebufferObjects()) isChecked = 0;
     RasterizePliToggleAction = isChecked;
   } else if (cm->getAction(MI_SafeArea) == action)
     SafeAreaToggleAction = isChecked;
@@ -2462,7 +2462,7 @@ void MainWindow::defineActions() {
   createToggle(MI_VectorGuidedDrawing, QT_TR_NOOP("Vector Guided Drawing"), "",
                Preferences::instance()->isGuidedDrawingEnabled(),
                MenuViewCommandType, "view_guided_drawing");
-  if (QGLPixelBuffer::hasOpenGLPbuffers())
+  if (QOpenGLFramebufferObject::hasOpenGLFramebufferObjects())
     createToggle(MI_RasterizePli, QT_TR_NOOP("&Visualize Vector As Raster"), "",
                  RasterizePliToggleAction ? 1 : 0, MenuViewCommandType,
                  "view_vector_as_raster");

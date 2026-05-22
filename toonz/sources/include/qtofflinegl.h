@@ -6,9 +6,6 @@
 #include <memory>
 
 #include <QtOpenGL>
-#include <QGLFormat>
-#include <QGLContext>
-#include <QGLPixelBuffer>
 #include <QOpenGLFramebufferObject>
 
 #include "tofflinegl.h"
@@ -30,22 +27,6 @@ public:
 
   void saveCurrentContext();
   void restoreCurrentContext();
-
-  void getRaster(TRaster32P raster) override;
-};
-
-//-----------------------------------------------------------------------------
-
-class QtOfflineGLPBuffer final : public TOfflineGL::Imp {
-public:
-  std::shared_ptr<QGLPixelBuffer> m_context;
-
-  QtOfflineGLPBuffer(TDimension rasterSize);
-  ~QtOfflineGLPBuffer();
-
-  void createContext(TDimension rasterSize);
-  void makeCurrent() override;
-  void doneCurrent() override;
 
   void getRaster(TRaster32P raster) override;
 };

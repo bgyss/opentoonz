@@ -1422,7 +1422,7 @@ void ImageViewer::adaptView(const QRect &geomRect) {
 void ImageViewer::doSwapBuffers() { glFlush(); }
 
 void ImageViewer::changeSwapBehavior(bool enable) {
-  // do nothing for now as setUpdateBehavior is not available with QGLWidget
+  // do nothing for now as setUpdateBehavior is not available here
   // setUpdateBehavior(enable ? PartialUpdate : NoPartialUpdate);
 }
 

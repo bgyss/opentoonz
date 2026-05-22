@@ -85,7 +85,6 @@
 #include <QApplication>
 #include <QScreen>
 #include <QInputMethod>
-#include <QGLContext>
 #include <QOpenGLFramebufferObject>
 #include <QMainWindow>
 
@@ -2029,7 +2028,7 @@ static void drawFpsGraph(int t0, int t1) {
 void SceneViewer::paintGL() {
 #ifdef _DEBUG
   if (!check_framebuffer_status()) {
-    /* QGLWidget's widget creation/destruction timing (depending on platform?)
+    /* OpenGL widget creation/destruction timing (depending on platform?)
      * seems to call paintGL() with GL_FRAMEBUFFER_UNDEFINED */
     return;
   }
@@ -3175,7 +3174,7 @@ void SceneViewer::onToolChanged() {
 
 int SceneViewer::pick(const TPointD &point) {
   // pick is typically called in a mouse event handler.
-  // QGLWidget::makeCurrent() is not automatically called in these events.
+  // makeCurrent() is not automatically called in these events.
   // (to exploit the bug: open the FxEditor preview and then select the edit
   // tool)
   m_isPicking = true;

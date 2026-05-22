@@ -75,7 +75,7 @@
 #include <QAbstractEventDispatcher>
 #include <QAbstractNativeEventFilter>
 #include <QSplashScreen>
-#include <QGLPixelBuffer>
+#include <QSurfaceFormat>
 #include <QTranslator>
 #include <QFileInfo>
 #include <QSettings>
@@ -478,15 +478,15 @@ if (QFileInfo(localSplashPath).exists() && QFileInfo(localSplashPath).isFile()) 
   if (!isRunScript) splash.show();
   a.processEvents();
 
-  splash.showMessage(offsetStr + "Initializing QGLFormat...", Qt::AlignCenter,
-                     Qt::white);
+  splash.showMessage(offsetStr + "Initializing OpenGL surface...",
+                     Qt::AlignCenter, Qt::white);
   a.processEvents();
 
   // OpenGL
-  QGLFormat fmt;
-  fmt.setAlpha(true);
-  fmt.setStencil(true);
-  QGLFormat::setDefaultFormat(fmt);
+  QSurfaceFormat fmt = QSurfaceFormat::defaultFormat();
+  fmt.setAlphaBufferSize(8);
+  fmt.setStencilBufferSize(8);
+  QSurfaceFormat::setDefaultFormat(fmt);
 
 #ifndef __HAIKU__
   glutInit(&argc, argv);

@@ -66,7 +66,7 @@ class QOpenGLShaderProgram;
   that the loading process succeeds.
 
   A loaded ShaderInterface allows access to shader parameters and
-  acts as a factory object to compiled QGLShaderProgram instances.
+  acts as a factory object to compiled QOpenGLShaderProgram instances.
 */
 class DVAPI ShaderInterface final : public TPersist {
 public:  // Enums

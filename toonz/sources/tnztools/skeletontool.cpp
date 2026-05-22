@@ -39,7 +39,6 @@
 // Qt includes
 #include <QCoreApplication>  // Qt translation support
 #include <QPainter>
-#include <QGLWidget>  // for QGLWidget::convertToGLFormat
 #include <QPainterPath>
 #include <QString>
 #include <QImage>
@@ -62,6 +61,12 @@ TEnv::IntVar SkeletonInverseKinematics("SkeletonToolInverseKinematics", 0);
 const double alpha = 0.4;
 
 using SkeletonSubtools::HookData;
+
+//============================================================
+
+static QImage convertToGLDrawPixelsFormat(const QImage &image) {
+  return image.convertToFormat(QImage::Format_RGBA8888).mirrored();
+}
 
 //============================================================
 
@@ -1351,7 +1356,7 @@ void SkeletonTool::drawDrawingBrowser(const TXshCell &cell,
       imgPainter.drawPath(dnArrow);
     }
 
-    QImage texture = QGLWidget::convertToGLFormat(img);
+    QImage texture = convertToGLDrawPixelsFormat(img);
 
     glRasterPos2f(p.x, p.y);
     // glBitmap(0,0,0,0,  0,-size.height()+(y+delta.y),  NULL); //
@@ -1411,7 +1416,7 @@ void SkeletonTool::drawMainGadget(const TPointD &center) {
 
   p.setBrush(QColor(54, 213, 54));
   p.drawRect(6, 6, 6, 6);
-  QImage texture = QGLWidget::convertToGLFormat(img);
+  QImage texture = convertToGLDrawPixelsFormat(img);
   // texture.save("c:\\urka.png");
 
   glRasterPos2f(center.x + r * 1.1, center.y - r * 1.1);

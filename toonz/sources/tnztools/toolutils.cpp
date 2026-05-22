@@ -47,7 +47,7 @@
 
 #include <QPainter>
 #include <QPainterPath>
-#include <QGLWidget>  // for QGLWidget::convertToGLFormat
+#include <QImage>
 #include <QFont>
 #include <QFontMetrics>
 
@@ -56,6 +56,10 @@
 //****************************************************************************************
 
 namespace {
+
+QImage convertToGLDrawPixelsFormat(const QImage &image) {
+  return image.convertToFormat(QImage::Format_RGBA8888).mirrored();
+}
 
 //! Riempie il vettore \b theVect con gli indici degli stroke contenuti nel
 //! mapping \b theMap.
@@ -1684,7 +1688,7 @@ void ToolUtils::drawBalloon(const TPointD &pos, std::string text,
   p.setFont(font);
   p.drawText(textRect, Qt::AlignCenter | Qt::TextDontClip, qText);
 
-  QImage texture = QGLWidget::convertToGLFormat(label);
+  QImage texture = convertToGLDrawPixelsFormat(label);
 
   glRasterPos2f(pos.x, pos.y);
   glBitmap(0, 0, 0, 0, 0, -size.height() + (y + delta.y), NULL);  //
@@ -1738,7 +1742,7 @@ void ToolUtils::drawHook(const TPointD &pos, ToolUtils::HookType type,
     painter.drawLine(r, 0, r, d);
   }
 
-  QImage texture = QGLWidget::convertToGLFormat(image);
+  QImage texture = convertToGLDrawPixelsFormat(image);
   glRasterPos2f(pos.x, pos.y);
   glBitmap(0, 0, 0, 0, -r * devPixRatio, -r * devPixRatio, NULL);
   glEnable(GL_BLEND);
