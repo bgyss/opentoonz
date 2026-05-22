@@ -888,15 +888,11 @@ void EditTool::mouseMove(const TPointD &, const TMouseEvent &e) {
   /*-- Pick screen only when the FxGadget is displayed or
        when the "All" axis is selected. --*/
   int selectedDevice = -1;
-  const bool useCpuPicking = m_activeAxis.getValue() == L"All";
-  if (useCpuPicking) {
-    if (m_fxGadgetController->hasGadget())
-      selectedDevice = m_fxGadgetController->pickCpu(e.m_pos);
-    if (selectedDevice < 0) selectedDevice = pickMainHandleCpu(e.m_pos);
-  }
-  if (selectedDevice < 0 && !useCpuPicking &&
-      (m_fxGadgetController->hasGadget() || m_activeAxis.getValue() == L"All"))
-    selectedDevice = pick(e.m_pos);
+  const bool hasFxGadget = m_fxGadgetController->hasGadget();
+  const bool useMainHandleCpu = m_activeAxis.getValue() == L"All";
+  if (hasFxGadget) selectedDevice = m_fxGadgetController->pickCpu(e.m_pos);
+  if (selectedDevice < 0 && useMainHandleCpu)
+    selectedDevice = pickMainHandleCpu(e.m_pos);
 
   if (selectedDevice <= 0) {
     selectedDevice = m_what;

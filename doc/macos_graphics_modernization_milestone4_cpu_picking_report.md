@@ -19,6 +19,8 @@ viewer paths that have not yet been migrated.
 - Removed the Metal-backend gate from Edit Tool "All" axis picking.
 - Edit Tool handle and FX-gadget hover/down picking now uses existing CPU hit
   tests on both OpenGL and Metal backends.
+- Edit Tool FX gadget hover picking now uses the existing CPU hit tests even
+  outside the "All" active-axis mode.
 - Removed the now-unneeded `tgraphics.h` include from `edittool.cpp`.
 - Removed the Metal-backend gate from Skeleton Tool picking in non-3D views.
 - Skeleton Tool hover/down/up picking now uses existing CPU hit tests for 2D
