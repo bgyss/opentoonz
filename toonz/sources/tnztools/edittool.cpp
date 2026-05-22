@@ -901,8 +901,7 @@ void EditTool::mouseMove(const TPointD &, const TMouseEvent &e) {
       selectedDevice = m_fxGadgetController->pickCpu(e.m_pos);
     if (selectedDevice < 0) selectedDevice = pickMainHandleCpu(e.m_pos);
   }
-  if (selectedDevice < 0 && (!useMetalCpuPicking ||
-                             m_fxGadgetController->hasGadget()) &&
+  if (selectedDevice < 0 && !useMetalCpuPicking &&
       (m_fxGadgetController->hasGadget() || m_activeAxis.getValue() == L"All"))
     selectedDevice = pick(e.m_pos);
 
@@ -1026,8 +1025,7 @@ void EditTool::onEditAllLeftButtonDown(TPointD &pos, const TMouseEvent &e) {
           : -1;
   if (useMetalCpuPicking && selectedDevice < 0)
     selectedDevice = pickMainHandleCpu(e.m_pos);
-  if (selectedDevice < 0 &&
-      (!useMetalCpuPicking || m_fxGadgetController->hasGadget()))
+  if (selectedDevice < 0 && !useMetalCpuPicking)
     selectedDevice = pick(e.m_pos);
   m_what             = selectedDevice >= 0 ? selectedDevice : Translation;
 

@@ -62,6 +62,9 @@ before porting scene internals.
 - `toonz/sources/toonzlib/stagevisitor.cpp`
 - `toonz/sources/toonz/sceneviewer.cpp`
 - `toonz/sources/toonz/sceneviewer.h`
+- `toonz/sources/tnztools/edittool.cpp`
+- `toonz/sources/tnztools/edittoolgadgets.cpp`
+- `toonz/sources/tnztools/skeletontool.cpp`
 
 ## Changes
 
@@ -215,15 +218,14 @@ before porting scene internals.
   scale, horizontal/vertical scale, and shear handles can be selected without
   entering `GL_SELECT`. The CPU main-handle picker now also skips non-zerary FX
   editing when the main handles are intentionally hidden.
-- Point-style FX gadget handles now have a first CPU picker under Metal before
-  legacy name-picking fallback. Unsupported FX gadget shapes still fall back to
-  the legacy OpenGL pick path until each shape gets its own CPU or ID-buffer
-  picker.
+- Point-style FX gadget handles now have a CPU picker under Metal, and Edit
+  Tool Metal picking no longer deliberately falls back to legacy OpenGL
+  name-picking when a visible FX gadget misses the CPU hit test.
 - Simple geometric FX gadgets now extend that Metal CPU picker to radius,
   distance, angle, angle-range, diamond, size, rectangle, polar, linear-range,
   rainbow-width, quad, compass, ellipse, vertical-position, and parallelogram
-  handles. Remaining specialized gadget gaps are documented as follow-up
-  Metal picking work.
+  handles. `VectorFxGadget` remains visual-only and does not publish selectable
+  OpenGL names in the legacy path.
 - Skeleton Tool animate and inverse-kinematics modes now have a first CPU
   picker under Metal for center, translation, drawing-browser, and IK lock
   handles. Build Skeleton mode also routes through CPU picking for center,
