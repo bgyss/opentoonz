@@ -44,11 +44,15 @@ active backend is Metal, both input ports are connected, and the output tile is
 32-bit RGBA.
 
 The offscreen checkpoint adds `tofflinegl_probe`, a small macOS validation
-target for the current `TOfflineGL`/`QtOfflineGL` preview-export baseline. It
-constructs an offscreen target, clears it through the existing OpenGL path, and
-verifies readback pixels. This does not remove the OpenGL dependency, but it
-creates a focused regression target for replacing the path with `tgraphics` and
-Metal.
+target for the current `TOfflineGL`/`QtOfflineGL` preview-export baseline and
+the first matching `tgraphics` offscreen target. It constructs an offscreen
+target, clears it through the existing OpenGL path, verifies readback pixels,
+then renders the same clear/readback through the active `tgraphics` backend.
+With `OPENTOONZ_GRAPHICS_BACKEND=metal`, the probe proves the Metal image
+render target matches the legacy OpenGL baseline for this narrow offscreen
+case. This does not remove the OpenGL dependency from mixed vector/stage
+rendering callers yet, but it creates a focused regression target for replacing
+those paths with `tgraphics` and Metal.
 
 The style-editor checkpoint removes the `HexagonalColorWheel` dependency on
 `QOpenGLWidget`, `QOpenGLFramebufferObject`, and `QOpenGLPaintDevice`. The
@@ -502,6 +506,10 @@ nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --targ
 nix develop path:. --command toonz/build/nix-relwithdebinfo/toonzqt/styleeditor_colorwheel_probe
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tofflinegl_probe --parallel 3
 nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tofflinegl_probe
+nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=ON'
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tofflinegl_probe tgraphics_metal_probe --parallel 3
+nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/tnzcore/tofflinegl_probe'
+nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=OFF'
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target OpenToonz --parallel 3
 nix develop path:. --command bash scripts/macos/assert-arm64-bundle.sh
@@ -560,7 +568,9 @@ shaderfx_metal_probe: ok shader=SHADER_HSLBlendGPU backend=metal device=Apple M1
 graphics_shaderfx_compare: ok
 toonzqt/libtoonzqt.dylib linked after style editor color wheel migration
 styleeditor_colorwheel_probe: ok
-tofflinegl_probe: ok
+tofflinegl_probe: ok backend=opengl
+tofflinegl_probe: ok backend=metal
+tgraphics_metal_probe: ok on Apple M1 Max
 Checked 281 Mach-O files for arm64.
 WITH_GRAPHICS_METAL:BOOL=OFF
 ```
@@ -592,6 +602,9 @@ input-texture shaders beyond the current hand-routed subset, an actual generated
 editor validation now includes the build target plus a rendered color-wheel
 pixel probe, but a manual GUI smoke should still open the style editor, drag
 inside the hexagonal color wheel, and repeat with color calibration enabled on
-a macOS desktop. The `TOfflineGL` offscreen validation is still an OpenGL
-baseline probe; a follow-up must route preview/export offscreen rendering
-through `tgraphics`/Metal and compare its readback against this baseline.
+a macOS desktop. The `TOfflineGL` offscreen validation now compares the legacy
+OpenGL clear/readback baseline to `tgraphics` OpenGL and Metal image-render
+targets for the first narrow offscreen case. A follow-up must move mixed
+vector/stage preview-export drawing off direct `TOfflineGL::makeCurrent()` raw
+OpenGL calls and onto `DrawList2D`/Metal before the broader preview/export
+surface can be considered migrated.
