@@ -155,6 +155,9 @@ before porting scene internals.
 - The probe now includes a modulated texture-quad case that draws a half-alpha
   explicit texture quad over a solid base and validates Metal/OpenGL readback
   parity.
+- The probe now accepts `--write-images <dir>` to save deterministic
+  `*_metal.png`, `*_opengl.png`, and amplified `*_diff.png` artifacts for every
+  validated Metal/OpenGL probe case.
 - Added `tgraphics_metal_shaders.metal` to keep the minimal vertex/fragment
   shader source visible in the build tree.
 - Added `tgraphicsColorFragment` to the runtime Metal shader source and the
@@ -239,6 +242,7 @@ git diff --check
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=ON'
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target OpenToonz tgraphics_metal_probe --parallel 3
 nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
+nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe --write-images /private/tmp/opentoonz-metal-probe-images
 nix develop path:. --command bash -lc 'OPENTOONZ_GRAPHICS_BACKEND=metal toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app/Contents/MacOS/OpenToonz >/tmp/opentoonz-metal-smoke.log 2>&1 & pid=$!; sleep 8; ...'
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --parallel 3
 nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=OFF'
@@ -263,6 +267,11 @@ readback parity:
 ```text
 tgraphics_metal_probe: ok on Apple M1 Max
 ```
+
+The image-artifact probe run wrote 24 PNG files under
+`/private/tmp/opentoonz-metal-probe-images`: Metal, OpenGL, and amplified diff
+images for clear, color-rect, checker, color-line, gradient, transformed
+texture, modulated texture, and alpha cases.
 
 ## Manual Smoke
 
@@ -303,6 +312,9 @@ inside the full UI.
   shader packaging is a later Milestone 5/6 concern.
 - The OpenGL baseline target is intentionally narrow and exists for
   `DrawList2D` probe parity; it is not a replacement for `qtofflinegl`.
+- The probe image artifacts cover synthetic `DrawList2D` slices only. They are
+  useful automated evidence for backend parity, but full scene-viewer golden
+  scene captures are still required before completing Milestone 3.
 - `OPENTOONZ_GRAPHICS_BACKEND=metal` still falls back to OpenGL.
 
 ## Next Milestone 3 Work

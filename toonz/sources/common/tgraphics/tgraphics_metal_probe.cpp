@@ -1,7 +1,11 @@
 #include "tgraphics.h"
 
+#include <QDir>
 #include <QGuiApplication>
+#include <QImage>
+#include <QString>
 
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
@@ -23,6 +27,79 @@ void printPixel(const TPixel32& pixel) {
   std::cerr << "rgba=(" << static_cast<int>(pixel.r) << ","
             << static_cast<int>(pixel.g) << "," << static_cast<int>(pixel.b)
             << "," << static_cast<int>(pixel.m) << ")";
+}
+
+QString caseFileStem(const char* caseName) {
+  QString stem = QString::fromLatin1(caseName);
+  stem.replace(' ', '_');
+  return stem;
+}
+
+QImage rasterToImage(const TRaster32P& raster) {
+  if (!raster) return QImage();
+
+  QImage image(raster->getLx(), raster->getLy(), QImage::Format_ARGB32);
+  raster->lock();
+  for (int y = 0; y < raster->getLy(); ++y) {
+    const TPixel32* src = raster->pixels(y);
+    QRgb* dst           = reinterpret_cast<QRgb*>(image.scanLine(y));
+    for (int x = 0; x < raster->getLx(); ++x) {
+      dst[x] = qRgba(src[x].r, src[x].g, src[x].b, src[x].m);
+    }
+  }
+  raster->unlock();
+  return image;
+}
+
+TRaster32P makeDiffRaster(const TRaster32P& a, const TRaster32P& b) {
+  if (!a || !b || a->getLx() != b->getLx() || a->getLy() != b->getLy())
+    return TRaster32P();
+
+  TRaster32P diff(a->getLx(), a->getLy());
+  a->lock();
+  b->lock();
+  diff->lock();
+  for (int y = 0; y < a->getLy(); ++y) {
+    const TPixel32* aLine = a->pixels(y);
+    const TPixel32* bLine = b->pixels(y);
+    TPixel32* dLine       = diff->pixels(y);
+    for (int x = 0; x < a->getLx(); ++x) {
+      const int dr = std::min(std::abs(aLine[x].r - bLine[x].r) * 32, 255);
+      const int dg = std::min(std::abs(aLine[x].g - bLine[x].g) * 32, 255);
+      const int db = std::min(std::abs(aLine[x].b - bLine[x].b) * 32, 255);
+      const int da = std::min(std::abs(aLine[x].m - bLine[x].m) * 32, 255);
+      dLine[x]     = TPixel32(dr, dg, db, da == 0 ? 255 : da);
+    }
+  }
+  diff->unlock();
+  b->unlock();
+  a->unlock();
+  return diff;
+}
+
+bool writeComparisonArtifacts(const char* caseName, const TRaster32P& metal,
+                              const TRaster32P& opengl,
+                              const QString& outputDir) {
+  if (outputDir.isEmpty()) return true;
+  QDir dir(outputDir);
+  if (!dir.exists() && !dir.mkpath(QStringLiteral("."))) {
+    std::cerr << "tgraphics_metal_probe: could not create artifact directory "
+              << outputDir.toStdString() << std::endl;
+    return false;
+  }
+
+  const QString stem       = caseFileStem(caseName);
+  const QImage metalImage  = rasterToImage(metal);
+  const QImage openglImage = rasterToImage(opengl);
+  const QImage diffImage   = rasterToImage(makeDiffRaster(metal, opengl));
+  if (!metalImage.save(dir.filePath(stem + QStringLiteral("_metal.png"))) ||
+      !openglImage.save(dir.filePath(stem + QStringLiteral("_opengl.png"))) ||
+      !diffImage.save(dir.filePath(stem + QStringLiteral("_diff.png")))) {
+    std::cerr << "tgraphics_metal_probe: could not write artifacts for "
+              << caseName << std::endl;
+    return false;
+  }
+  return true;
 }
 
 TPixel32 gradientPixel(int x, int y) {
@@ -190,7 +267,7 @@ bool validateCheckerboard(const TRaster32P& readback, int width, int height,
 }
 
 bool compareRasters(const TRaster32P& metal, const TRaster32P& opengl,
-                    const char* caseName) {
+                    const char* caseName, const QString& artifactDir) {
   if (!metal || !opengl) return false;
   if (metal->getLx() != opengl->getLx() || metal->getLy() != opengl->getLy()) {
     std::cerr << "tgraphics_metal_probe: " << caseName
@@ -221,7 +298,7 @@ bool compareRasters(const TRaster32P& metal, const TRaster32P& opengl,
   }
   metal->unlock();
   opengl->unlock();
-  return true;
+  return writeComparisonArtifacts(caseName, metal, opengl, artifactDir);
 }
 
 bool validateSolidClear(const TRaster32P& readback, int width, int height,
@@ -275,6 +352,19 @@ TRaster32P renderOpenGL(const TGraphics::DrawList2D& drawList, int width,
 int main(int argc, char* argv[]) {
   QGuiApplication app(argc, argv);
 
+  QString artifactDir;
+  for (int i = 1; i < argc; ++i) {
+    const QString arg = QString::fromLocal8Bit(argv[i]);
+    if (arg == QStringLiteral("--write-images")) {
+      if (i + 1 >= argc) return fail("--write-images requires a directory");
+      artifactDir = QString::fromLocal8Bit(argv[++i]);
+    } else {
+      std::cerr << "usage: tgraphics_metal_probe [--write-images DIR]"
+                << std::endl;
+      return EXIT_FAILURE;
+    }
+  }
+
   if (!TGraphics::isMetalBuildEnabled()) {
     return fail("Metal support was not compiled into this build");
   }
@@ -306,7 +396,7 @@ int main(int argc, char* argv[]) {
 
     TRaster32P openGLReadback = renderOpenGL(drawList, width, height);
     if (!openGLReadback) return fail("could not read back clear OpenGL target");
-    if (!compareRasters(readback, openGLReadback, "clear")) {
+    if (!compareRasters(readback, openGLReadback, "clear", artifactDir)) {
       return EXIT_FAILURE;
     }
   }
@@ -346,7 +436,7 @@ int main(int argc, char* argv[]) {
     TRaster32P openGLReadback = renderOpenGL(drawList, width, height);
     if (!openGLReadback)
       return fail("could not read back color rect OpenGL baseline");
-    if (!compareRasters(readback, openGLReadback, "color rect")) {
+    if (!compareRasters(readback, openGLReadback, "color rect", artifactDir)) {
       return EXIT_FAILURE;
     }
   }
@@ -375,7 +465,7 @@ int main(int argc, char* argv[]) {
     TRaster32P openGLReadback = renderOpenGL(drawList, width, height);
     if (!openGLReadback)
       return fail("could not read back checker OpenGL baseline");
-    if (!compareRasters(readback, openGLReadback, "checker")) {
+    if (!compareRasters(readback, openGLReadback, "checker", artifactDir)) {
       return EXIT_FAILURE;
     }
   }
@@ -399,7 +489,7 @@ int main(int argc, char* argv[]) {
     TRaster32P openGLReadback = renderOpenGL(drawList, width, height);
     if (!openGLReadback)
       return fail("could not read back color line OpenGL baseline");
-    if (!compareRasters(readback, openGLReadback, "color line")) {
+    if (!compareRasters(readback, openGLReadback, "color line", artifactDir)) {
       return EXIT_FAILURE;
     }
   }
@@ -424,7 +514,7 @@ int main(int argc, char* argv[]) {
 
     TRaster32P openGLReadback = renderOpenGL(drawList, width, height);
     if (!openGLReadback) return fail("could not read back OpenGL baseline");
-    if (!compareRasters(readback, openGLReadback, "gradient")) {
+    if (!compareRasters(readback, openGLReadback, "gradient", artifactDir)) {
       return EXIT_FAILURE;
     }
   }
@@ -457,7 +547,8 @@ int main(int argc, char* argv[]) {
     TRaster32P openGLReadback = renderOpenGL(drawList, width, height);
     if (!openGLReadback)
       return fail("could not read back transformed texture OpenGL baseline");
-    if (!compareRasters(readback, openGLReadback, "transformed texture")) {
+    if (!compareRasters(readback, openGLReadback, "transformed texture",
+                        artifactDir)) {
       return EXIT_FAILURE;
     }
   }
@@ -490,7 +581,8 @@ int main(int argc, char* argv[]) {
     TRaster32P openGLReadback = renderOpenGL(drawList, width, height);
     if (!openGLReadback)
       return fail("could not read back modulated texture OpenGL baseline");
-    if (!compareRasters(readback, openGLReadback, "modulated texture")) {
+    if (!compareRasters(readback, openGLReadback, "modulated texture",
+                        artifactDir)) {
       return EXIT_FAILURE;
     }
   }
@@ -530,7 +622,7 @@ int main(int argc, char* argv[]) {
     TRaster32P openGLReadback = renderOpenGL(drawList, width, height);
     if (!openGLReadback)
       return fail("could not read back alpha OpenGL baseline");
-    if (!compareRasters(readback, openGLReadback, "alpha")) {
+    if (!compareRasters(readback, openGLReadback, "alpha", artifactDir)) {
       return EXIT_FAILURE;
     }
   }

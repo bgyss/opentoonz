@@ -100,6 +100,21 @@ comparison must report:
 - diff score or manual review result
 - known expected differences
 
+For the current Milestone 3 `DrawList2D` probe coverage, the Metal probe can
+write deterministic Metal/OpenGL/diff PNG artifacts without launching the full
+OpenToonz UI:
+
+```sh
+nix develop path:. --command bash -lc 'cmake -S toonz/sources --preset nix-relwithdebinfo -DWITH_GRAPHICS_METAL=ON'
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tgraphics_metal_probe --parallel 3
+nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe --write-images /private/tmp/opentoonz-metal-probe-images
+find /private/tmp/opentoonz-metal-probe-images -maxdepth 1 -type f -name '*.png' | sort
+```
+
+The probe writes one `*_metal.png`, one `*_opengl.png`, and one amplified
+`*_diff.png` for each validated case. Treat these as renderer-slice evidence,
+not as a substitute for full scene-viewer golden scenes.
+
 ## Manual Smoke Matrix
 
 Run this matrix for both OpenGL fallback and Metal when the Metal backend exists:
