@@ -2198,18 +2198,13 @@ void SceneViewer::paintGL() {
   // Freeze is active and in 'normal' state: show the grabbed image.
   if (m_freezedStatus == NORMAL_FREEZED) {
     assert(!!m_viewGrabImage);
-    m_viewGrabImage->lock();
     glPushMatrix();
     glLoadIdentity();
 
-    glRasterPos2d(0, 0);
-    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-
-    glDrawPixels(m_viewGrabImage->getLx(), m_viewGrabImage->getLy(), TGL_FMT,
-                 TGL_TYPE, m_viewGrabImage->getRawData());
+    tglDraw(TRectD(0, 0, m_viewGrabImage->getLx(), m_viewGrabImage->getLy()),
+            m_viewGrabImage, false);
 
     glPopMatrix();
-    m_viewGrabImage->unlock();
 
     if (!m_isPicking && m_lutCalibrator && m_lutCalibrator->isValid())
       m_lutCalibrator->onEndDraw(m_fbo);

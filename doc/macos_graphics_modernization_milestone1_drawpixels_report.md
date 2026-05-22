@@ -15,6 +15,7 @@ model needed for a future Metal backend.
 - `toonz/sources/tnztools/skeletontool.cpp`
 - `toonz/sources/common/tvrender/tofflinegl.cpp`
 - `toonz/sources/toonzqt/planeviewer.cpp`
+- `toonz/sources/toonz/sceneviewer.cpp`
 
 ## Changes
 
@@ -24,7 +25,10 @@ model needed for a future Metal backend.
   upload approach.
 - Replaced the `TOfflineGL` raster constructor's initial pixel draw with the
   existing `tglDraw(TRectD, TRaster32P, false)` texture helper.
+- Let `tglDraw(...)` own raster locking in the `TOfflineGL` raster constructor
+  to avoid nested locks.
 - Replaced `PlaneViewer::flushRasterBuffer()` with `tglDraw(...)`.
+- Replaced the frozen scene viewer grab-image draw with `tglDraw(...)`.
 
 ## Inventory Before and After
 
@@ -40,14 +44,14 @@ Current source-like inventory:
 OpenToonz graphics API inventory
 source_root=toonz/sources
 
-all graphics markers               files=  120 matches=  2870
+all graphics markers               files=  120 matches=  2869
 Qt legacy QGL                      files=    0 matches=     0
 Qt QOpenGL                         files=   31 matches=   206
 GLU                                files=    5 matches=    53
 GLEW or GLUT                       files=   10 matches=    30
 fixed-function drawing             files=   85 matches=  2026
 fixed-function matrix              files=   56 matches=   449
-glDrawPixels                       files=    4 matches=    11
+glDrawPixels                       files=    4 matches=    10
 OpenGL selection                   files=    5 matches=    95
 ```
 
@@ -59,8 +63,10 @@ Remaining `glDrawPixels` sites:
 - `toonz/sources/common/tvectorrenderer.cpp`
 
 These remaining sites should be handled with additional visual validation
-because they involve 3D side/top views, view-grab images, channel/bit-depth
-paths, stage visitation, and platform-specific vector render backgrounds.
+because they involve 3D side/top views, channel/bit-depth paths, stage
+visitation, and platform-specific vector render backgrounds. The 3D scene viewer
+buttons still need a screen-space texture helper because the existing code
+positions the raster with `glRasterPos3f`.
 
 ## Validation Run
 
@@ -87,6 +93,7 @@ exercised before merging this milestone:
 - skeleton main gadget overlay
 - plane viewer redraw/flush paths
 - offscreen raster initialization paths
+- frozen scene viewer display
 
 ## Remaining Milestone 1 Work
 

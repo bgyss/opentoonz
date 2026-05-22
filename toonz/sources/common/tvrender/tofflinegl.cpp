@@ -578,9 +578,7 @@ TOfflineGL::TOfflineGL(const TRaster32P &raster, const TOfflineGL *shared) {
 
   initMatrix();
 
-  raster->lock();
   tglDraw(TRectD(0, 0, raster->getLx(), raster->getLy()), raster, false);
-  raster->unlock();
 }
 
 //-----------------------------------------------------------------------------
