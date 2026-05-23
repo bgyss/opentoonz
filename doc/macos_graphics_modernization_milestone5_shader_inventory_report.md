@@ -175,6 +175,9 @@ until `tgraphics` has a contrast-blend line mode.
 
 The view-tools checkpoint moves the zoom tool drag cross from immediate-mode
 `GL_LINES` to two `DrawList2D` color-line commands in world coordinates.
+The rotate-tool checkpoint moves the rotate center cross from direct
+`tglDrawSegment(...)` calls to `DrawList2D` color-line commands while preserving
+the existing camera-centered and viewer-transformed coordinate behavior.
 
 The control-point editor checkpoint moves speed-handle and control-point square
 fills from repeated `tglFillRect(...)` calls to `DrawList2D` color-rect
@@ -879,8 +882,9 @@ Viewer camera-frame and preview-subcamera 2D outlines now emit `tgraphics`
 color-line commands instead of OpenGL line stipple and immediate-mode line
 strips.
 Polyline selection previews now emit `tgraphics` color-line commands instead of
-a direct `GL_LINE_STRIP`. Zoom tool drag crosses now emit `tgraphics` color-line
-commands instead of immediate-mode `GL_LINES`. Control-point editor square
+a direct `GL_LINE_STRIP`. Zoom tool drag crosses and rotate-tool center crosses
+now emit `tgraphics` color-line commands instead of immediate-mode drawing.
+Control-point editor square
 handles now emit `tgraphics` color-rect commands instead of repeated direct
 `tglFillRect(...)` calls. Pinned skeleton IK joint square markers now emit
 `tgraphics` color-rect and color-line commands instead of direct rectangle

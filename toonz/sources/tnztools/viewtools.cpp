@@ -214,7 +214,6 @@ void RotateTool::leftButtonUp(const TPointD &pos, const TMouseEvent &e) {
 }
 
 void RotateTool::draw() {
-  glColor3f(1, 0, 0);
   double u = 50;
   if (m_cameraCentered.getValue())
     m_center = TPointD(0, 0);
@@ -225,10 +224,15 @@ void RotateTool::draw() {
     u        = u * sqrt(aff.det());
     m_center = aff * TPointD(0, 0);
   }
-  tglDrawSegment(TPointD(-u + m_center.x, m_center.y),
-                 TPointD(u + m_center.x, m_center.y));
-  tglDrawSegment(TPointD(m_center.x, -u + m_center.y),
-                 TPointD(m_center.x, u + m_center.y));
+
+  TGraphics::DrawList2D drawList;
+  drawList.addColorLine(TPointD(-u + m_center.x, m_center.y),
+                        TPointD(u + m_center.x, m_center.y), TPixel32::Red,
+                        false);
+  drawList.addColorLine(TPointD(m_center.x, -u + m_center.y),
+                        TPointD(m_center.x, u + m_center.y), TPixel32::Red,
+                        false);
+  TGraphics::drawWithOpenGLBackend(drawList);
 }
 
 int RotateTool::getCursorId() const { return ToolCursor::RotateCursor; }
