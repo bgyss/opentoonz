@@ -97,7 +97,7 @@ jobs:
 
       - name: Capture graphics API inventory
         if: always()
-        run: bash scripts/graphics_inventory.sh
+        run: nix develop path:. --command bash scripts/graphics_inventory.sh
 
       - name: Run Metal graphics probes
         if: ${{ matrix.run_metal_smoke == '1' }}
