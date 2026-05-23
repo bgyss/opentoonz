@@ -372,6 +372,9 @@ The Toonz raster brush checkpoint routes the MyPaint-style min/max cursor
 outline circles through `DrawList2D` color-circle commands. Pixel-grid empty
 circle cursor drawing remains on the legacy raster-brush path for a later,
 grid-aware migration.
+The raster eraser polyline checkpoint routes the start-point marker and active
+polyline preview through `DrawList2D` color-circle/color-line commands, removing
+the immediate-mode `GL_LINE_STRIP` preview from `rastererasertool.cpp`.
 
 ## Files Changed
 
@@ -395,6 +398,7 @@ grid-aware migration.
 - `toonz/sources/tnztools/paintbrushtool.cpp`
 - `toonz/sources/tnztools/plastictool.cpp`
 - `toonz/sources/tnztools/plastictool_meshedit.cpp`
+- `toonz/sources/tnztools/rastererasertool.cpp`
 - `toonz/sources/tnztools/selectiontool.cpp`
 - `toonz/sources/tnztools/setsaveboxtool.cpp`
 - `toonz/sources/tnztools/skeletontool.cpp`
@@ -885,6 +889,8 @@ Full-color brush min/max cursor outlines now also emit `tgraphics`
 color-circle commands with alpha preserved in the draw-list colors.
 Toonz raster brush MyPaint-style min/max cursor outlines now also emit
 `tgraphics` color-circle commands.
+Raster eraser polyline start markers and active preview lines now also emit
+`tgraphics` color-circle/color-line commands.
 Geometric multiline Bezier speed-handle connector segments now also emit
 `tgraphics` color-line commands.
 Edit-tool shear-handle visible outlines now also emit `tgraphics` color-line commands.

@@ -42,6 +42,7 @@
 #include "ttoonzimage.h"
 #include "tproperty.h"
 #include "tgl.h"
+#include "tgraphics.h"
 #include "trop.h"
 #include "tinbetween.h"
 #include "ttile.h"
@@ -725,13 +726,14 @@ void EraserTool::draw() {
     if (m_firstStroke) drawStrokeCenterline(*m_firstStroke, 1);
   }
   if (m_eraseType.getValue() == POLYLINEERASE && !m_polyline.empty()) {
-    TPixel color = TPixel32::Red;
-    tglColor(color);
-    tglDrawCircle(m_polyline[0], 2);
-    glBegin(GL_LINE_STRIP);
-    for (UINT i = 0; i < m_polyline.size(); i++) tglVertex(m_polyline[i]);
-    tglVertex(m_mousePos);
-    glEnd();
+    TGraphics::DrawList2D drawList;
+    drawList.addColorCircle(m_polyline[0], 2, TPixel32::Red, false, false);
+    for (UINT i = 1; i < m_polyline.size(); i++) {
+      drawList.addColorLine(m_polyline[i - 1], m_polyline[i], TPixel32::Red,
+                            false);
+    }
+    drawList.addColorLine(m_polyline.back(), m_mousePos, TPixel32::Red, false);
+    TGraphics::drawWithOpenGLBackend(drawList);
   } else if (m_eraseType.getValue() == FREEHANDERASE && !m_track.isEmpty()) {
     TPixel color = ToonzCheck::instance()->getChecks() & ToonzCheck::eBlackBg
                        ? TPixel32::White
