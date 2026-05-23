@@ -1040,7 +1040,6 @@ void SkeletonTool::drawIKJoint(const Skeleton::Bone* bone) {
   const double r0 = 6 * getPixelSize(), r1 = r0 / 3;
   int code = TD_LockStageObject + bone->getColumnIndex();
   glPushName(code);
-  glColor3d(0.8, 0.5, 0.05);
   if (bone->getPinnedStatus() != Skeleton::Bone::FREE) {
     TGraphics::DrawList2D drawList;
     const TPixel32 outlineColor(51, 26, 13, 255);
@@ -1059,15 +1058,10 @@ void SkeletonTool::drawIKJoint(const Skeleton::Bone* bone) {
     }
     TGraphics::drawWithOpenGLBackend(drawList);
   } else {
-    if (bone->isSelected())
-      glColor3d(1, 0.78, 0.19);
-    else
-      glColor3d(0.78, 0.62, 0);
     drawCircleWithTGraphics(pos, r0,
                             bone->isSelected() ? TPixel32(255, 199, 48, 255)
                                                : TPixel32(199, 158, 0, 255),
                             true);
-    glColor3d(0.2, 0.1, 0.05);
     drawCircleWithTGraphics(pos, r0, TPixel32(51, 26, 13, 255), false);
   }
 
@@ -1077,7 +1071,6 @@ void SkeletonTool::drawIKJoint(const Skeleton::Bone* bone) {
                           false);
     TGraphics::drawWithOpenGLBackend(drawList);
   } else {
-    glColor3d(0.2, 0.1, 0.05);
     const double r3 = 2 * getPixelSize();
     drawCircleWithTGraphics(pos, r3, TPixel32(51, 26, 13, 255), false);
   }
@@ -1092,33 +1085,21 @@ void SkeletonTool::drawJoint(const TPointD& pos, bool current) {
   if (current) {
     glPushName(TD_Center);
     if (m_device == TD_Center) {
-      glColor4d(0.9 * alpha, 0.8 * alpha, 0.2 * alpha, alpha);
       r0 *= 1.5;
-    } else {
-      glColor4d(((255.0 / 255.0) - ialpha) / alpha,
-                ((200.0 / 255.0) - ialpha) / alpha,
-                ((48.0 / 255.0) - ialpha) / alpha, alpha);
     }
     drawCircleWithTGraphics(pos, r0,
                             m_device == TD_Center
                                 ? TPixel32(184, 163, 41, tround(alpha * 255))
                                 : TPixel32(255, 186, 0, tround(alpha * 255)),
                             true, alpha < 1.0);
-    glColor3d(0.2, 0.1, 0.05);
     drawCircleWithTGraphics(pos, r0, TPixel32(51, 26, 13, 255), false);
     glPopName();
   } else {
-    // in build skeleton center is clickable, but only the current one
-    if (m_mode.getValue() == BUILD_SKELETON)
-      glColor4d(0.60 * alpha, 0.60 * alpha, 0.60 * alpha, alpha);
-    else
-      glColor4d(0.78 * alpha, 0.62 * alpha, 0 * alpha, alpha);
     drawCircleWithTGraphics(pos, r0,
                             m_mode.getValue() == BUILD_SKELETON
                                 ? TPixel32(122, 122, 122, tround(alpha * 255))
                                 : TPixel32(159, 126, 0, tround(alpha * 255)),
                             true, alpha < 1.0);
-    glColor3d(0.2, 0.1, 0.05);
     drawCircleWithTGraphics(pos, r0, TPixel32(51, 26, 13, 255), false);
   }
 }
