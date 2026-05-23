@@ -662,6 +662,12 @@ Production integration status:
   the migrated no-input procedural shaders, writes saved-and-reloaded `.tnz`
   scene fixtures plus OpenGL/Metal/diff artifacts for the same procedural
   subset, and passes on Apple M1 Max.
+- `SHADER_caustics` remains a shader-specific parity risk. On local Apple M1
+  Max hardware it has passed the OpenGL/Metal comparison used by
+  `scripts/graphics_shaderfx_compare.sh`, but GitHub-hosted Apple Paravirtual
+  runners produced a materially different procedural noise field. The CI script
+  therefore keeps caustics in the smoke/artifact set by default and allows
+  parity investigation with `SHADERFX_CAUSTICS_COMPARE=1`.
 - OpenGL remains the default backend.
 - Non-32-bit tiles and every other `ShaderFx` still use the existing OpenGL
   path.
