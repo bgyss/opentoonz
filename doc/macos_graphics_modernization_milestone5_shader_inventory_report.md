@@ -441,6 +441,10 @@ ink/paint and red fallback cursor colors.
 The plastic rigidity brush checkpoint routes the red rigidity-paint radius
 circle through `DrawList2D` color-circle commands. The surrounding rigidity
 skeleton drawing still uses the existing matrix-stack path.
+The bender overlay checkpoint routes the bender segment, rotation guide,
+endpoint square markers, mouse-point square marker, and up-direction arrow
+through `DrawList2D` color-line/color-rect/color-triangle commands. The red
+stroke-centerline preview remains on the existing legacy stroke drawing path.
 
 ## Files Changed
 
@@ -1107,6 +1111,13 @@ git diff --check
 rg -n "^WITH_GRAPHICS_METAL:BOOL=" toonz/build/nix-relwithdebinfo/CMakeCache.txt toonz/build/nix-relwithdebinfo-metal/CMakeCache.txt
 nix develop path:. --command bash scripts/macos/assert-arm64-bundle.sh
 nix develop path:. --command toonz/build/nix-relwithdebinfo-metal/tnzcore/tgraphics_metal_probe
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tnztools OpenToonz --parallel 3
+rg -n "glBegin\\(|GL_LINE_STRIP|tglVertex|tglDrawSegment|tglDrawCircle|tglColor" toonz/sources/tnztools/bendertool.cpp || true
+bash scripts/graphics_inventory.sh
+git diff --check
+rg -n "^WITH_GRAPHICS_METAL:BOOL=" toonz/build/nix-relwithdebinfo/CMakeCache.txt toonz/build/nix-relwithdebinfo-metal/CMakeCache.txt
+nix develop path:. --command bash scripts/macos/assert-arm64-bundle.sh
+nix develop path:. --command toonz/build/nix-relwithdebinfo-metal/tnzcore/tgraphics_metal_probe
 ```
 
 Validation evidence:
@@ -1194,6 +1205,14 @@ tnztools/libtnztools.dylib linked after plastic rigidity brush-radius migration
 OpenToonz linked after plastic rigidity brush-radius migration
 plastictool_rigidity.cpp direct drawing marker scan: no matches for the migrated circle path
 OpenToonz graphics API inventory: all graphics markers files=107 matches=2244; fixed-function drawing files=65 matches=1469
+WITH_GRAPHICS_METAL:BOOL=OFF
+WITH_GRAPHICS_METAL:BOOL=ON
+Checked 281 Mach-O files for arm64.
+tgraphics_metal_probe: ok on Apple M1 Max
+tnztools/libtnztools.dylib linked after bender overlay migration
+OpenToonz linked after bender overlay migration
+bendertool.cpp direct drawing marker scan: only the legacy stroke-centerline tglColor fallback remains
+OpenToonz graphics API inventory: all graphics markers files=107 matches=2241; fixed-function drawing files=65 matches=1466
 WITH_GRAPHICS_METAL:BOOL=OFF
 WITH_GRAPHICS_METAL:BOOL=ON
 Checked 281 Mach-O files for arm64.

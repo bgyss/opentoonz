@@ -6,6 +6,7 @@
 #include "tstrokeutil.h"
 #include "tstrokedeformations.h"
 #include "tmathutil.h"
+#include "tgraphics.h"
 #include "tools/cursors.h"
 #include "drawutil.h"
 
@@ -26,6 +27,33 @@ const double c_LengthOfBenderRegion = 10.0;
 const int IS_BEGIN = 0;
 const int IS_END   = 1;
 const int IS_ALL   = 2;
+
+//-----------------------------------------------------------------------------
+
+void appendBenderPoint(TGraphics::DrawList2D &drawList, const TPointD &point,
+                       double pixelSize, const TPixel32 &color) {
+  const double size = pixelSize * 2.0;
+  drawList.addColorRect(
+      TRectD(point.x - size, point.y - size, point.x + size, point.y + size),
+      color, false);
+}
+
+void appendBenderArrow(TGraphics::DrawList2D &drawList, const TSegment &segment,
+                       double pixelSize, const TPixel32 &color) {
+  const double length = segment.getLength() * pixelSize;
+  if (length == 0.0) return;
+
+  TPointD v  = normalize(segment.getSpeed());
+  TPointD vn = v;
+  const TPointD p1 = segment.getP0() + v * length;
+  drawList.addColorLine(segment.getP0(), p1, color, false);
+
+  v  = v * length * 0.7;
+  vn = vn * length * 0.2;
+  const TPointD arrowPoint0 = segment.getP0() + v + rotate90(vn);
+  const TPointD arrowPoint1 = segment.getP0() + v + rotate270(vn);
+  drawList.addColorTriangle(arrowPoint0, p1, arrowPoint1, color, false);
+}
 
 //-----------------------------------------------------------------------------
 
@@ -710,19 +738,23 @@ void BenderTool::draw() {
 
   // rotation vector
   if (m_buttonDownCounter == 3) {
-    tglColor(TPixel::Black);
-    tglDrawSegment(m_benderSegment.getP0(), pnt);
-    drawPoint(pnt, pixelSize);
+    TGraphics::DrawList2D rotationDrawList;
+    rotationDrawList.addColorLine(m_benderSegment.getP0(), pnt,
+                                  TPixel32::Black, false);
+    appendBenderPoint(rotationDrawList, pnt, pixelSize, TPixel32::Black);
+    TGraphics::drawWithOpenGLBackend(rotationDrawList);
   }
 
   // bender vector
-  tglColor(TPixel::Red);
-  tglDrawSegment(m_benderSegment.getP0(), m_benderSegment.getP1());
-  drawPoint(m_benderSegment.getP0(), pixelSize);
-  drawPoint(m_benderSegment.getP1(), pixelSize);
-
-  // point where is mouse pointer
-  drawPoint(m_prevPoint, pixelSize);
+  TGraphics::DrawList2D benderDrawList;
+  benderDrawList.addColorLine(m_benderSegment.getP0(), m_benderSegment.getP1(),
+                              TPixel32::Red, false);
+  appendBenderPoint(benderDrawList, m_benderSegment.getP0(), pixelSize,
+                    TPixel32::Red);
+  appendBenderPoint(benderDrawList, m_benderSegment.getP1(), pixelSize,
+                    TPixel32::Red);
+  appendBenderPoint(benderDrawList, m_prevPoint, pixelSize, TPixel32::Red);
+  TGraphics::drawWithOpenGLBackend(benderDrawList);
 
   // arrow in up direction
   TPointD vDir   = m_benderSegment.getSpeed();
@@ -733,9 +765,12 @@ void BenderTool::draw() {
   }
   TPointD vUp = 15.0 * normalize(rotate90(vDir));
 
-  tglColor(TPixel::Magenta);
   TPointD middlePnt = 0.5 * (m_benderSegment.getP0() + m_benderSegment.getP1());
-  drawArrow(TSegment(middlePnt, m_rotationVersus * vUp + middlePnt), pixelSize);
+  TGraphics::DrawList2D arrowDrawList;
+  appendBenderArrow(arrowDrawList,
+                    TSegment(middlePnt, m_rotationVersus * vUp + middlePnt),
+                    pixelSize, TPixel32::Magenta);
+  TGraphics::drawWithOpenGLBackend(arrowDrawList);
 
   // glPopMatrix();
 }
