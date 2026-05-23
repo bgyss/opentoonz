@@ -341,6 +341,11 @@ the new command. This removes the remaining legacy `tglDrawDisk`/`tglDrawCircle`
 calls from `skeletontool.cpp`; matrix setup, blending setup, texture-backed
 drawing-browser icons, and a few legacy selection names still remain in the
 tool until those paths are migrated.
+The shift-trace overlay checkpoint routes ghost control-rectangle outlines,
+control dots, two-point curve segments, and three-point curve polylines through
+`DrawList2D` color-line/color-circle commands. This removes direct
+`tglDrawDisk`, `tglDrawCircle`, `tglDrawSegment`, `GL_LINE_STRIP`, and manual
+vertex emission from `shifttracetool.cpp`.
 
 ## Files Changed
 
@@ -363,6 +368,7 @@ tool until those paths are migrated.
 - `toonz/sources/tnztools/selectiontool.cpp`
 - `toonz/sources/tnztools/setsaveboxtool.cpp`
 - `toonz/sources/tnztools/skeletontool.cpp`
+- `toonz/sources/tnztools/shifttracetool.cpp`
 - `toonz/sources/tnztools/trackertool.cpp`
 - `toonz/sources/tnztools/viewtools.cpp`
 - `toonz/sources/toonz/CMakeLists.txt`
@@ -831,6 +837,8 @@ Skeleton bone and IK-bone fills now also emit `tgraphics`
 color-triangle/color-quad commands.
 Skeleton circular joint markers now also emit `tgraphics` color-circle commands
 with Metal probe coverage.
+Shift-trace overlay control rectangles, dots, and curve guides now also emit
+`tgraphics` color-line/color-circle commands.
 Geometric multiline Bezier speed-handle connector segments now also emit
 `tgraphics` color-line commands.
 Edit-tool shear-handle visible outlines now also emit `tgraphics` color-line commands.

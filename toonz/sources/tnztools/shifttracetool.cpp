@@ -25,6 +25,7 @@
 #include "toonzqt/gutil.h"
 
 #include "tgl.h"
+#include "tgraphics.h"
 #include <math.h>
 #include <QKeyEvent>
 
@@ -47,6 +48,48 @@ static bool circumCenter(TPointD &out, const TPointD &a, const TPointD &b,
           d;
   return true;
 }
+
+namespace {
+
+void addRectOutline(TGraphics::DrawList2D &drawList, const TRectD &rect,
+                    const TPixel32 &color) {
+  drawList.addColorLine(rect.getP00(), rect.getP10(), color, false);
+  drawList.addColorLine(rect.getP10(), rect.getP11(), color, false);
+  drawList.addColorLine(rect.getP11(), rect.getP01(), color, false);
+  drawList.addColorLine(rect.getP01(), rect.getP00(), color, false);
+}
+
+void drawRectOutlineWithTGraphics(const TRectD &rect, const TPixel32 &color) {
+  TGraphics::DrawList2D drawList;
+  addRectOutline(drawList, rect, color);
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
+
+void drawCircleWithTGraphics(const TPointD &center, double radius,
+                             const TPixel32 &color, bool filled) {
+  TGraphics::DrawList2D drawList;
+  drawList.addColorCircle(center, radius, color, filled, false);
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
+
+void drawSegmentWithTGraphics(const TPointD &p0, const TPointD &p1,
+                              const TPixel32 &color) {
+  TGraphics::DrawList2D drawList;
+  drawList.addColorLine(p0, p1, color, false);
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
+
+void drawPolylineWithTGraphics(const std::vector<TPointD> &points,
+                               const TPixel32 &color) {
+  if (points.size() < 2) return;
+
+  TGraphics::DrawList2D drawList;
+  for (int i = 1; i < (int)points.size(); ++i)
+    drawList.addColorLine(points[i - 1], points[i], color, false);
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
+
+}  // namespace
 
 //=============================================================================
 
@@ -219,10 +262,8 @@ TAffine ShiftTraceTool::getGhostAff() {
 
 void ShiftTraceTool::drawDot(const TPointD &center, double r,
                              const TPixel32 &color) {
-  tglColor(color);
-  tglDrawDisk(center, r);
-  glColor3d(0.2, 0.2, 0.2);
-  tglDrawCircle(center, r);
+  drawCircleWithTGraphics(center, r, color, true);
+  drawCircleWithTGraphics(center, r, TPixel32(51, 51, 51), false);
 }
 
 void ShiftTraceTool::drawControlRect() {  // TODO
@@ -247,27 +288,13 @@ void ShiftTraceTool::drawControlRect() {  // TODO
     double unit = sqrt(tglGetPixelSize2());
     unit *= getDevicePixelRatio(m_viewer->viewerWidget());
     TRectD coloredBox = box.enlarge(3.0 * unit);
-    tglColor(color);
-    glBegin(GL_LINE_STRIP);
-    glVertex2d(coloredBox.x0, coloredBox.y0);
-    glVertex2d(coloredBox.x1, coloredBox.y0);
-    glVertex2d(coloredBox.x1, coloredBox.y1);
-    glVertex2d(coloredBox.x0, coloredBox.y1);
-    glVertex2d(coloredBox.x0, coloredBox.y0);
-    glEnd();
+    drawRectOutlineWithTGraphics(coloredBox, color);
   }
 
   color = m_highlightedGadget == TranslateGadget ? TPixel32(200, 100, 100)
           : m_highlightedGadget == RotateGadget  ? TPixel32(100, 200, 100)
                                                  : TPixel32(120, 120, 120);
-  tglColor(color);
-  glBegin(GL_LINE_STRIP);
-  glVertex2d(box.x0, box.y0);
-  glVertex2d(box.x1, box.y0);
-  glVertex2d(box.x1, box.y1);
-  glVertex2d(box.x0, box.y1);
-  glVertex2d(box.x0, box.y0);
-  glEnd();
+  drawRectOutlineWithTGraphics(box, color);
   color    = m_highlightedGadget == ScaleGadget ? TPixel32(200, 100, 100)
                                                 : TPixel32::White;
   double r = 4 * sqrt(tglGetPixelSize2());
@@ -293,8 +320,7 @@ void ShiftTraceTool::drawCurve() {
                          ? TPixel32(200, 100, 100)
                          : TPixel32::White;
     drawDot(m_p0, r, color);
-    glColor3d(0.2, 0.2, 0.2);
-    tglDrawSegment(m_p0, m_p1);
+    drawSegmentWithTGraphics(m_p0, m_p1, TPixel32(51, 51, 51));
     drawDot(m_p1, r, TPixel32::Red);
   } else if (m_curveStatus == ThreePointsCurve) {
     TPixel32 color = m_highlightedGadget == CurveP0Gadget
@@ -305,28 +331,27 @@ void ShiftTraceTool::drawCurve() {
                                                  : TPixel32::White;
     drawDot(m_p1, r, color);
 
-    glColor3d(0.2, 0.2, 0.2);
-
     TPointD center;
     if (circumCenter(center, m_p0, m_p1, m_p2)) {
       double radius = norm(center - m_p1);
-      glBegin(GL_LINE_STRIP);
       int n = 100;
+      std::vector<TPointD> points;
+      points.reserve(n * 2);
       for (int i = 0; i < n; i++) {
         double t  = (double)i / n;
         TPointD p = (1 - t) * m_p0 + t * m_p2;
         p         = center + radius * normalize(p - center);
-        tglVertex(p);
+        points.push_back(p);
       }
       for (int i = 0; i < n; i++) {
         double t  = (double)i / n;
         TPointD p = (1 - t) * m_p2 + t * m_p1;
         p         = center + radius * normalize(p - center);
-        tglVertex(p);
+        points.push_back(p);
       }
-      glEnd();
+      drawPolylineWithTGraphics(points, TPixel32(51, 51, 51));
     } else {
-      tglDrawSegment(m_p0, m_p1);
+      drawSegmentWithTGraphics(m_p0, m_p1, TPixel32(51, 51, 51));
     }
     color = m_highlightedGadget == CurvePmGadget ? TPixel32(200, 100, 100)
                                                  : TPixel32::White;
