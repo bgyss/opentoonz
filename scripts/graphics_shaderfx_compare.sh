@@ -24,6 +24,9 @@ fi
       shader_tolerance="${SHADERFX_CAUSTICS_COMPARE_TOLERANCE:-64}"
       compare_shader="${SHADERFX_CAUSTICS_COMPARE:-0}"
     fi
+    if [[ "$shader" == "SHADER_starsky" ]]; then
+      compare_shader="${SHADERFX_STARSKY_COMPARE:-0}"
+    fi
     if [[ "$shader" == "SHADER_fireball" ]]; then
       shader_tolerance="${SHADERFX_FIREBALL_COMPARE_TOLERANCE:-32}"
     fi

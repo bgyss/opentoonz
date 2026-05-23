@@ -50,12 +50,13 @@ saved-scene input ShaderFx, and broader offscreen parity gaps remain open.
   - `tgraphics_metal_probe`
   - `scripts/graphics_shaderfx_compare.sh`
 - Updated `scripts/graphics_shaderfx_compare.sh` after fork CI exposed
-  Apple-Paravirtual-device differences in the `SHADER_caustics` procedural
-  noise field. CI still renders and stores OpenGL/Metal caustics artifacts, but
-  caustics defaults to Metal smoke validation instead of an OpenGL-vs-Metal
-  parity gate. Set `SHADERFX_CAUSTICS_COMPARE=1` to re-enable caustics parity
-  comparison when investigating that shader on a specific device. The other
-  no-input procedural shaders keep the parity comparison gate.
+  Apple-Paravirtual-device differences in the `SHADER_caustics` and
+  `SHADER_starsky` procedural noise fields. CI still renders and stores
+  OpenGL/Metal artifacts for both shaders, but they default to Metal smoke
+  validation instead of an OpenGL-vs-Metal parity gate. Set
+  `SHADERFX_CAUSTICS_COMPARE=1` or `SHADERFX_STARSKY_COMPARE=1` to re-enable
+  parity comparison when investigating those shaders on a specific device. The
+  other no-input procedural shaders keep the parity comparison gate.
 - Added Metal app-bundle resource checks for:
   - `scripts/macos/verify-metal-resources.sh`, which requires
     `Contents/Resources/tgraphics_metal_shaders.metal` and requires
@@ -186,12 +187,12 @@ gh auth status
 
 - The Metal-enabled CI leg proves the build and command-line probes, not full
   GUI parity.
-- `SHADER_caustics` is currently a known visual-parity gap on GitHub-hosted
-  Apple Silicon runners. The Metal helper renders non-empty caustics output,
-  but its procedural `fract(sin(...))` noise field can diverge sharply from the
-  OpenGL baseline on Apple Paravirtual hardware. CI treats it as a smoke
-  artifact until the shader is rewritten with a cross-backend-stable noise
-  source or a shader-specific acceptance metric.
+- `SHADER_caustics` and `SHADER_starsky` are currently known visual-parity gaps
+  on GitHub-hosted Apple Silicon runners. The Metal helper renders non-empty
+  output for both shaders, but their procedural `fract(sin(...))` noise fields
+  can diverge sharply from the OpenGL baseline on Apple Paravirtual hardware. CI
+  treats them as smoke artifacts until the shaders are rewritten with a
+  cross-backend-stable noise source or shader-specific acceptance metrics.
 - Compiled `.metallib` packaging is now wired into CMake when `metal` and
   `metallib` are available, but this local checkout still cannot prove that
   path because the installed Xcode is missing the Metal Toolchain component.
