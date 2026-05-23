@@ -361,6 +361,9 @@ Existing stroke centerline drawing remains on the legacy stroke-render path.
 The control-point editor checkpoint routes snap-point circles and speed-handle
 connector segments through `DrawList2D` color-circle/color-line commands.
 Selection tracks and stroke centerlines remain on their existing legacy paths.
+The paint-brush cursor checkpoint routes the brush cursor outline helper through
+`DrawList2D` color-line/color-circle commands, removing direct `glColor*`,
+`tglDrawCircle`, and repeated `tglDrawSegment` calls from the cursor preview.
 
 ## Files Changed
 
@@ -380,6 +383,7 @@ Selection tracks and stroke centerlines remain on their existing legacy paths.
 - `toonz/sources/tnztools/hooktool.cpp`
 - `toonz/sources/tnztools/magnettool.cpp`
 - `toonz/sources/tnztools/morphtool.cpp`
+- `toonz/sources/tnztools/paintbrushtool.cpp`
 - `toonz/sources/tnztools/plastictool.cpp`
 - `toonz/sources/tnztools/plastictool_meshedit.cpp`
 - `toonz/sources/tnztools/selectiontool.cpp`
@@ -865,6 +869,8 @@ Magnet tool cursor circles and quadratic preview lines now also emit `tgraphics`
 color-circle/color-line commands.
 Control-point editor snap circles and speed-handle connector segments now also
 emit `tgraphics` color-circle/color-line commands.
+Paint-brush cursor outlines now also emit `tgraphics`
+color-line/color-circle commands.
 Geometric multiline Bezier speed-handle connector segments now also emit
 `tgraphics` color-line commands.
 Edit-tool shear-handle visible outlines now also emit `tgraphics` color-line commands.
