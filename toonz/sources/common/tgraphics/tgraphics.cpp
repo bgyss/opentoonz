@@ -250,11 +250,18 @@ void DrawList2D::addGradientColorLine(const TPointD& p0, const TPointD& p1,
 void DrawList2D::addColorCircle(const TPointD& center, double radius,
                                 const TPixel32& color, bool filled,
                                 bool blending) {
+  addColorCircle(center, radius, color, filled, blending, 1.0);
+}
+
+void DrawList2D::addColorCircle(const TPointD& center, double radius,
+                                const TPixel32& color, bool filled,
+                                bool blending, double width) {
   if (radius <= 0.0) return;
 
   ColorCircle colorCircle;
   colorCircle.m_center   = center;
   colorCircle.m_radius   = radius;
+  colorCircle.m_width    = std::max(1.0, width);
   colorCircle.m_color    = color;
   colorCircle.m_filled   = filled;
   colorCircle.m_blending = blending;
@@ -593,7 +600,7 @@ private:
         segment.m_p1 =
             TPointD(circle.m_center.x + circle.m_radius * std::cos(angle1),
                     circle.m_center.y + circle.m_radius * std::sin(angle1));
-        segment.m_width = 1.0;
+        segment.m_width = circle.m_width;
         std::array<TPointD, 4> points;
         if (!makeStrokedLineQuad(segment, points)) continue;
         glBegin(GL_POLYGON);

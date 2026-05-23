@@ -850,7 +850,8 @@ int main(int argc, char* argv[]) {
     const TPixel32 circleColor(229, 80, 57, 255);
     TGraphics::DrawList2D drawList;
     drawList.setClearColor(circleClearColor);
-    drawList.addColorCircle(TPointD(4, 4), 3.0, circleColor, false, false);
+    drawList.addColorCircle(TPointD(4, 4), 3.0, circleColor, false, false,
+                            2.0);
 
     TRaster32P readback = renderMetal(drawList, width, height);
     if (!readback)

@@ -1369,14 +1369,13 @@ private:
       }
     } else {
       vertices.reserve(slices * 6);
-      const double width = 1.0;
       for (int i = 0; i < slices; ++i) {
         const TPointD p0 = circlePoint(circle, i);
         const TPointD p1 = circlePoint(circle, i + 1);
         ColorLine segment;
         segment.m_p0    = p0;
         segment.m_p1    = p1;
-        segment.m_width = width;
+        segment.m_width = circle.m_width;
         std::array<TPointD, 4> points;
         if (!makeStrokedLineQuad(segment, points)) continue;
         std::array<MetalVertex, 6> quadVertices = makeVertices(points);

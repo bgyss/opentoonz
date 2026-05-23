@@ -486,23 +486,13 @@ TAssistantBase::drawMark(const TPointD &p, const TPointD &normal, double pixelSi
 void
 TAssistantBase::drawDot(const TPointD &p, const TPixelD &color) {
   TPixelD colorBack = makeContrastColor(color);
+  double pixelSize = sqrt(tglGetPixelSize2());
 
-  glPushAttrib(GL_ALL_ATTRIB_BITS);
-  tglEnableBlending();
-
-  tglColor(colorBack);
-  tglEnablePointSmooth(6.0);
-  glBegin(GL_POINTS);
-  glVertex2d(p.x, p.y);
-  glEnd();
-
-  tglColor(color);
-  tglEnablePointSmooth(3.0);
-  glBegin(GL_POINTS);
-  glVertex2d(p.x, p.y);
-  glEnd();
-
-  glPopAttrib();
+  TGraphics::DrawList2D drawList;
+  drawList.addColorCircle(p, 3.0 * pixelSize, toPixel32(colorBack), true,
+                          true);
+  drawList.addColorCircle(p, 1.5 * pixelSize, toPixel32(color), true, true);
+  TGraphics::drawWithOpenGLBackend(drawList);
 }
 
 //---------------------------------------------------------------------------------------------------
@@ -531,13 +521,12 @@ TAssistantBase::drawPoint(const TAssistantPoint &point, double pixelSize) {
   colorFill.m *= 0.5;
   TPixelD colorBack = makeContrastColor(colorStroke);
 
-  glPushAttrib(GL_ALL_ATTRIB_BITS);
+  TGraphics::DrawList2D drawList;
 
   // fill
-  tglEnableBlending();
   if (point.type == TAssistantPoint::CircleFill) {
-    tglColor(colorFill);
-    tglDrawDisk(point.position, radius*pixelSize);
+    drawList.addColorCircle(point.position, radius * pixelSize,
+                            toPixel32(colorFill), true, true);
   }
 
   TPointD crossA(pixelSize*crossSize, 0.0);
@@ -551,22 +540,31 @@ TAssistantBase::drawPoint(const TAssistantPoint &point, double pixelSize) {
     { crossA.y = crossB.y; crossB.x = crossA.x; }
   
   // back line
-  tglEnableLineSmooth(true, 2.0*width*lineWidthScale);
-  tglColor(colorBack);
   if (cross) {
-    tglDrawSegment(point.position - crossA, point.position + crossA);
-    tglDrawSegment(point.position - crossB, point.position + crossB);
+    drawList.addColorLine(point.position - crossA, point.position + crossA,
+                          toPixel32(colorBack), true,
+                          2.0 * width * lineWidthScale);
+    drawList.addColorLine(point.position - crossB, point.position + crossB,
+                          toPixel32(colorBack), true,
+                          2.0 * width * lineWidthScale);
   }
-  tglDrawCircle(point.position, radius*pixelSize);
+  drawList.addColorCircle(point.position, radius * pixelSize,
+                          toPixel32(colorBack), false, true,
+                          2.0 * width * lineWidthScale);
 
   // front line
-  glLineWidth(width * lineWidthScale);
-  tglColor(colorStroke);
   if (cross) {
-    tglDrawSegment(point.position - crossA, point.position + crossA);
-    tglDrawSegment(point.position - crossB, point.position + crossB);
+    drawList.addColorLine(point.position - crossA, point.position + crossA,
+                          toPixel32(colorStroke), true,
+                          width * lineWidthScale);
+    drawList.addColorLine(point.position - crossB, point.position + crossB,
+                          toPixel32(colorStroke), true,
+                          width * lineWidthScale);
   }
-  tglDrawCircle(point.position, radius*pixelSize);
+  drawList.addColorCircle(point.position, radius * pixelSize,
+                          toPixel32(colorStroke), false, true,
+                          width * lineWidthScale);
+  TGraphics::drawWithOpenGLBackend(drawList);
 
   // dots
   switch(point.type) {
@@ -588,8 +586,6 @@ TAssistantBase::drawPoint(const TAssistantPoint &point, double pixelSize) {
   default:
     break;
   }
-
-  glPopAttrib();
 }
 
 //---------------------------------------------------------------------------------------------------

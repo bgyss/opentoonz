@@ -116,6 +116,7 @@ struct DVAPI GradientColorLine final {
 struct DVAPI ColorCircle final {
   TPointD m_center;
   double m_radius = 0.0;
+  double m_width  = 1.0;
   TPixel32 m_color;
   bool m_filled   = false;
   bool m_blending = false;
@@ -151,6 +152,9 @@ public:
                             bool blending, double width);
   void addColorCircle(const TPointD& center, double radius,
                       const TPixel32& color, bool filled, bool blending);
+  void addColorCircle(const TPointD& center, double radius,
+                      const TPixel32& color, bool filled, bool blending,
+                      double width);
   void addTexture(const TRectD& rect, const TRaster32P& raster, bool blending);
   void addTextureQuad(const TPointD& p00, const TPointD& p10,
                       const TPointD& p11, const TPointD& p01,
