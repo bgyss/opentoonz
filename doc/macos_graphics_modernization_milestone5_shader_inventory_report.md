@@ -355,6 +355,9 @@ base-to-handle segments through `DrawList2D` color-circle/color-line commands.
 This removes direct `glColor*`, `tglDrawDisk`, `tglDrawCircle`,
 `tglDrawSegment`, and a stale commented immediate-mode debug block from
 `morphtool.cpp`.
+The magnet overlay checkpoint routes the tool-size cursor circle and the
+quadratic preview helper through `DrawList2D` color-circle/color-line commands.
+Existing stroke centerline drawing remains on the legacy stroke-render path.
 
 ## Files Changed
 
@@ -372,6 +375,7 @@ This removes direct `glColor*`, `tglDrawDisk`, `tglDrawCircle`,
 - `toonz/sources/tnztools/edittool.cpp`
 - `toonz/sources/tnztools/geometrictool.cpp`
 - `toonz/sources/tnztools/hooktool.cpp`
+- `toonz/sources/tnztools/magnettool.cpp`
 - `toonz/sources/tnztools/morphtool.cpp`
 - `toonz/sources/tnztools/plastictool.cpp`
 - `toonz/sources/tnztools/plastictool_meshedit.cpp`
@@ -854,6 +858,8 @@ Ruler endpoint circles and ruler segments now also emit `tgraphics`
 color-circle/color-line commands.
 Morph deformation control points and base-to-handle segments now also emit
 `tgraphics` color-circle/color-line commands.
+Magnet tool cursor circles and quadratic preview lines now also emit `tgraphics`
+color-circle/color-line commands.
 Geometric multiline Bezier speed-handle connector segments now also emit
 `tgraphics` color-line commands.
 Edit-tool shear-handle visible outlines now also emit `tgraphics` color-line commands.

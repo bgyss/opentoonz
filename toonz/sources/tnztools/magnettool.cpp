@@ -11,6 +11,7 @@
 #include "tproperty.h"
 #include "drawutil.h"
 #include "tcurveutil.h"
+#include "tgraphics.h"
 
 #include "toonz/tobjecthandle.h"
 #include "toonz/txshlevelhandle.h"
@@ -87,17 +88,18 @@ void drawQuadratic(const TQuadratic &quad, double pixelSize) {
   if (h < 0 || isAlmostZero(h)) return;
 
   // It draws the whole curve, using forward differencing
-  glBegin(GL_LINE_STRIP);  // The curve starts from scP0
-  glVertex2d(scP0.x, scP0.y);
+  TGraphics::DrawList2D drawList;
+  TPointD previous = scP0;
 
   for (double t = h; t < 1; t = t + h) {
     P  = P + D1;
     D1 = D1 + D2;
-    glVertex2d(P.x, P.y);
+    drawList.addColorLine(previous, P, TPixel32::Red, false);
+    previous = P;
   }
 
-  glVertex2d(scP2.x, scP2.y);  // The curve ends in scP2
-  glEnd();
+  drawList.addColorLine(previous, scP2, TPixel32::Red, false);
+  TGraphics::drawWithOpenGLBackend(drawList);
 }
 
 }  // namespace
@@ -407,8 +409,10 @@ lefrightButtonDown(p);
 
     double pointSize = m_toolSize.getValue();
 
-    tglColor(TPixel32::Red);
-    tglDrawCircle(m_pointAtMove, pointSize);
+    TGraphics::DrawList2D drawList;
+    drawList.addColorCircle(m_pointAtMove, pointSize, TPixel32::Red, false,
+                            false);
+    TGraphics::drawWithOpenGLBackend(drawList);
 
     if (!m_active) {
       // glPopMatrix();
