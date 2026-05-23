@@ -392,6 +392,9 @@ on the existing stroke-render path.
 The assistant guideline checkpoint routes double-stroked guideline segments
 through `DrawList2D` color-line commands, preserving the existing contrast/front
 colors, alpha, and line-width scale.
+The assistant index-glyph checkpoint routes the seven-segment editing point
+labels through `DrawList2D` color-line commands, preserving the existing
+contrast/front color pairing and line-width scale.
 
 ## Files Changed
 
@@ -921,6 +924,7 @@ Full-color eraser multi-arc guides and join circles now also emit `tgraphics`
 color-line/color-circle commands.
 Assistant guideline double-stroked segments now also emit `tgraphics`
 color-line commands.
+Assistant index glyphs now also emit `tgraphics` color-line commands.
 Geometric multiline Bezier speed-handle connector segments now also emit
 `tgraphics` color-line commands.
 Edit-tool shear-handle visible outlines now also emit `tgraphics` color-line commands.

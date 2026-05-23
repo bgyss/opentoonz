@@ -635,9 +635,7 @@ TAssistantBase::drawIndex(const TPointD &p, int index, bool selected, double pix
   color.m *= alpha;
   TPixelD colorBack = makeContrastColor(color);
 
-  glPushAttrib(GL_ALL_ATTRIB_BITS);
-  tglEnableBlending();
-  tglEnableLineSmooth(true, 1.0 * lineWidthScale);
+  TGraphics::DrawList2D drawList;
   double k = 0.5*pixelSize*lineWidthScale;
   
   double y = p.y;
@@ -649,28 +647,28 @@ TAssistantBase::drawIndex(const TPointD &p, int index, bool selected, double pix
       const int *s = segments[i];
       if (s[0] == s[2]) {
         // vertical
-        tglColor(colorBack);
-        tglDrawSegment(
+        drawList.addColorLine(
           TPointD(x + s[0]*w + k, y + s[1]*h + d),
-          TPointD(x + s[2]*w + k, y + s[3]*h - d) );
-        tglColor(color);
-        tglDrawSegment(
+          TPointD(x + s[2]*w + k, y + s[3]*h - d), toPixel32(colorBack),
+          true, lineWidthScale);
+        drawList.addColorLine(
           TPointD(x + s[0]*w - k, y + s[1]*h + d),
-          TPointD(x + s[2]*w - k, y + s[3]*h - d) );
+          TPointD(x + s[2]*w - k, y + s[3]*h - d), toPixel32(color), true,
+          lineWidthScale);
       } else {
         // horizontal
-        tglColor(colorBack);
-        tglDrawSegment(
+        drawList.addColorLine(
           TPointD(x + s[0]*w + d, y + s[1]*h + k),
-          TPointD(x + s[2]*w - d, y + s[3]*h + k) );
-        tglColor(color);
-        tglDrawSegment(
+          TPointD(x + s[2]*w - d, y + s[3]*h + k), toPixel32(colorBack),
+          true, lineWidthScale);
+        drawList.addColorLine(
           TPointD(x + s[0]*w + d, y + s[1]*h - k),
-          TPointD(x + s[2]*w - d, y + s[3]*h - k) );
+          TPointD(x + s[2]*w - d, y + s[3]*h - k), toPixel32(color), true,
+          lineWidthScale);
       }
     }
   }
-  glPopAttrib();
+  TGraphics::drawWithOpenGLBackend(drawList);
 }
 
 //---------------------------------------------------------------------------------------------------
