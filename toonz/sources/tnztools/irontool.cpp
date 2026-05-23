@@ -7,6 +7,7 @@
 #include "tstrokeutil.h"
 #include "tmathutil.h"
 #include "tgl.h"
+#include "tgraphics.h"
 #include "tstroke.h"
 
 #include "toonz/tobjecthandle.h"
@@ -80,9 +81,14 @@ public:
 
   void draw() override {
     if (m_draw && (TVectorImageP)getImage(false)) {
-      glColor3d(1, 0, 1);
-      if (m_cursor.thick > 0) tglDrawCircle(m_cursor, m_cursor.thick);
-      tglDrawCircle(m_cursor, m_cursor.thick + 4 * getPixelSize());
+      TGraphics::DrawList2D drawList;
+      if (m_cursor.thick > 0) {
+        drawList.addColorCircle(m_cursor, m_cursor.thick,
+                                TPixel32::Magenta, false, false);
+      }
+      drawList.addColorCircle(m_cursor, m_cursor.thick + 4 * getPixelSize(),
+                              TPixel32::Magenta, false, false);
+      TGraphics::drawWithOpenGLBackend(drawList);
     }
   }
 

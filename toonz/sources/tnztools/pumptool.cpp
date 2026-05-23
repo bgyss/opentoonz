@@ -2,6 +2,7 @@
 
 #include "tvectorgl.h"
 #include "tgl.h"
+#include "tgraphics.h"
 #include "tpalette.h"
 #include "tproperty.h"
 #include "tthreadmessage.h"
@@ -183,9 +184,14 @@ void PumpTool::draw() {
 
     if (m_cursorEnabled) {
       // Draw cursor
-      glColor3d(1.0, 0.0, 1.0);
-      if (m_cursor.thick > 0) tglDrawCircle(m_cursor, m_cursor.thick);
-      tglDrawCircle(m_cursor, m_cursor.thick + 4 * getPixelSize());
+      TGraphics::DrawList2D drawList;
+      if (m_cursor.thick > 0) {
+        drawList.addColorCircle(m_cursor, m_cursor.thick,
+                                TPixel32::Magenta, false, false);
+      }
+      drawList.addColorCircle(m_cursor, m_cursor.thick + 4 * getPixelSize(),
+                              TPixel32::Magenta, false, false);
+      TGraphics::drawWithOpenGLBackend(drawList);
     }
 
     if (getNearestStrokeWithLock(m_cursor, w, index, dist, true)) {

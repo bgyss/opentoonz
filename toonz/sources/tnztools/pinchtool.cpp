@@ -28,6 +28,7 @@
 #include "tdebugmessage.h"
 #include "tgeometry.h"
 #include "tgl.h"
+#include "tgraphics.h"
 #include "tproperty.h"
 #include "tstream.h"
 #include "tstrokeutil.h"
@@ -431,9 +432,15 @@ void PinchTool::draw() {
   // m_active == true means that a button down is done (drag)
   if (!m_active) {
     if (m_cursorEnabled) {
-      glColor3d(1, 0, 1);
-      if (m_cursor.thick > 0) tglDrawCircle(m_cursor, m_cursor.thick);
-      tglDrawCircle(m_cursor, m_cursor.thick + 4 * status->pixelSize_);
+      TGraphics::DrawList2D drawList;
+      if (m_cursor.thick > 0) {
+        drawList.addColorCircle(m_cursor, m_cursor.thick,
+                                TPixel32::Magenta, false, false);
+      }
+      drawList.addColorCircle(m_cursor,
+                              m_cursor.thick + 4 * status->pixelSize_,
+                              TPixel32::Magenta, false, false);
+      TGraphics::drawWithOpenGLBackend(drawList);
     }
   }
 

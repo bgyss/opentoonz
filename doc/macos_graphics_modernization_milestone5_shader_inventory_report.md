@@ -409,6 +409,10 @@ The polyline preview checkpoint routes vector eraser, raster tape, and RGB
 picker polyline start markers and active preview segments through `DrawList2D`
 color-circle/color-line commands. Freehand track and stroke-centerline previews
 remain on their existing legacy stroke-render paths.
+The deformation cursor checkpoint routes the iron, pump, and pinch hover cursor
+rings through `DrawList2D` color-circle commands. The active deformation stroke
+and selected-stroke preview paths remain on the existing vector/stroke render
+paths.
 
 ## Files Changed
 
@@ -429,11 +433,14 @@ remain on their existing legacy stroke-render paths.
 - `toonz/sources/tnztools/fullcolorbrushtool.cpp`
 - `toonz/sources/tnztools/geometrictool.cpp`
 - `toonz/sources/tnztools/hooktool.cpp`
+- `toonz/sources/tnztools/irontool.cpp`
 - `toonz/sources/tnztools/magnettool.cpp`
 - `toonz/sources/tnztools/morphtool.cpp`
 - `toonz/sources/tnztools/paintbrushtool.cpp`
+- `toonz/sources/tnztools/pinchtool.cpp`
 - `toonz/sources/tnztools/plastictool.cpp`
 - `toonz/sources/tnztools/plastictool_meshedit.cpp`
+- `toonz/sources/tnztools/pumptool.cpp`
 - `toonz/sources/tnztools/rastertapetool.cpp`
 - `toonz/sources/tnztools/rastererasertool.cpp`
 - `toonz/sources/tnztools/rgbpickertool.cpp`
@@ -949,6 +956,8 @@ Assistant edit-point fills, outlines, crosshairs, and dot markers now also emit
 `tgraphics` color-circle/color-line commands with outline width preserved.
 Vector eraser, raster tape, and RGB picker polyline previews now also emit
 `tgraphics` color-circle/color-line commands.
+Iron, pump, and pinch hover cursor rings now also emit `tgraphics`
+color-circle commands.
 Geometric multiline Bezier speed-handle connector segments now also emit
 `tgraphics` color-line commands.
 Edit-tool shear-handle visible outlines now also emit `tgraphics` color-line commands.
