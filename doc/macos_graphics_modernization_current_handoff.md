@@ -20,6 +20,9 @@ milestone reports through the CI checkpoint.
   path and Skeleton Tool 3D fallback markers.
 - Metal shader source is copied into the app bundle. A compiled `.metallib` is
   packaged only when the local Metal toolchain provides `metal` and `metallib`.
+- `scripts/macos/graphics-app-smoke.sh` provides a bounded app-bundle launch
+  smoke for `OPENTOONZ_GRAPHICS_BACKEND=opengl` and `metal`, with logs and
+  optional screenshots saved outside the repository.
 
 ## Fresh Validation
 
@@ -35,6 +38,7 @@ nix develop path:. --command toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_me
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target shaderfx_metal_probe --parallel 3
 nix develop path:. --command bash scripts/graphics_shaderfx_compare.sh /private/tmp/opentoonz-shaderfx-compare-4146
 bash scripts/macos/verify-metal-resources.sh toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app
+bash -n scripts/macos/graphics-app-smoke.sh
 ```
 
 Observed results:
@@ -73,6 +77,8 @@ OpenGL selection                   files=    3 matches=    24
 - Full GUI smoke still needs manual or scripted evidence for viewer navigation,
   drawing/editing tools, style editor, preview/export, and representative scene
   files under `OPENTOONZ_GRAPHICS_BACKEND=metal`.
+- The bounded app launch smoke harness exists, but it still needs to be run and
+  reviewed on a local interactive macOS desktop for screenshot evidence.
 - Golden-scene image comparison is still incomplete for full application
   workflows, even though command-line Metal/OpenGL probes pass.
 - The legacy SceneViewer `GL_SELECT` path and Skeleton Tool 3D selection markers
@@ -85,6 +91,6 @@ OpenGL selection                   files=    3 matches=    24
 
 Continue with the smallest user-visible parity gap: replace the remaining
 SceneViewer/Skeleton Tool OpenGL selection fallback with CPU or ID-buffer hit
-testing, then add a scripted GUI smoke that opens baseline scenes under both
-`OPENTOONZ_GRAPHICS_BACKEND=opengl` and `OPENTOONZ_GRAPHICS_BACKEND=metal` and
-stores screenshots for comparison.
+testing, then extend `scripts/macos/graphics-app-smoke.sh` into a scene-driving
+smoke that opens baseline scenes under both `OPENTOONZ_GRAPHICS_BACKEND=opengl`
+and `OPENTOONZ_GRAPHICS_BACKEND=metal` and stores comparable screenshots.

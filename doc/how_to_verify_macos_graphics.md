@@ -130,6 +130,32 @@ The probe writes one `*_metal.png`, one `*_opengl.png`, and one amplified
 `*_diff.png` for each validated case. Treat these as renderer-slice evidence,
 not as a substitute for full scene-viewer golden scenes.
 
+## Scripted App Launch Smoke
+
+For a bounded backend launch smoke of the actual macOS app bundle, run:
+
+```sh
+bash scripts/macos/graphics-app-smoke.sh /private/tmp/opentoonz-graphics-app-smoke
+```
+
+By default the script launches the built app bundle once with
+`OPENTOONZ_GRAPHICS_BACKEND=opengl` and once with
+`OPENTOONZ_GRAPHICS_BACKEND=metal`, waits 10 seconds, stores logs under the
+artifact directory, captures screenshots with `screencapture` when available,
+and then terminates the app. Useful overrides:
+
+```sh
+OPENTOONZ_APP=toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app \
+OPENTOONZ_GRAPHICS_SMOKE_BACKENDS="opengl metal" \
+OPENTOONZ_GRAPHICS_SMOKE_SECONDS=15 \
+OPENTOONZ_GRAPHICS_SMOKE_SCREENSHOT=1 \
+bash scripts/macos/graphics-app-smoke.sh /private/tmp/opentoonz-graphics-app-smoke
+```
+
+This smoke proves backend startup and captures review artifacts. It does not
+prove viewer, editing, preview, export, or golden-scene parity by itself; those
+still require the manual matrix or a future scene-driving harness.
+
 ## Manual Smoke Matrix
 
 Run this matrix for both OpenGL fallback and Metal when the Metal backend exists:
