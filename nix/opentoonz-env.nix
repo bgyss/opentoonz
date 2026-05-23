@@ -29,6 +29,7 @@ let
     pkgs.libtool
     pkgs.ninja
     pkgs.pkg-config
+    pkgs.ripgrep
   ];
 
   libraryInputs = [
