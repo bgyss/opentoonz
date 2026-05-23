@@ -3,6 +3,7 @@
 // TnzCore includes
 #include "tundo.h"
 #include "tgl.h"
+#include "tgraphics.h"
 
 // TnzExt includes
 #include "ext/plasticdeformerstorage.h"
@@ -274,6 +275,8 @@ void PlasticTool::draw_rigidity() {
   }
 
   // Draw a circle centered at m_pos with m_thickness radius
-  glColor3f(1.0f, 0.0f, 0.0f);  // Red
-  tglDrawCircle(m_pos, m_thickness.getValue());
+  TGraphics::DrawList2D drawList;
+  drawList.addColorCircle(m_pos, m_thickness.getValue(), TPixel32::Red, false,
+                          false);
+  TGraphics::drawWithOpenGLBackend(drawList);
 }

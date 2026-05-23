@@ -438,6 +438,9 @@ The finger tool cursor checkpoint routes the raster finger brush outline from
 OpenGL color state plus `tglDrawSegment`/`tglDrawCircle` calls to a single
 `DrawList2D` color-line/color-circle command list, preserving the existing cyan
 ink/paint and red fallback cursor colors.
+The plastic rigidity brush checkpoint routes the red rigidity-paint radius
+circle through `DrawList2D` color-circle commands. The surrounding rigidity
+skeleton drawing still uses the existing matrix-stack path.
 
 ## Files Changed
 
@@ -1097,6 +1100,13 @@ git diff --check
 rg -n "^WITH_GRAPHICS_METAL:BOOL=" toonz/build/nix-relwithdebinfo/CMakeCache.txt toonz/build/nix-relwithdebinfo-metal/CMakeCache.txt
 nix develop path:. --command bash scripts/macos/assert-arm64-bundle.sh
 nix develop path:. --command toonz/build/nix-relwithdebinfo-metal/tnzcore/tgraphics_metal_probe
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tnztools OpenToonz --parallel 3
+rg -n "glColor|tglDrawCircle|tglDrawSegment|glBegin\\(|glVertex|tglVertex|tglColor" toonz/sources/tnztools/plastictool_rigidity.cpp || true
+bash scripts/graphics_inventory.sh
+git diff --check
+rg -n "^WITH_GRAPHICS_METAL:BOOL=" toonz/build/nix-relwithdebinfo/CMakeCache.txt toonz/build/nix-relwithdebinfo-metal/CMakeCache.txt
+nix develop path:. --command bash scripts/macos/assert-arm64-bundle.sh
+nix develop path:. --command toonz/build/nix-relwithdebinfo-metal/tnzcore/tgraphics_metal_probe
 ```
 
 Validation evidence:
@@ -1176,6 +1186,14 @@ tnztools/libtnztools.dylib linked after finger tool cursor migration
 OpenToonz linked after finger tool cursor migration
 fingertool.cpp direct drawing marker scan: no matches
 OpenToonz graphics API inventory: all graphics markers files=107 matches=2245; fixed-function drawing files=66 matches=1470
+WITH_GRAPHICS_METAL:BOOL=OFF
+WITH_GRAPHICS_METAL:BOOL=ON
+Checked 281 Mach-O files for arm64.
+tgraphics_metal_probe: ok on Apple M1 Max
+tnztools/libtnztools.dylib linked after plastic rigidity brush-radius migration
+OpenToonz linked after plastic rigidity brush-radius migration
+plastictool_rigidity.cpp direct drawing marker scan: no matches for the migrated circle path
+OpenToonz graphics API inventory: all graphics markers files=107 matches=2244; fixed-function drawing files=65 matches=1469
 WITH_GRAPHICS_METAL:BOOL=OFF
 WITH_GRAPHICS_METAL:BOOL=ON
 Checked 281 Mach-O files for arm64.
