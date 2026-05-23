@@ -2611,11 +2611,13 @@ void SceneViewer::drawOverlay() {
 
     // draw cross at the center of the locator window
     if (m_isLocator) {
-      if (shouldPresentWithMetal()) presentLocatorCrossWithMetal();
-
-      glColor3d(1.0, 0.0, 0.0);
-      tglDrawSegment(TPointD(-4, 0), TPointD(5, 0));
-      tglDrawSegment(TPointD(0, -4), TPointD(0, 5));
+      if (!shouldPresentWithMetal() || !presentLocatorCrossWithMetal()) {
+        TGraphics::DrawList2D drawList;
+        const TPixel32 red(255, 0, 0, 255);
+        drawList.addColorLine(TPointD(-4, 0), TPointD(5, 0), red, false);
+        drawList.addColorLine(TPointD(0, -4), TPointD(0, 5), red, false);
+        TGraphics::drawWithOpenGLBackend(drawList);
+      }
     }
   }
 }

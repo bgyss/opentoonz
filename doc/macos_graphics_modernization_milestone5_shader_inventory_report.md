@@ -482,6 +482,10 @@ The skeleton joint state checkpoint removes redundant OpenGL color-state calls
 from the skeleton IK/free joint and center-joint draw paths now rendered by
 `DrawList2D`. Picking names and the existing draw-list geometry remain
 unchanged.
+The locator cross checkpoint routes the locator viewer center cross fallback
+from `glColor3d(...)` and `tglDrawSegment(...)` to `DrawList2D` color-line
+commands. When the Metal presenter succeeds, the legacy OpenGL fallback is no
+longer drawn for the same locator overlay.
 
 ## Files Changed
 
@@ -1067,7 +1071,9 @@ skeleton handle outlines, filled handles, and selected-vertex square outlines
 now also emit `tgraphics` color commands, while stippled highlighted vertex
 squares remain on legacy OpenGL. Skeleton IK/free joint and center-joint
 draw-list paths no longer emit redundant OpenGL color-state calls before
-backend-neutral circle commands.
+backend-neutral circle commands. Locator viewer center crosses now also emit
+`tgraphics` color-line commands on the OpenGL fallback path and skip that
+fallback when the Metal overlay presenter succeeds.
 Continue by broadening input-texture ShaderFx coverage beyond these hand-routed
 effects and by moving the remaining preview/export and style-editor surfaces
 through `tgraphics`. Keep OpenGL `ShaderFx` as the default until full scene
@@ -1214,6 +1220,13 @@ nix develop path:. --command bash scripts/macos/assert-arm64-bundle.sh
 nix develop path:. --command toonz/build/nix-relwithdebinfo-metal/tnzcore/tgraphics_metal_probe
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tnztools OpenToonz --parallel 3
 rg -n "glColor3d|glColor4d|glBegin\\(|tglDrawCircle|tglDrawSegment|tglVertex" toonz/sources/tnztools/skeletontool.cpp
+bash scripts/graphics_inventory.sh
+git diff --check
+rg -n "^WITH_GRAPHICS_METAL:BOOL=" toonz/build/nix-relwithdebinfo/CMakeCache.txt toonz/build/nix-relwithdebinfo-metal/CMakeCache.txt
+nix develop path:. --command bash scripts/macos/assert-arm64-bundle.sh
+nix develop path:. --command toonz/build/nix-relwithdebinfo-metal/tnzcore/tgraphics_metal_probe
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target OpenToonz --parallel 3
+rg -n "draw cross at the center|glColor3d\\(1\\.0, 0\\.0, 0\\.0\\)|tglDrawSegment\\(TPointD\\(-4, 0\\)|presentLocatorCrossWithMetal" toonz/sources/toonz/sceneviewer.cpp
 bash scripts/graphics_inventory.sh
 git diff --check
 rg -n "^WITH_GRAPHICS_METAL:BOOL=" toonz/build/nix-relwithdebinfo/CMakeCache.txt toonz/build/nix-relwithdebinfo-metal/CMakeCache.txt
@@ -1382,6 +1395,13 @@ tnztools/libtnztools.dylib linked after skeleton redundant color-state cleanup
 OpenToonz linked after skeleton redundant color-state cleanup
 skeletontool.cpp focused scan: remaining matches are legacy square texture/setup, commented debug colors, and older matrix/color-state paths outside the migrated draw-list joint paths
 OpenToonz graphics API inventory: all graphics markers files=106 matches=2185; fixed-function drawing files=63 matches=1412; fixed-function matrix files=55 matches=454
+WITH_GRAPHICS_METAL:BOOL=OFF
+WITH_GRAPHICS_METAL:BOOL=ON
+Checked 281 Mach-O files for arm64.
+tgraphics_metal_probe: ok on Apple M1 Max
+OpenToonz linked after locator cross fallback migration
+sceneviewer.cpp focused locator scan: migrated center-cross segment calls are gone; remaining red color match is viewer indicator text
+OpenToonz graphics API inventory: all graphics markers files=106 matches=2184; fixed-function drawing files=63 matches=1411; fixed-function matrix files=55 matches=454
 WITH_GRAPHICS_METAL:BOOL=OFF
 WITH_GRAPHICS_METAL:BOOL=ON
 Checked 281 Mach-O files for arm64.
