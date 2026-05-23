@@ -18,6 +18,7 @@
 #include "tvectorimage.h"
 #include "toonz/strokegenerator.h"
 #include "tstroke.h"
+#include "tgraphics.h"
 #include "drawutil.h"
 #include "tinbetween.h"
 
@@ -498,12 +499,13 @@ public:
       TPixel color = ToonzCheck::instance()->getChecks() & ToonzCheck::eBlackBg
                          ? TPixel32::White
                          : TPixel32::Black;
-      tglColor(color);
-      tglDrawCircle(m_polyline[0], 2);
-      glBegin(GL_LINE_STRIP);
-      for (UINT i = 0; i < m_polyline.size(); i++) tglVertex(m_polyline[i]);
-      tglVertex(m_mousePosition);
-      glEnd();
+      TGraphics::DrawList2D drawList;
+      drawList.addColorCircle(m_polyline[0], 2.0, color, false, false);
+      for (UINT i = 1; i < m_polyline.size(); i++) {
+        drawList.addColorLine(m_polyline[i - 1], m_polyline[i], color, false);
+      }
+      drawList.addColorLine(m_polyline.back(), m_mousePosition, color, false);
+      TGraphics::drawWithOpenGLBackend(drawList);
     } else if (m_closeType.getValue() == FREEHAND_CLOSE && !m_track.isEmpty()) {
       TPixel color = ToonzCheck::instance()->getChecks() & ToonzCheck::eBlackBg
                          ? TPixel32::White

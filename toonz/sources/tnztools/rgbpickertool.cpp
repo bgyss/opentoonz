@@ -9,6 +9,7 @@
 #include "toonz/cleanupcolorstyles.h"
 #include "trasterimage.h"
 #include "tgl.h"
+#include "tgraphics.h"
 #include "tenv.h"
 #include "tstroke.h"
 
@@ -301,13 +302,15 @@ void RGBPickerTool::draw() {
     TPixel color = ToonzCheck::instance()->getChecks() & ToonzCheck::eBlackBg
                        ? TPixel32::White
                        : TPixel32::Black;
-    tglColor(color);
-    tglDrawCircle(m_drawingPolyline[0], 2);
-    glBegin(GL_LINE_STRIP);
-    for (UINT i = 0; i < m_drawingPolyline.size(); i++)
-      tglVertex(m_drawingPolyline[i]);
-    tglVertex(m_mousePosition);
-    glEnd();
+    TGraphics::DrawList2D drawList;
+    drawList.addColorCircle(m_drawingPolyline[0], 2.0, color, false, false);
+    for (UINT i = 1; i < m_drawingPolyline.size(); i++) {
+      drawList.addColorLine(m_drawingPolyline[i - 1], m_drawingPolyline[i],
+                            color, false);
+    }
+    drawList.addColorLine(m_drawingPolyline.back(), m_mousePosition, color,
+                          false);
+    TGraphics::drawWithOpenGLBackend(drawList);
   } else if (m_pickType.getValue() == FREEHAND_PICK &&
              !m_drawingTrack.isEmpty()) {
     TPixel color = ToonzCheck::instance()->getChecks() & ToonzCheck::eBlackBg

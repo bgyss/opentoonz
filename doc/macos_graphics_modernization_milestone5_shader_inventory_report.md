@@ -402,6 +402,10 @@ The assistant point checkpoint adds explicit outline-width support to
 `DrawList2D` color circles, validates it in the Metal probe, and routes
 assistant edit-point fills, outlines, crosshairs, and dot markers through shared
 color-circle/color-line commands.
+The polyline preview checkpoint routes vector eraser, raster tape, and RGB
+picker polyline start markers and active preview segments through `DrawList2D`
+color-circle/color-line commands. Freehand track and stroke-centerline previews
+remain on their existing legacy stroke-render paths.
 
 ## Files Changed
 
@@ -427,7 +431,9 @@ color-circle/color-line commands.
 - `toonz/sources/tnztools/paintbrushtool.cpp`
 - `toonz/sources/tnztools/plastictool.cpp`
 - `toonz/sources/tnztools/plastictool_meshedit.cpp`
+- `toonz/sources/tnztools/rastertapetool.cpp`
 - `toonz/sources/tnztools/rastererasertool.cpp`
+- `toonz/sources/tnztools/rgbpickertool.cpp`
 - `toonz/sources/tnztools/selectiontool.cpp`
 - `toonz/sources/tnztools/setsaveboxtool.cpp`
 - `toonz/sources/tnztools/skeletontool.cpp`
@@ -436,6 +442,7 @@ color-circle/color-line commands.
 - `toonz/sources/tnztools/trackertool.cpp`
 - `toonz/sources/tnztools/toonzrasterbrushtool.cpp`
 - `toonz/sources/tnztools/toonzrasterbrushtool.h`
+- `toonz/sources/tnztools/vectorerasertool.cpp`
 - `toonz/sources/tnztools/viewtools.cpp`
 - `toonz/sources/toonz/CMakeLists.txt`
 - `toonz/sources/toonz/cleanuppreview.cpp`
@@ -936,6 +943,8 @@ Assistant base segments now emit `tgraphics` gradient color-line commands with
 per-endpoint alpha preserved by the shared OpenGL and Metal backends.
 Assistant edit-point fills, outlines, crosshairs, and dot markers now also emit
 `tgraphics` color-circle/color-line commands with outline width preserved.
+Vector eraser, raster tape, and RGB picker polyline previews now also emit
+`tgraphics` color-circle/color-line commands.
 Geometric multiline Bezier speed-handle connector segments now also emit
 `tgraphics` color-line commands.
 Edit-tool shear-handle visible outlines now also emit `tgraphics` color-line commands.

@@ -30,6 +30,7 @@
 #include "ttoonzimage.h"
 #include "tproperty.h"
 #include "tgl.h"
+#include "tgraphics.h"
 #include "tinbetween.h"
 #include "drawutil.h"
 
@@ -497,12 +498,13 @@ void EraserTool::draw() {
     }
     if (m_eraseType.getValue() == POLYLINE_ERASE && !m_polyline.empty()) {
       TPixel color = blackBg ? TPixel32::White : TPixel32::Black;
-      tglColor(color);
-      tglDrawCircle(m_polyline[0], 2);
-      glBegin(GL_LINE_STRIP);
-      for (UINT i = 0; i < m_polyline.size(); i++) tglVertex(m_polyline[i]);
-      tglVertex(m_mousePos);
-      glEnd();
+      TGraphics::DrawList2D drawList;
+      drawList.addColorCircle(m_polyline[0], 2.0, color, false, false);
+      for (UINT i = 1; i < m_polyline.size(); i++) {
+        drawList.addColorLine(m_polyline[i - 1], m_polyline[i], color, false);
+      }
+      drawList.addColorLine(m_polyline.back(), m_mousePos, color, false);
+      TGraphics::drawWithOpenGLBackend(drawList);
     } else if ((m_eraseType.getValue() == FREEHAND_ERASE ||
                 m_eraseType.getValue() == SEGMENT_ERASE) &&
                !m_track.isEmpty()) {
