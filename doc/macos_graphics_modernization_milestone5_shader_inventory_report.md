@@ -375,6 +375,9 @@ grid-aware migration.
 The raster eraser polyline checkpoint routes the start-point marker and active
 polyline preview through `DrawList2D` color-circle/color-line commands, removing
 the immediate-mode `GL_LINE_STRIP` preview from `rastererasertool.cpp`.
+The raster eraser normal-cursor checkpoint routes both the regular outline
+circle and the pixel-grid pencil outline segments through `DrawList2D`,
+preserving the existing ink/paint cyan versus red cursor color choice.
 The full-color eraser checkpoint routes the normal-mode cursor ring and active
 polyline preview through `DrawList2D` color-circle/color-line commands, removing
 direct `glColor3d`, `tglDrawCircle`, and `GL_LINE_STRIP` preview drawing from
@@ -900,6 +903,8 @@ Toonz raster brush MyPaint-style min/max cursor outlines now also emit
 `tgraphics` color-circle commands.
 Raster eraser polyline start markers and active preview lines now also emit
 `tgraphics` color-circle/color-line commands.
+Raster eraser normal cursor circles and pixel-grid pencil cursor segments now
+also emit `tgraphics` color-circle/color-line commands.
 Full-color eraser normal cursor rings and polyline previews now also emit
 `tgraphics` color-circle/color-line commands.
 Full-color eraser multi-arc guides and join circles now also emit `tgraphics`
