@@ -368,6 +368,10 @@ The full-color brush cursor checkpoint routes the min/max cursor outline circles
 through `DrawList2D` color-circle commands, preserving the existing alpha fade
 while removing direct `glColor4d` and `tglDrawCircle` calls from that cursor
 preview.
+The Toonz raster brush checkpoint routes the MyPaint-style min/max cursor
+outline circles through `DrawList2D` color-circle commands. Pixel-grid empty
+circle cursor drawing remains on the legacy raster-brush path for a later,
+grid-aware migration.
 
 ## Files Changed
 
@@ -397,6 +401,7 @@ preview.
 - `toonz/sources/tnztools/rulertool.cpp`
 - `toonz/sources/tnztools/shifttracetool.cpp`
 - `toonz/sources/tnztools/trackertool.cpp`
+- `toonz/sources/tnztools/toonzrasterbrushtool.cpp`
 - `toonz/sources/tnztools/viewtools.cpp`
 - `toonz/sources/toonz/CMakeLists.txt`
 - `toonz/sources/toonz/cleanuppreview.cpp`
@@ -878,6 +883,8 @@ Paint-brush cursor outlines now also emit `tgraphics`
 color-line/color-circle commands.
 Full-color brush min/max cursor outlines now also emit `tgraphics`
 color-circle commands with alpha preserved in the draw-list colors.
+Toonz raster brush MyPaint-style min/max cursor outlines now also emit
+`tgraphics` color-circle commands.
 Geometric multiline Bezier speed-handle connector segments now also emit
 `tgraphics` color-line commands.
 Edit-tool shear-handle visible outlines now also emit `tgraphics` color-line commands.

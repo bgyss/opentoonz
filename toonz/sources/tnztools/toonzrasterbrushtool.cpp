@@ -45,6 +45,7 @@
 #include "tsystem.h"
 
 #include "tgl.h"
+#include "tgraphics.h"
 #include "trop.h"
 
 // Qt includes
@@ -1539,21 +1540,26 @@ void ToonzRasterBrushTool::draw() {
   // If toggled off, don't draw brush outline
   if (!Preferences::instance()->isCursorOutlineEnabled()) return;
 
-  // If in Ink / Paint mode, draw in cyan
   int checks = ToonzCheck::instance()->getChecks();
+  TPixel32 cursorColor;
   if ((checks & ToonzCheck::eInk) || (checks & ToonzCheck::ePaint) ||
       (checks & ToonzCheck::eInk1)) {
-    glColor3d(0.5, 0.8, 0.8);  // Cyan
+    cursorColor = TPixel32(128, 204, 204);  // Cyan
   } else {
-    glColor3d(1.0, 0.0, 0.0);  // Red
+    cursorColor = TPixel32::Red;
   }
 
   if (m_isMyPaintStyleSelected) {
-    tglDrawCircle(m_brushPos, (m_minCursorThick + 1) * 0.5);
-    tglDrawCircle(m_brushPos, (m_maxCursorThick + 1) * 0.5);
+    TGraphics::DrawList2D drawList;
+    drawList.addColorCircle(m_brushPos, (m_minCursorThick + 1) * 0.5,
+                            cursorColor, false, false);
+    drawList.addColorCircle(m_brushPos, (m_maxCursorThick + 1) * 0.5,
+                            cursorColor, false, false);
+    TGraphics::drawWithOpenGLBackend(drawList);
     return;
   }
 
+  tglColor(cursorColor);
   if (TToonzImageP ti = img) {
     TRasterP ras = ti->getRaster();
     int lx       = ras->getLx();
