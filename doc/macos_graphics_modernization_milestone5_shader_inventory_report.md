@@ -430,6 +430,10 @@ endpoint connector through `DrawList2D` color-circle/color-line commands.
 The iron debug control-point checkpoint routes `_DEBUG` red and white
 control-point square markers through `DrawList2D` color-rect commands, removing
 the local immediate-mode quad and OpenGL color-state calls from `irontool.cpp`.
+The pump partial-preview checkpoint routes the action-radius selected-stroke
+preview from an immediate-mode `GL_LINE_STRIP` to sampled `DrawList2D`
+color-line commands. The full-stroke fallback remains on the existing
+stroke-centerline renderer.
 
 ## Files Changed
 
@@ -1075,6 +1079,13 @@ rg -n "glBegin\\(|glVertex|glColor|tglDrawCircle|tglDrawSegment|tglColor" toonz/
 rg -n "^WITH_GRAPHICS_METAL:BOOL=" toonz/build/nix-relwithdebinfo/CMakeCache.txt toonz/build/nix-relwithdebinfo-metal/CMakeCache.txt
 nix develop path:. --command bash scripts/macos/assert-arm64-bundle.sh
 nix develop path:. --command toonz/build/nix-relwithdebinfo-metal/tnzcore/tgraphics_metal_probe
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tnztools OpenToonz --parallel 3
+rg -n "glBegin\\(|glVertex|tglVertex|GL_LINE_STRIP|glColor|tglColor|tglDrawCircle|tglDrawSegment" toonz/sources/tnztools/pumptool.cpp || true
+bash scripts/graphics_inventory.sh
+git diff --check
+rg -n "^WITH_GRAPHICS_METAL:BOOL=" toonz/build/nix-relwithdebinfo/CMakeCache.txt toonz/build/nix-relwithdebinfo-metal/CMakeCache.txt
+nix develop path:. --command bash scripts/macos/assert-arm64-bundle.sh
+nix develop path:. --command toonz/build/nix-relwithdebinfo-metal/tnzcore/tgraphics_metal_probe
 ```
 
 Validation evidence:
@@ -1138,6 +1149,14 @@ tnztools/libtnztools.dylib linked after iron debug control-point migration
 OpenToonz linked after iron debug control-point migration
 irontool.cpp direct drawing marker scan: no matches
 OpenToonz graphics API inventory: all graphics markers files=108 matches=2256; fixed-function drawing files=67 matches=1481
+WITH_GRAPHICS_METAL:BOOL=OFF
+WITH_GRAPHICS_METAL:BOOL=ON
+Checked 281 Mach-O files for arm64.
+tgraphics_metal_probe: ok on Apple M1 Max
+tnztools/libtnztools.dylib linked after pump partial-preview migration
+OpenToonz linked after pump partial-preview migration
+pumptool.cpp direct drawing marker scan: only the legacy full-stroke tglColor fallback remains
+OpenToonz graphics API inventory: all graphics markers files=108 matches=2247; fixed-function drawing files=67 matches=1472
 WITH_GRAPHICS_METAL:BOOL=OFF
 WITH_GRAPHICS_METAL:BOOL=ON
 Checked 281 Mach-O files for arm64.

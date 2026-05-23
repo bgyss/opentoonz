@@ -199,12 +199,11 @@ void PumpTool::draw() {
       double totalLen  = stroke->getLength();
       double actionLen = actionRadius(totalLen);
 
-      tglColor(TPixel32::Red);
-
       if (totalLen < actionLen ||
-          (stroke->isSelfLoop() && totalLen < actionLen + actionLen))
+          (stroke->isSelfLoop() && totalLen < actionLen + actionLen)) {
+        tglColor(TPixel32::Red);
         drawStrokeCenterline(*stroke, getPixelSize());
-      else {
+      } else {
         int i, chunckIndex1, chunckIndex2;
         double t, t1, t2, w1, w2;
 
@@ -238,21 +237,28 @@ void PumpTool::draw() {
         double step;
 
         const TThickQuadratic *q = 0;
-
-        glBegin(GL_LINE_STRIP);
+        TGraphics::DrawList2D drawList;
+        bool hasPreviousPoint = false;
+        TPointD previousPoint;
+        auto addPoint = [&](const TPointD &point) {
+          if (hasPreviousPoint)
+            drawList.addColorLine(previousPoint, point, TPixel32::Red, false);
+          previousPoint    = point;
+          hasPreviousPoint = true;
+        };
 
         q    = stroke->getChunk(chunckIndex1);
         step = computeStep(*q, getPixelSize());
 
         if (chunckIndex1 == chunckIndex2 && t1 < t2) {
-          for (t = t1; t < t2; t += step) tglVertex(q->getPoint(t));
+          for (t = t1; t < t2; t += step) addPoint(q->getPoint(t));
 
-          tglVertex(stroke->getPoint(w2));
-          glEnd();
+          addPoint(stroke->getPoint(w2));
+          TGraphics::drawWithOpenGLBackend(drawList);
           return;
         }
 
-        for (t = t1; t < 1; t += step) tglVertex(q->getPoint(t));
+        for (t = t1; t < 1; t += step) addPoint(q->getPoint(t));
 
         for (i = chunckIndex1 + 1; i != chunckIndex2; i++) {
           if (i == chunkCount) i = 0;
@@ -261,16 +267,15 @@ void PumpTool::draw() {
 
           q    = stroke->getChunk(i);
           step = computeStep(*q, getPixelSize());
-          for (t = 0; t < 1; t += step) tglVertex(q->getPoint(t));
+          for (t = 0; t < 1; t += step) addPoint(q->getPoint(t));
         }
 
         q    = stroke->getChunk(chunckIndex2);
         step = computeStep(*q, getPixelSize());
-        for (t = 0; t < t2; t += step) tglVertex(q->getPoint(t));
+        for (t = 0; t < t2; t += step) addPoint(q->getPoint(t));
 
-        tglVertex(stroke->getPoint(w2));
-
-        glEnd();
+        addPoint(stroke->getPoint(w2));
+        TGraphics::drawWithOpenGLBackend(drawList);
       }
     }
   }
