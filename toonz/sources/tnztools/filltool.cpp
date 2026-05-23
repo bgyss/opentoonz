@@ -32,6 +32,7 @@
 #include "tstroke.h"
 #include "drawutil.h"
 #include "tsystem.h"
+#include "tgraphics.h"
 #include "tinbetween.h"
 #include "tregion.h"
 #include "tgl.h"
@@ -1430,14 +1431,14 @@ void AreaFillTool::draw() {
   }
 
   if (m_type == POLYLINE && !m_polyline.empty()) {
-    glPushMatrix();
-    tglColor(TPixel::Red);
-    tglDrawCircle(m_polyline[0], 2);
-    glBegin(GL_LINE_STRIP);
-    for (UINT i = 0; i < m_polyline.size(); i++) tglVertex(m_polyline[i]);
-    tglVertex(m_mousePosition);
-    glEnd();
-    glPopMatrix();
+    TGraphics::DrawList2D drawList;
+    drawList.addColorCircle(m_polyline[0], 2, TPixel32::Red, false, false);
+    for (UINT i = 1; i < m_polyline.size(); i++)
+      drawList.addColorLine(m_polyline[i - 1], m_polyline[i], TPixel32::Red,
+                            false);
+    drawList.addColorLine(m_polyline.back(), m_mousePosition, TPixel32::Red,
+                          false);
+    TGraphics::drawWithOpenGLBackend(drawList);
   } else if ((m_type == FREEHAND || m_type == FREEPICK) && !m_track.isEmpty()) {
     tglColor(TPixelRGBM32(128, 128, 255, 76));
     glPushMatrix();
@@ -1952,11 +1953,10 @@ public:
 
   void draw() {
     if (m_isEditing) {
-      tglColor(TPixel32::Red);
-      glBegin(GL_LINE_STRIP);
-      tglVertex(m_startPosition);
-      tglVertex(m_mousePosition);
-      glEnd();
+      TGraphics::DrawList2D drawList;
+      drawList.addColorLine(m_startPosition, m_mousePosition, TPixel32::Red,
+                            false);
+      TGraphics::drawWithOpenGLBackend(drawList);
     }
   }
 };
