@@ -104,6 +104,15 @@ struct DVAPI ColorLine final {
   bool m_blending = false;
 };
 
+struct DVAPI GradientColorLine final {
+  TPointD m_p0;
+  TPointD m_p1;
+  TPixel32 m_color0;
+  TPixel32 m_color1;
+  double m_width  = 1.0;
+  bool m_blending = false;
+};
+
 struct DVAPI ColorCircle final {
   TPointD m_center;
   double m_radius = 0.0;
@@ -117,6 +126,7 @@ class DVAPI DrawList2D final {
   std::vector<ColorQuad> m_colorQuads;
   std::vector<ColorTriangle> m_colorTriangles;
   std::vector<ColorLine> m_colorLines;
+  std::vector<GradientColorLine> m_gradientColorLines;
   std::vector<ColorCircle> m_colorCircles;
   std::vector<TextureQuad> m_textureQuads;
   TPixel32 m_clearColor;
@@ -136,6 +146,9 @@ public:
                     bool blending);
   void addColorLine(const TPointD& p0, const TPointD& p1, const TPixel32& color,
                     bool blending, double width);
+  void addGradientColorLine(const TPointD& p0, const TPointD& p1,
+                            const TPixel32& color0, const TPixel32& color1,
+                            bool blending, double width);
   void addColorCircle(const TPointD& center, double radius,
                       const TPixel32& color, bool filled, bool blending);
   void addTexture(const TRectD& rect, const TRaster32P& raster, bool blending);
@@ -153,6 +166,7 @@ public:
   const std::vector<ColorQuad>& colorQuads() const;
   const std::vector<ColorTriangle>& colorTriangles() const;
   const std::vector<ColorLine>& colorLines() const;
+  const std::vector<GradientColorLine>& gradientColorLines() const;
   const std::vector<ColorCircle>& colorCircles() const;
   const std::vector<TextureQuad>& textureQuads() const;
   bool empty() const;

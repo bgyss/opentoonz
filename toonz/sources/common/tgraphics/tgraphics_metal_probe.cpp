@@ -744,6 +744,33 @@ int main(int argc, char* argv[]) {
   }
 
   {
+    const TPixel32 gradientLineClearColor(19, 29, 41, 255);
+    const TPixel32 gradientLineColor0(255, 60, 40, 96);
+    const TPixel32 gradientLineColor1(40, 160, 255, 224);
+    TGraphics::DrawList2D drawList;
+    drawList.setClearColor(gradientLineClearColor);
+    drawList.addGradientColorLine(TPointD(1, 6), TPointD(7, 2),
+                                  gradientLineColor0, gradientLineColor1, true,
+                                  2.0);
+
+    TRaster32P readback = renderMetal(drawList, width, height);
+    if (!readback)
+      return fail("could not read back gradient color line Metal target");
+    if (!requireDimensions(readback, width, height)) {
+      return fail(
+          "gradient color line readback dimensions do not match render target");
+    }
+
+    TRaster32P openGLReadback = renderOpenGL(drawList, width, height);
+    if (!openGLReadback)
+      return fail("could not read back gradient color line OpenGL baseline");
+    if (!compareRasters(readback, openGLReadback, "gradient color line",
+                        artifactDir)) {
+      return EXIT_FAILURE;
+    }
+  }
+
+  {
     const TPixel32 quadClearColor(11, 17, 23, 255);
     const TPixel32 baseColor(31, 67, 103, 255);
     const TPixel32 quadColor(219, 181, 47, 192);

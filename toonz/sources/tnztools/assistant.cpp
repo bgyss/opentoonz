@@ -458,22 +458,19 @@ TAssistantBase::drawSegment(const TPointD &p0, const TPointD &p1, double pixelSi
   TPixelD colorBack0 = makeContrastColor(color0);
   TPixelD colorBack1 = makeContrastColor(color1);
 
-  glPushAttrib(GL_ALL_ATTRIB_BITS);
-  tglEnableBlending();
-  tglEnableLineSmooth(true, 1.0 * lineWidthScale);
   TPointD d = p1 - p0;
   double k = norm2(d);
   if (k > TConsts::epsilon*TConsts::epsilon) {
     k = 0.5*pixelSize*lineWidthScale/sqrt(k);
     d = TPointD(-k*d.y, k*d.x);
-    glBegin(GL_LINES);
-    tglColor(colorBack0); tglVertex(p0 - d);
-    tglColor(colorBack1); tglVertex(p1 - d);
-    tglColor(color0); tglVertex(p0 + d);
-    tglColor(color1); tglVertex(p1 + d);
-    glEnd();
+    TGraphics::DrawList2D drawList;
+    drawList.addGradientColorLine(p0 - d, p1 - d, toPixel32(colorBack0),
+                                  toPixel32(colorBack1), true,
+                                  lineWidthScale);
+    drawList.addGradientColorLine(p0 + d, p1 + d, toPixel32(color0),
+                                  toPixel32(color1), true, lineWidthScale);
+    TGraphics::drawWithOpenGLBackend(drawList);
   }
-  glPopAttrib();
 }
 
 //---------------------------------------------------------------------------------------------------

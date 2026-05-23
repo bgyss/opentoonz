@@ -395,6 +395,9 @@ colors, alpha, and line-width scale.
 The assistant index-glyph checkpoint routes the seven-segment editing point
 labels through `DrawList2D` color-line commands, preserving the existing
 contrast/front color pairing and line-width scale.
+The assistant gradient-segment checkpoint adds `DrawList2D` per-endpoint color
+line commands with OpenGL and Metal probe coverage, then routes assistant base
+segments through that path to preserve the existing alpha gradient semantics.
 
 ## Files Changed
 
@@ -925,6 +928,8 @@ color-line/color-circle commands.
 Assistant guideline double-stroked segments now also emit `tgraphics`
 color-line commands.
 Assistant index glyphs now also emit `tgraphics` color-line commands.
+Assistant base segments now emit `tgraphics` gradient color-line commands with
+per-endpoint alpha preserved by the shared OpenGL and Metal backends.
 Geometric multiline Bezier speed-handle connector segments now also emit
 `tgraphics` color-line commands.
 Edit-tool shear-handle visible outlines now also emit `tgraphics` color-line commands.

@@ -233,6 +233,20 @@ void DrawList2D::addColorLine(const TPointD& p0, const TPointD& p1,
   m_colorLines.push_back(colorLine);
 }
 
+void DrawList2D::addGradientColorLine(const TPointD& p0, const TPointD& p1,
+                                      const TPixel32& color0,
+                                      const TPixel32& color1, bool blending,
+                                      double width) {
+  GradientColorLine colorLine;
+  colorLine.m_p0       = p0;
+  colorLine.m_p1       = p1;
+  colorLine.m_color0   = color0;
+  colorLine.m_color1   = color1;
+  colorLine.m_width    = std::max(1.0, width);
+  colorLine.m_blending = blending;
+  m_gradientColorLines.push_back(colorLine);
+}
+
 void DrawList2D::addColorCircle(const TPointD& center, double radius,
                                 const TPixel32& color, bool filled,
                                 bool blending) {
@@ -308,6 +322,10 @@ const std::vector<ColorLine>& DrawList2D::colorLines() const {
   return m_colorLines;
 }
 
+const std::vector<GradientColorLine>& DrawList2D::gradientColorLines() const {
+  return m_gradientColorLines;
+}
+
 const std::vector<ColorCircle>& DrawList2D::colorCircles() const {
   return m_colorCircles;
 }
@@ -319,7 +337,8 @@ const std::vector<TextureQuad>& DrawList2D::textureQuads() const {
 bool DrawList2D::empty() const {
   return !m_hasClearColor && m_colorRects.empty() && m_colorQuads.empty() &&
          m_colorTriangles.empty() && m_colorLines.empty() &&
-         m_colorCircles.empty() && m_textureQuads.empty();
+         m_gradientColorLines.empty() && m_colorCircles.empty() &&
+         m_textureQuads.empty();
 }
 
 class OpenGLImageRenderTarget final : public RenderTarget {
@@ -396,6 +415,10 @@ public:
 
     for (const ColorLine& line : drawList.colorLines()) {
       drawColorLine(line);
+    }
+
+    for (const GradientColorLine& line : drawList.gradientColorLines()) {
+      drawGradientColorLine(line);
     }
 
     for (const ColorCircle& circle : drawList.colorCircles()) {
@@ -506,6 +529,35 @@ private:
         for (const TPointD& point : points) tglVertex(point);
         glEnd();
       }
+    }
+    glDisable(GL_BLEND);
+  }
+
+  void drawGradientColorLine(const GradientColorLine& line) {
+    if (line.m_blending) {
+      glEnable(GL_BLEND);
+      glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    } else {
+      glDisable(GL_BLEND);
+    }
+
+    ColorLine geometryLine;
+    geometryLine.m_p0    = line.m_p0;
+    geometryLine.m_p1    = line.m_p1;
+    geometryLine.m_width = line.m_width;
+
+    std::array<TPointD, 4> points;
+    if (makeStrokedLineQuad(geometryLine, points)) {
+      glBegin(GL_POLYGON);
+      tglColor(line.m_color0);
+      tglVertex(points[0]);
+      tglColor(line.m_color1);
+      tglVertex(points[1]);
+      tglColor(line.m_color1);
+      tglVertex(points[2]);
+      tglColor(line.m_color0);
+      tglVertex(points[3]);
+      glEnd();
     }
     glDisable(GL_BLEND);
   }

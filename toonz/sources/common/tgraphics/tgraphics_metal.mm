@@ -77,12 +77,24 @@ NSString *shaderSource() {
           "struct VertexIn { float2 position; float2 texCoord; };\n"
           "struct VertexOut { float4 position [[position]]; float2 texCoord; "
           "};\n"
+          "struct ColorVertexIn { packed_float2 position; packed_float4 "
+          "color; };\n"
+          "struct ColorVertexOut { float4 position [[position]]; float4 "
+          "color; };\n"
           "vertex VertexOut tgraphicsVertex(uint vertexId [[vertex_id]], "
           "constant VertexIn *vertices [[buffer(0)]]) {\n"
           "  VertexIn in = vertices[vertexId];\n"
           "  VertexOut out;\n"
           "  out.position = float4(in.position, 0.0, 1.0);\n"
           "  out.texCoord = in.texCoord;\n"
+          "  return out;\n"
+          "}\n"
+          "vertex ColorVertexOut tgraphicsVertexColor(uint vertexId "
+          "[[vertex_id]], constant ColorVertexIn *vertices [[buffer(0)]]) {\n"
+          "  ColorVertexIn in = vertices[vertexId];\n"
+          "  ColorVertexOut out;\n"
+          "  out.position = float4(in.position, 0.0, 1.0);\n"
+          "  out.color = in.color;\n"
           "  return out;\n"
           "}\n"
           "fragment float4 tgraphicsFragment(VertexOut in [[stage_in]], "
@@ -95,6 +107,10 @@ NSString *shaderSource() {
           "fragment float4 tgraphicsColorFragment(VertexOut in [[stage_in]], "
           "constant float4 &color [[buffer(0)]]) {\n"
           "  return color;\n"
+          "}\n"
+          "fragment float4 tgraphicsVertexColorFragment(ColorVertexOut in "
+          "[[stage_in]]) {\n"
+          "  return in.color;\n"
           "}\n"
           "struct HSLBlendUniforms { float fgA11; float fgA12; float fgA13; "
           "float fgA21; float fgA22; float fgA23; float bgA11; float bgA12; "
@@ -602,6 +618,12 @@ struct MetalVertex {
   float m_v = 0.0f;
 };
 
+struct MetalColorVertex {
+  float m_x     = 0.0f;
+  float m_y     = 0.0f;
+  float m_color[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+};
+
 struct SunflareUniforms {
   float m_a11         = 1.0f;
   float m_a12         = 0.0f;
@@ -998,6 +1020,20 @@ public:
       }
     }
 
+    for (const GradientColorLine &line : drawList.gradientColorLines()) {
+      id<MTLRenderPipelineState> pipeline = vertexColorPipelineState(line.m_blending);
+      if (!pipeline) continue;
+
+      std::array<MetalColorVertex, 6> vertices;
+      if (!makeVertices(line, vertices)) continue;
+
+      [encoder setRenderPipelineState:pipeline];
+      [encoder setVertexBytes:vertices.data()
+                       length:vertices.size() * sizeof(MetalColorVertex)
+                      atIndex:0];
+      [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+    }
+
     for (const ColorCircle &circle : drawList.colorCircles()) {
       id<MTLRenderPipelineState> pipeline = colorPipelineState(circle.m_blending);
       if (!pipeline) continue;
@@ -1146,6 +1182,56 @@ private:
     return pipeline;
   }
 
+  id<MTLRenderPipelineState> vertexColorPipelineState(bool blending) {
+    static id<MTLRenderPipelineState> replacePipeline = nil;
+    static id<MTLRenderPipelineState> blendPipeline   = nil;
+    static bool attemptedReplace                      = false;
+    static bool attemptedBlend                        = false;
+
+    id<MTLRenderPipelineState> &pipeline = blending ? blendPipeline : replacePipeline;
+    bool &attempted                      = blending ? attemptedBlend : attemptedReplace;
+    if (attempted) return pipeline;
+    attempted = true;
+
+    MetalState &state      = metalState();
+    NSError *error         = nil;
+    id<MTLLibrary> library = newShaderLibrary(state, &error);
+    if (!library) {
+      logMetalError(@"compile shader library", error);
+      return nil;
+    }
+
+    id<MTLFunction> vertexFunction = [library newFunctionWithName:@"tgraphicsVertexColor"];
+    id<MTLFunction> fragmentFunction =
+        [library newFunctionWithName:@"tgraphicsVertexColorFragment"];
+
+    MTLRenderPipelineDescriptor *descriptor        = [[MTLRenderPipelineDescriptor alloc] init];
+    descriptor.label                               = @"OpenToonz TGraphics Vertex Color";
+    descriptor.vertexFunction                      = vertexFunction;
+    descriptor.fragmentFunction                    = fragmentFunction;
+    descriptor.colorAttachments[0].pixelFormat     = MTLPixelFormatBGRA8Unorm;
+    descriptor.colorAttachments[0].blendingEnabled = blending ? YES : NO;
+    if (blending) {
+      descriptor.colorAttachments[0].sourceRGBBlendFactor      = MTLBlendFactorSourceAlpha;
+      descriptor.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+      descriptor.colorAttachments[0].sourceAlphaBlendFactor    = MTLBlendFactorSourceAlpha;
+      descriptor.colorAttachments[0].destinationAlphaBlendFactor =
+          MTLBlendFactorOneMinusSourceAlpha;
+    }
+
+    pipeline = [state.m_device newRenderPipelineStateWithDescriptor:descriptor error:&error];
+    if (!pipeline) logMetalError(@"create vertex color pipeline", error);
+
+#if !__has_feature(objc_arc)
+    [descriptor release];
+    [fragmentFunction release];
+    [vertexFunction release];
+    [library release];
+#endif
+
+    return pipeline;
+  }
+
   id<MTLSamplerState> samplerState() { return sharedSamplerState(); }
 
   id<MTLTexture> upload(const TRaster32P &raster) { return uploadRasterTexture(raster); }
@@ -1233,6 +1319,40 @@ private:
              {pixelToClipX(p10.x), pixelToClipY(p10.y), 1.0f, 0.0f},
              {pixelToClipX(p11.x), pixelToClipY(p11.y), 1.0f, 1.0f},
              {pixelToClipX(p01.x), pixelToClipY(p01.y), 0.0f, 1.0f}}};
+  }
+
+  bool makeVertices(const GradientColorLine &line,
+                    std::array<MetalColorVertex, 6> &vertices) const {
+    ColorLine geometryLine;
+    geometryLine.m_p0    = line.m_p0;
+    geometryLine.m_p1    = line.m_p1;
+    geometryLine.m_width = line.m_width;
+
+    std::array<TPointD, 4> points;
+    if (!makeStrokedLineQuad(geometryLine, points)) return false;
+
+    const float color0[4] = {line.m_color0.r / 255.0f, line.m_color0.g / 255.0f,
+                             line.m_color0.b / 255.0f, line.m_color0.m / 255.0f};
+    const float color1[4] = {line.m_color1.r / 255.0f, line.m_color1.g / 255.0f,
+                             line.m_color1.b / 255.0f, line.m_color1.m / 255.0f};
+
+    setColorVertex(vertices[0], points[0], color0);
+    setColorVertex(vertices[1], points[1], color1);
+    setColorVertex(vertices[2], points[3], color0);
+    setColorVertex(vertices[3], points[1], color1);
+    setColorVertex(vertices[4], points[2], color1);
+    setColorVertex(vertices[5], points[3], color0);
+    return true;
+  }
+
+  void setColorVertex(MetalColorVertex &vertex, const TPointD &point,
+                      const float color[4]) const {
+    vertex.m_x        = pixelToClipX(point.x);
+    vertex.m_y        = pixelToClipY(point.y);
+    vertex.m_color[0] = color[0];
+    vertex.m_color[1] = color[1];
+    vertex.m_color[2] = color[2];
+    vertex.m_color[3] = color[3];
   }
 
   std::vector<MetalVertex> makeVertices(const ColorCircle &circle) const {

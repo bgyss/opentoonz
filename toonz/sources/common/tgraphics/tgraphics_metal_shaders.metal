@@ -12,12 +12,31 @@ struct VertexOut {
   float2 texCoord;
 };
 
+struct ColorVertexIn {
+  packed_float2 position;
+  packed_float4 color;
+};
+
+struct ColorVertexOut {
+  float4 position [[position]];
+  float4 color;
+};
+
 vertex VertexOut tgraphicsVertex(uint vertexId [[vertex_id]],
                                  constant VertexIn* vertices [[buffer(0)]]) {
   VertexIn in = vertices[vertexId];
   VertexOut out;
   out.position = float4(in.position, 0.0, 1.0);
   out.texCoord = in.texCoord;
+  return out;
+}
+
+vertex ColorVertexOut tgraphicsVertexColor(
+    uint vertexId [[vertex_id]], constant ColorVertexIn* vertices [[buffer(0)]]) {
+  ColorVertexIn in = vertices[vertexId];
+  ColorVertexOut out;
+  out.position = float4(in.position, 0.0, 1.0);
+  out.color    = in.color;
   return out;
 }
 
@@ -31,6 +50,10 @@ fragment float4 tgraphicsFragment(VertexOut in [[stage_in]],
 fragment float4 tgraphicsColorFragment(VertexOut in [[stage_in]],
                                        constant float4& color [[buffer(0)]]) {
   return color;
+}
+
+fragment float4 tgraphicsVertexColorFragment(ColorVertexOut in [[stage_in]]) {
+  return in.color;
 }
 
 struct HSLBlendUniforms {
