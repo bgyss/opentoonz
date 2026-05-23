@@ -1197,10 +1197,9 @@ void SelectionTool::drawPolylineSelection() {
   TPixel32 color = ToonzCheck::instance()->getChecks() & ToonzCheck::eBlackBg
                        ? TPixel32::White
                        : TPixel32::Red;
-  tglColor(color);
-  tglDrawCircle(m_polyline[0], 2);
 
   TGraphics::DrawList2D drawList;
+  drawList.addColorCircle(m_polyline[0], 2, color, false, false);
   for (UINT i = 1; i < m_polyline.size(); i++)
     drawList.addColorLine(m_polyline[i - 1], m_polyline[i], color, false);
   drawList.addColorLine(m_polyline.back(), m_mousePosition, color, false);
@@ -1255,19 +1254,20 @@ void SelectionTool::drawCommandHandle(const TImage *image) {
   double pixelSize = getPixelSize();
   if (!isLevelType() && !isSelectedFramesType()) {
     TPointD c = getCenter() + TPointD(-pixelSize, +pixelSize);
+    TPointD center = getCenter();
+    TPointD horizontal(pixelSize * 15, 0);
+    TPointD vertical(0, pixelSize * 15);
 
-    tglColor(frameColor);
-    tglDrawCircle(c, pixelSize * 5);
-    tglDrawSegment(c - TPointD(pixelSize * 15, 0),
-                   c + TPointD(pixelSize * 15, 0));
-    tglDrawSegment(c - TPointD(0, pixelSize * 15),
-                   c + TPointD(0, pixelSize * 15));
-    tglColor(frameColor2);
-    tglDrawCircle(getCenter(), pixelSize * 5);
-    tglDrawSegment(getCenter() - TPointD(pixelSize * 15, 0),
-                   getCenter() + TPointD(pixelSize * 15, 0));
-    tglDrawSegment(getCenter() - TPointD(0, pixelSize * 15),
-                   getCenter() + TPointD(0, pixelSize * 15));
+    TGraphics::DrawList2D drawList;
+    drawList.addColorCircle(c, pixelSize * 5, frameColor, false, false);
+    drawList.addColorLine(c - horizontal, c + horizontal, frameColor, false);
+    drawList.addColorLine(c - vertical, c + vertical, frameColor, false);
+    drawList.addColorCircle(center, pixelSize * 5, frameColor2, false, false);
+    drawList.addColorLine(center - horizontal, center + horizontal, frameColor2,
+                          false);
+    drawList.addColorLine(center - vertical, center + vertical, frameColor2,
+                          false);
+    TGraphics::drawWithOpenGLBackend(drawList);
   }
 
   TPointD bl(rect.getP00().x - pixelSize, rect.getP00().y + pixelSize);
