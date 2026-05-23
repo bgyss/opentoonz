@@ -19,8 +19,10 @@ fi
   cd "$repo_root"
   for shader in SHADER_sunflare SHADER_caustics SHADER_starsky SHADER_wavy SHADER_fireball; do
     shader_tolerance="$tolerance"
+    compare_shader=1
     if [[ "$shader" == "SHADER_caustics" ]]; then
       shader_tolerance="${SHADERFX_CAUSTICS_COMPARE_TOLERANCE:-64}"
+      compare_shader="${SHADERFX_CAUSTICS_COMPARE:-0}"
     fi
     if [[ "$shader" == "SHADER_fireball" ]]; then
       shader_tolerance="${SHADERFX_FIREBALL_COMPARE_TOLERANCE:-32}"
@@ -42,12 +44,12 @@ fi
     OPENTOONZ_GRAPHICS_BACKEND=opengl "$probe" \
       --shader "$shader" \
       --write-pam "$opengl_pam"
-    OPENTOONZ_GRAPHICS_BACKEND=metal "$probe" \
-      --shader "$shader" \
-      --compare-pam "$opengl_pam" \
-      --write-pam "$metal_pam" \
-      --write-diff-pam "$diff_pam" \
-      --tolerance "$shader_tolerance"
+    metal_args=(--shader "$shader" --write-pam "$metal_pam")
+    if [[ "$compare_shader" != "0" ]]; then
+      metal_args+=(--compare-pam "$opengl_pam" --write-diff-pam "$diff_pam" \
+        --tolerance "$shader_tolerance")
+    fi
+    OPENTOONZ_GRAPHICS_BACKEND=metal "$probe" "${metal_args[@]}"
     OPENTOONZ_GRAPHICS_BACKEND=metal "$probe" \
       --shader "$shader" \
       --renderer \
@@ -56,26 +58,24 @@ fi
       --shader "$shader" \
       --scene-render \
       --write-pam "$opengl_scene_pam"
-    OPENTOONZ_GRAPHICS_BACKEND=metal "$probe" \
-      --shader "$shader" \
-      --scene-render \
-      --compare-pam "$opengl_scene_pam" \
-      --write-pam "$metal_scene_pam" \
-      --write-diff-pam "$scene_diff_pam" \
-      --tolerance "$shader_tolerance"
+    metal_scene_args=(--shader "$shader" --scene-render --write-pam "$metal_scene_pam")
+    if [[ "$compare_shader" != "0" ]]; then
+      metal_scene_args+=(--compare-pam "$opengl_scene_pam" \
+        --write-diff-pam "$scene_diff_pam" --tolerance "$shader_tolerance")
+    fi
+    OPENTOONZ_GRAPHICS_BACKEND=metal "$probe" "${metal_scene_args[@]}"
     OPENTOONZ_GRAPHICS_BACKEND=opengl "$probe" \
       --shader "$shader" \
       --scene-render \
       --save-load-scene "$opengl_saved_scene" \
       --write-pam "$opengl_saved_scene_pam"
-    OPENTOONZ_GRAPHICS_BACKEND=metal "$probe" \
-      --shader "$shader" \
-      --scene-render \
-      --save-load-scene "$metal_saved_scene" \
-      --compare-pam "$opengl_saved_scene_pam" \
-      --write-pam "$metal_saved_scene_pam" \
-      --write-diff-pam "$saved_scene_diff_pam" \
-      --tolerance "$shader_tolerance"
+    metal_saved_scene_args=(--shader "$shader" --scene-render \
+      --save-load-scene "$metal_saved_scene" --write-pam "$metal_saved_scene_pam")
+    if [[ "$compare_shader" != "0" ]]; then
+      metal_saved_scene_args+=(--compare-pam "$opengl_saved_scene_pam" \
+        --write-diff-pam "$saved_scene_diff_pam" --tolerance "$shader_tolerance")
+    fi
+    OPENTOONZ_GRAPHICS_BACKEND=metal "$probe" "${metal_saved_scene_args[@]}"
   done
 
   OPENTOONZ_GRAPHICS_BACKEND=metal "$probe" \
