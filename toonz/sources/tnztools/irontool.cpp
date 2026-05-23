@@ -535,16 +535,14 @@ Altrimenti non si fa altro che aumentarli i punti di controllo
 
 #ifdef _DEBUG
 
-void drawPoint(const TPointD &p, double pixelSize) {
+void drawPoint(const TPointD &p, double pixelSize, const TPixel32 &color) {
   double sizeX = pixelSize;
   double sizeY = pixelSize;
-  glBegin(GL_QUADS);
-  glVertex2d(p.x - sizeX, p.y - sizeY);
-  glVertex2d(p.x - sizeX, p.y + sizeY);
-  glVertex2d(p.x + sizeX, p.y + sizeY);
-  glVertex2d(p.x + sizeX, p.y - sizeY);
-  glEnd();
-  return;
+  TGraphics::DrawList2D drawList;
+  drawList.addColorRect(
+      TRectD(p.x - sizeX, p.y - sizeY, p.x + sizeX, p.y + sizeY), color,
+      false);
+  TGraphics::drawWithOpenGLBackend(drawList);
 }
 
 //-----------------------------------------------------------------------------
@@ -556,15 +554,12 @@ void drawControlPoints(const TStroke *&stroke, double pixelSize) {
     const TThickQuadratic *chunk = stroke->getChunk(i);
     TPointD p0                   = chunk->getP0();
     TPointD p1                   = chunk->getP1();
-    glColor3d(1.0, 0.0, 0.0);
-    drawPoint(p0, pixelSize);
-    glColor3d(1.0, 1.0, 1.0);
-    drawPoint(p1, pixelSize);
+    drawPoint(p0, pixelSize, TPixel32::Red);
+    drawPoint(p1, pixelSize, TPixel32::White);
   }
   const TThickQuadratic *chunk = stroke->getChunk(n - 1);
-  glColor3d(1.0, 0.0, 0.0);
   TPointD p2 = chunk->getP2();
-  drawPoint(p2, pixelSize);
+  drawPoint(p2, pixelSize, TPixel32::Red);
   return;
 }
 // end solo per debug

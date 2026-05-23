@@ -427,6 +427,9 @@ color-circle/color-line commands while keeping track fragment rendering on its
 existing path.
 The vector tape preview checkpoint routes endpoint rings and the optional
 endpoint connector through `DrawList2D` color-circle/color-line commands.
+The iron debug control-point checkpoint routes `_DEBUG` red and white
+control-point square markers through `DrawList2D` color-rect commands, removing
+the local immediate-mode quad and OpenGL color-state calls from `irontool.cpp`.
 
 ## Files Changed
 
@@ -1067,6 +1070,11 @@ bash scripts/graphics_inventory.sh
 bash scripts/graphics_shader_inventory.sh
 git diff --check
 rg -n "^WITH_GRAPHICS_METAL:BOOL=" toonz/build/nix-relwithdebinfo/CMakeCache.txt
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tnztools OpenToonz --parallel 3
+rg -n "glBegin\\(|glVertex|glColor|tglDrawCircle|tglDrawSegment|tglColor" toonz/sources/tnztools/irontool.cpp || true
+rg -n "^WITH_GRAPHICS_METAL:BOOL=" toonz/build/nix-relwithdebinfo/CMakeCache.txt toonz/build/nix-relwithdebinfo-metal/CMakeCache.txt
+nix develop path:. --command bash scripts/macos/assert-arm64-bundle.sh
+nix develop path:. --command toonz/build/nix-relwithdebinfo-metal/tnzcore/tgraphics_metal_probe
 ```
 
 Validation evidence:
@@ -1126,6 +1134,14 @@ tgraphics_metal_probe: ok on Apple M1 Max
 tgraphics_metal_probe: ok on Apple M1 Max
 Checked 281 Mach-O files for arm64.
 WITH_GRAPHICS_METAL:BOOL=OFF
+tnztools/libtnztools.dylib linked after iron debug control-point migration
+OpenToonz linked after iron debug control-point migration
+irontool.cpp direct drawing marker scan: no matches
+OpenToonz graphics API inventory: all graphics markers files=108 matches=2256; fixed-function drawing files=67 matches=1481
+WITH_GRAPHICS_METAL:BOOL=OFF
+WITH_GRAPHICS_METAL:BOOL=ON
+Checked 281 Mach-O files for arm64.
+tgraphics_metal_probe: ok on Apple M1 Max
 ```
 
 The final ShaderFx artifact directory for this checkpoint was:
