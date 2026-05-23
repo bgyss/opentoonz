@@ -10,6 +10,7 @@
 #include "tools/cursors.h"
 #include "trasterimage.h"
 #include "tgl.h"
+#include "tgraphics.h"
 #include "toonz/stage2.h"
 #include "toonz/txshsimplelevel.h"
 #include "toonzqt/icongenerator.h"
@@ -53,22 +54,22 @@ void RulerTool::onImageChanged() {
 void RulerTool::draw() {
   /*--- 始点が設定されていたら、描画 ---*/
   if (m_firstPos != TConst::nowhere) {
-    tglColor((m_dragMode == MoveFirstPos) ? TPixel32(51, 204, 26)
-                                          : TPixel32::Red);
-    tglDrawCircle(m_firstPos, 4);
-    tglDrawCircle(m_firstPos, 2);
+    TGraphics::DrawList2D drawList;
+    const TPixel32 firstColor =
+        (m_dragMode == MoveFirstPos) ? TPixel32(51, 204, 26) : TPixel32::Red;
+    drawList.addColorCircle(m_firstPos, 4, firstColor, false, false);
+    drawList.addColorCircle(m_firstPos, 2, firstColor, false, false);
     /*--- 終点が設定されていたら、その区間を描画 ---*/
     if (m_secondPos != TConst::nowhere) {
-      tglColor((m_dragMode == MoveRuler) ? TPixel32(51, 204, 26)
-                                         : TPixel32::Red);
-      glBegin(GL_LINE_STRIP);
-      tglVertex(m_firstPos);
-      tglVertex(m_secondPos);
-      glEnd();
-      tglColor((m_dragMode == MoveSecondPos) ? TPixel32(51, 204, 26)
-                                             : TPixel32::Red);
-      tglDrawCircle(m_secondPos, 4);
+      const TPixel32 rulerColor =
+          (m_dragMode == MoveRuler) ? TPixel32(51, 204, 26) : TPixel32::Red;
+      drawList.addColorLine(m_firstPos, m_secondPos, rulerColor, false);
+      const TPixel32 secondColor =
+          (m_dragMode == MoveSecondPos) ? TPixel32(51, 204, 26)
+                                        : TPixel32::Red;
+      drawList.addColorCircle(m_secondPos, 4, secondColor, false, false);
     }
+    TGraphics::drawWithOpenGLBackend(drawList);
   }
 }
 

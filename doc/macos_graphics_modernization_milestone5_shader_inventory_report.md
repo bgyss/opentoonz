@@ -346,6 +346,10 @@ control dots, two-point curve segments, and three-point curve polylines through
 `DrawList2D` color-line/color-circle commands. This removes direct
 `tglDrawDisk`, `tglDrawCircle`, `tglDrawSegment`, `GL_LINE_STRIP`, and manual
 vertex emission from `shifttracetool.cpp`.
+The ruler overlay checkpoint routes ruler endpoint circles and the ruler segment
+through `DrawList2D` color-circle/color-line commands. This removes direct
+`tglDrawCircle`, `GL_LINE_STRIP`, and manual vertex emission from
+`rulertool.cpp`.
 
 ## Files Changed
 
@@ -368,6 +372,7 @@ vertex emission from `shifttracetool.cpp`.
 - `toonz/sources/tnztools/selectiontool.cpp`
 - `toonz/sources/tnztools/setsaveboxtool.cpp`
 - `toonz/sources/tnztools/skeletontool.cpp`
+- `toonz/sources/tnztools/rulertool.cpp`
 - `toonz/sources/tnztools/shifttracetool.cpp`
 - `toonz/sources/tnztools/trackertool.cpp`
 - `toonz/sources/tnztools/viewtools.cpp`
@@ -839,6 +844,8 @@ Skeleton circular joint markers now also emit `tgraphics` color-circle commands
 with Metal probe coverage.
 Shift-trace overlay control rectangles, dots, and curve guides now also emit
 `tgraphics` color-line/color-circle commands.
+Ruler endpoint circles and ruler segments now also emit `tgraphics`
+color-circle/color-line commands.
 Geometric multiline Bezier speed-handle connector segments now also emit
 `tgraphics` color-line commands.
 Edit-tool shear-handle visible outlines now also emit `tgraphics` color-line commands.
