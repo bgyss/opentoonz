@@ -10,10 +10,16 @@ evidence.
 Run the graphics API inventory from the repository root:
 
 ```sh
+bash scripts/graphics_modernization_lint.sh
 bash scripts/graphics_inventory.sh
 ```
 
-The script reports file counts and match counts for:
+The lint script enforces milestone invariants that should not regress, including
+no direct Qt `QGL*` usage, no `glDrawPixels`, and a Metal guard on the generic
+SceneViewer OpenGL selection path. It also checks that the Edit Tool and
+Skeleton Tool keep their CPU picking paths for 2D tool interactions, so those
+workflows do not silently fall back to `GL_SELECT` when Metal is requested. The
+inventory script reports file counts and match counts for:
 
 - legacy Qt `QGL*` APIs
 - Qt `QOpenGL*` APIs
@@ -60,6 +66,43 @@ the checkout, create or identify scenes with these characteristics:
 
 Record the exact fixture paths, frame numbers, viewer settings, DPI scale, theme,
 and backend used for captures.
+
+The current golden-scene coverage manifest lives at
+`doc/macos_graphics_golden_scenes.tsv`. Validate it with:
+
+```sh
+bash scripts/verify_sample_data.sh
+bash scripts/verify_golden_scene_manifest.sh
+```
+
+Rows with `status=repo` must point at committed fixture files. Rows with
+`status=generated` are produced by probe scripts. Rows with `status=required`
+are explicit remaining fixture gaps that must be replaced by committed or
+generated fixtures before Metal can become the default backend.
+
+Committed sample data lives under `doc/sample_data`. The sample pack includes
+`dwanko_run.tnz`, `cleanup.tnz`, `tga_paint.tnz`, raster/TLV/TPL/TGA assets,
+and the upstream CC BY-NC 4.0 license. Use these scenes for application-level
+OpenGL/Metal smoke coverage where they match the manifest categories. The
+sample data verifier checks the licensed pack, representative scene assets, and
+that committed scene paths remain relocatable through `$scenefolder` with
+resolved in-repository dependencies.
+
+After generating shader-effect comparison artifacts, verify the generated
+shader scene fixtures with:
+
+```sh
+nix develop path:. --command bash scripts/graphics_shaderfx_compare.sh /private/tmp/opentoonz-shaderfx-compare
+bash scripts/verify_shaderfx_scene_fixtures.sh /private/tmp/opentoonz-shaderfx-compare
+```
+
+Before any default-backend decision, run the strict form:
+
+```sh
+bash scripts/verify_golden_scene_manifest.sh --require-complete
+```
+
+This fails while any `status=required` row remains.
 
 ## OpenGL Baseline Capture
 
@@ -130,6 +173,17 @@ The probe writes one `*_metal.png`, one `*_opengl.png`, and one amplified
 `*_diff.png` for each validated case. Treat these as renderer-slice evidence,
 not as a substitute for full scene-viewer golden scenes.
 
+To turn the probe image output into a pass/fail artifact check:
+
+```sh
+nix develop path:. --command bash scripts/verify_metal_probe_images.sh /private/tmp/opentoonz-metal-probe-images
+```
+
+The verifier removes stale probe PNGs from the artifact directory, runs the
+probe, checks that each case has non-empty Metal, OpenGL, and diff PNGs, and
+writes `summary.txt` with file metadata and SHA-256 hashes when `shasum` is
+available.
+
 ## Scripted App Launch Smoke
 
 For a bounded backend launch smoke of the actual macOS app bundle, run:
@@ -142,19 +196,42 @@ By default the script launches the built app bundle once with
 `OPENTOONZ_GRAPHICS_BACKEND=opengl` and once with
 `OPENTOONZ_GRAPHICS_BACKEND=metal`, waits 10 seconds, stores logs under the
 artifact directory, captures screenshots with `screencapture` when available,
-and then terminates the app. Useful overrides:
+and then terminates the app. When screenshot capture is enabled, a missing,
+failed, or empty screenshot fails the smoke; each backend artifact directory
+also gets `screenshot.txt` with basic image metadata. Useful overrides:
 
 ```sh
 OPENTOONZ_APP=toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app \
 OPENTOONZ_GRAPHICS_SMOKE_BACKENDS="opengl metal" \
 OPENTOONZ_GRAPHICS_SMOKE_SECONDS=15 \
+OPENTOONZ_GRAPHICS_SMOKE_COOLDOWN_SECONDS=4 \
 OPENTOONZ_GRAPHICS_SMOKE_SCREENSHOT=1 \
+OPENTOONZ_GRAPHICS_SMOKE_SCENE=doc/sample_data/dwanko_run.tnz \
 bash scripts/macos/graphics-app-smoke.sh /private/tmp/opentoonz-graphics-app-smoke
+bash scripts/verify_graphics_app_smoke_artifacts.sh /private/tmp/opentoonz-graphics-app-smoke
 ```
 
 This smoke proves backend startup and captures review artifacts. It does not
-prove viewer, editing, preview, export, or golden-scene parity by itself; those
-still require the manual matrix or a future scene-driving harness.
+prove viewer, editing, preview, export, or golden-scene parity by itself. When
+`OPENTOONZ_GRAPHICS_SMOKE_SCENE` is set, it also proves that the built app can
+load one committed fixture scene under each requested backend before capture;
+the artifact verifier checks backend metadata, startup logs, screenshot
+metadata, nonblank PNG content, and scene metadata. The rest of the manual
+matrix or a future scene-driving harness is still required for full parity.
+
+To smoke every committed `.tnz` scene listed in the golden-scene manifest:
+
+```sh
+OPENTOONZ_GRAPHICS_SMOKE_BACKENDS="opengl metal" \
+OPENTOONZ_GRAPHICS_SMOKE_SECONDS=5 \
+OPENTOONZ_GRAPHICS_SMOKE_SCREENSHOT=1 \
+bash scripts/graphics_app_smoke_manifest.sh \
+  doc/macos_graphics_golden_scenes.tsv \
+  /private/tmp/opentoonz-graphics-app-smoke-manifest
+```
+
+For user-facing backend selection and troubleshooting commands, see
+`doc/how_to_build_macosx.md`.
 
 ## Manual Smoke Matrix
 
@@ -181,6 +258,8 @@ in the current environment:
 
 ```sh
 bash scripts/graphics_inventory.sh
+bash scripts/graphics_modernization_lint.sh
+bash scripts/verify_golden_scene_manifest.sh
 git diff --check
 nix develop path:. --command bash -lc 'bash scripts/nix/prepare-tiff.sh && cmake -S toonz/sources --preset nix-relwithdebinfo'
 nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --parallel 3

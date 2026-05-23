@@ -162,6 +162,21 @@ void appendRectOutline(TGraphics::DrawList2D& drawList, const TRectD& rect,
 
 //-------------------------------------------------------------------------------
 
+class ScopedBoolSetter {
+  bool& m_value;
+  bool m_oldValue;
+
+public:
+  ScopedBoolSetter(bool& value, bool newValue)
+      : m_value(value), m_oldValue(value) {
+    m_value = newValue;
+  }
+
+  ~ScopedBoolSetter() { m_value = m_oldValue; }
+};
+
+//-------------------------------------------------------------------------------
+
 double getActualFrameRate() {
   // compute frame per second
   static double fps = 0;
@@ -3883,7 +3898,10 @@ int SceneViewer::pick(const TPointD& point) {
   // makeCurrent() is not automatically called in these events.
   // (to exploit the bug: open the FxEditor preview and then select the edit
   // tool)
-  m_isPicking = true;
+  ScopedBoolSetter pickingGuard(m_isPicking, true);
+  if (TGraphics::requestedBackendType() == TGraphics::BackendType::Metal)
+    return -1;
+
   makeCurrent();
   assert(glGetError() == GL_NO_ERROR);
   GLint viewport[4];
@@ -3960,7 +3978,6 @@ int SceneViewer::pick(const TPointD& point) {
     p += nameCount;
   }
   assert(glGetError() == GL_NO_ERROR);
-  m_isPicking = false;
   return ret;
 }
 

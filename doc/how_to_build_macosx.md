@@ -200,6 +200,75 @@ open ~/Documents/opentoonz/toonz/build/toonz/OpenToonz.app
 
     - To open with command line or from Finder window, the application is found in `/Users/yourlogin/Documents/opentoonz/toonz/build/Debug/OpenToonz.app`
 
+### Graphics backend selection
+
+OpenToonz still uses OpenGL as the default macOS graphics backend. The
+experimental Metal backend is opt-in while viewer, editing, preview, and render
+parity work continues.
+
+For the Nix + mise build, the app bundle is usually:
+
+```sh
+toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app
+```
+
+Run with the default OpenGL backend:
+
+```sh
+OPENTOONZ_GRAPHICS_BACKEND=opengl \
+  toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app/Contents/MacOS/OpenToonz
+```
+
+Run with the experimental Metal backend:
+
+```sh
+OPENTOONZ_GRAPHICS_BACKEND=metal \
+  toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app/Contents/MacOS/OpenToonz
+```
+
+For narrow direct-Metal scene-viewer testing on simple raster content, maintainers
+can skip the final OpenGL compatibility snapshot when direct Metal content was
+emitted:
+
+```sh
+OPENTOONZ_GRAPHICS_BACKEND=metal \
+OPENTOONZ_GRAPHICS_METAL_DIRECT_ONLY=1 \
+  toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app/Contents/MacOS/OpenToonz
+```
+
+Leave `OPENTOONZ_GRAPHICS_METAL_DIRECT_ONLY` unset for normal testing. When a
+viewer frame has unsupported content, the Metal path still relies on the
+compatibility snapshot so vector, onion-skin, editing, effect, and overlay cases
+remain visible.
+
+For a bounded launch smoke that exercises both backend selectors and writes logs
+and screenshots outside the repository:
+
+```sh
+bash scripts/macos/graphics-app-smoke.sh /tmp/opentoonz-graphics-app-smoke
+```
+
+Backend troubleshooting:
+
+- If Metal behaves differently, rerun the same scene with
+  `OPENTOONZ_GRAPHICS_BACKEND=opengl` and compare screenshots before reporting a
+  renderer regression.
+- If the app fails before the main window appears, package the app bundle first
+  with `mise run package-macos`; an unbundled app may not have the Qt platform
+  plugins and dependent libraries needed for direct launch.
+- If packaging spends a long time copying transitive dynamic libraries into the
+  bundle, `OPENTOONZ_PACKAGE_MAX_DYLIB_COPY_PASSES` bounds the dependency-copy
+  loop and the script prints progress whenever a pass adds more Nix store
+  libraries. Increase that limit only after inspecting bundle dependencies.
+- If the Metal shader resource check reports that `.metallib` is missing but
+  the `.metal` source is present, the local Xcode command-line Metal tools were
+  unavailable and OpenToonz will use runtime shader compilation fallback.
+- If `OPENTOONZ_GRAPHICS_BACKEND=metal` is requested on a build without Metal
+  support or without an available Metal device, OpenToonz falls back to the
+  OpenGL compatibility backend.
+- Treat Metal as experimental until the golden-scene comparison matrix and
+  normal viewer, editing, preview, and render workflows pass under Metal.
+
 ### Canon DSLR camera support
 
 Canon support is intentionally disabled for public macOS arm64 builds with

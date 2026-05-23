@@ -26,6 +26,14 @@ plugins_dir="$app_path/Contents/PlugIns"
 qt_conf="$app_path/Contents/Resources/qt.conf"
 portable_stuff="$app_path/Contents/Resources/portablestuff"
 legacy_portable_stuff="$app_path/portablestuff"
+max_dylib_copy_passes="${OPENTOONZ_PACKAGE_MAX_DYLIB_COPY_PASSES:-50}"
+
+case "$max_dylib_copy_passes" in
+  ''|*[!0-9]*)
+    echo "error: OPENTOONZ_PACKAGE_MAX_DYLIB_COPY_PASSES must be an integer" >&2
+    exit 1
+    ;;
+esac
 
 find_bundle_binary_candidates() {
   local roots=("$macos_dir")
@@ -58,9 +66,17 @@ rewrite_bundle_dylib_references() {
 copy_missing_store_dylibs() {
   [[ -d "$frameworks_dir" ]] || return 0
 
-  local copied=1
+  local copied=1 pass=0
   while [[ "$copied" == "1" ]]; do
+    pass=$((pass + 1))
+    if (( pass > max_dylib_copy_passes )); then
+      echo "error: exceeded $max_dylib_copy_passes dependency-copy passes" >&2
+      echo "       set OPENTOONZ_PACKAGE_MAX_DYLIB_COPY_PASSES to a higher value only after inspecting the bundle dependencies" >&2
+      exit 1
+    fi
+
     copied=0
+    copied_count=0
     while IFS= read -r -d '' target_file; do
       if ! file "$target_file" | grep -q 'Mach-O'; then
         continue
@@ -75,10 +91,14 @@ copy_missing_store_dylibs() {
           install_name_tool -id "@executable_path/../Frameworks/$lib_name" \
             "$frameworks_dir/$lib_name"
           copied=1
+          copied_count=$((copied_count + 1))
         fi
       done < <(otool -L "$target_file" | awk '/\.dylib/ { print $1 }')
     done < <(find_bundle_binary_candidates)
 
+    if (( copied_count > 0 )); then
+      echo "Copied $copied_count Nix store dylib(s) into bundle on pass $pass."
+    fi
     rewrite_bundle_dylib_references
   done
 }

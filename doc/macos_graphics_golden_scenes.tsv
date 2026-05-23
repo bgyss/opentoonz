@@ -1,0 +1,14 @@
+id	category	status	path	frame	validation	notes
+raster-basic	raster	repo	doc/sample_data/tga_paint.tnz	1	manual-open-gl-metal-screenshot	Committed sample scene for aliased TGA paint and Toonz raster/TLV handling.
+vector-basic	vector	repo	doc/sample_data/other_materials/raylit_source.pli	1	manual-open-gl-metal-screenshot	Committed vector level material from the sample pack; still needs a full vector scene fixture.
+style-editor	palette-style	repo	doc/sample_data/tga_paint.tnz	1	manual-style-editor-smoke	Committed sample scene for ink and paint palette/style workflows.
+mesh-skeleton	mesh-skeleton	required	TBD	1	manual-tool-smoke	Mesh deformation or skeleton-driven deformation still needs a committed scene fixture.
+camera-overlays	camera-overlays	repo	doc/sample_data/dwanko_run.tnz	24	manual-viewer-smoke	Committed camera-follow sample scene with layered background and FX.
+onion-skin	onion-skin	required	TBD	1	manual-viewer-smoke	Onion skin coverage still needs a committed scene fixture.
+sub-xsheet	sub-xsheet	required	TBD	1	manual-render-smoke	Sub-xsheet compositing still needs a committed scene fixture.
+shaderfx-sample-raylit	shader-effects	repo	doc/sample_data/dwanko_run.tnz	24	manual-preview-export-smoke	Committed sample scene with ray light and compositing effects.
+shaderfx-hslblend	shader-effects	generated	/tmp/opentoonz-shaderfx-compare/HSLBlendGPU-metal.tnz	1	scripts/graphics_shaderfx_compare.sh	Generated scene-render fixture for migrated HSLBlendGPU shader effect.
+shaderfx-radialblur	shader-effects	generated	/tmp/opentoonz-shaderfx-compare/radialblurGPU-metal.tnz	1	scripts/graphics_shaderfx_compare.sh	Generated scene-render fixture for migrated radialblurGPU shader effect.
+shaderfx-spinblur	shader-effects	generated	/tmp/opentoonz-shaderfx-compare/spinblurGPU-metal.tnz	1	scripts/graphics_shaderfx_compare.sh	Generated scene-render fixture for migrated spinblurGPU shader effect.
+shaderfx-glitter	shader-effects	generated	/tmp/opentoonz-shaderfx-compare/glitter-metal.tnz	1	scripts/graphics_shaderfx_compare.sh	Generated scene-render fixture for migrated glitter shader effect.
+offscreen-export	offscreen-render	repo	doc/sample_data/dwanko_run.tnz	24	manual-preview-export-smoke	Committed sample scene for preview/export coverage of layered raster background and FX.
