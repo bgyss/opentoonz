@@ -474,6 +474,10 @@ The geometric speed-handle checkpoint routes multiline speed-handle disks
 through filled `DrawList2D` color-circle commands. The adjacent speed-handle
 segments were already on `DrawList2D`; the generated multiline stroke preview
 remains on the existing stroke renderer.
+The plastic highlight checkpoint routes highlighted vertex and edge projection
+square outlines through `DrawList2D` color-line commands, including a local
+stipple expansion for the highlighted vertex outline. The current-mouse
+build-mode square now reuses the same draw-list helper.
 
 ## Files Changed
 
@@ -1195,6 +1199,13 @@ git diff --check
 rg -n "^WITH_GRAPHICS_METAL:BOOL=" toonz/build/nix-relwithdebinfo/CMakeCache.txt toonz/build/nix-relwithdebinfo-metal/CMakeCache.txt
 nix develop path:. --command bash scripts/macos/assert-arm64-bundle.sh
 nix develop path:. --command toonz/build/nix-relwithdebinfo-metal/tnzcore/tgraphics_metal_probe
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tnztools OpenToonz --parallel 3
+bash scripts/graphics_inventory.sh
+git diff --check
+rg -n "drawFullSquare\\(|drawFilledSquare\\(|glBegin\\(|glVertex2d|glColor3f|GL_LINE_LOOP|GL_QUADS" toonz/sources/tnztools/plastictool.cpp || true
+rg -n "^WITH_GRAPHICS_METAL:BOOL=" toonz/build/nix-relwithdebinfo/CMakeCache.txt toonz/build/nix-relwithdebinfo-metal/CMakeCache.txt
+nix develop path:. --command bash scripts/macos/assert-arm64-bundle.sh
+nix develop path:. --command toonz/build/nix-relwithdebinfo-metal/tnzcore/tgraphics_metal_probe
 ```
 
 Validation evidence:
@@ -1342,6 +1353,14 @@ tnztools/libtnztools.dylib linked after geometric speed-handle disk migration
 OpenToonz linked after geometric speed-handle disk migration
 geometrictool.cpp focused disk scan: no tglDrawDisk calls remain
 OpenToonz graphics API inventory: all graphics markers files=106 matches=2215; fixed-function drawing files=63 matches=1442
+WITH_GRAPHICS_METAL:BOOL=OFF
+WITH_GRAPHICS_METAL:BOOL=ON
+Checked 281 Mach-O files for arm64.
+tgraphics_metal_probe: ok on Apple M1 Max
+tnztools/libtnztools.dylib linked after plastic highlight square migration
+OpenToonz linked after plastic highlight square migration
+plastictool.cpp focused scan: only the angle-limit GL_QUAD_STRIP remains in the scanned patterns
+OpenToonz graphics API inventory: all graphics markers files=106 matches=2196; fixed-function drawing files=63 matches=1423
 WITH_GRAPHICS_METAL:BOOL=OFF
 WITH_GRAPHICS_METAL:BOOL=ON
 Checked 281 Mach-O files for arm64.

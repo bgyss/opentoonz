@@ -42,6 +42,9 @@
 #include <QLabel>
 #include <QClipboard>
 
+#include <algorithm>
+#include <cmath>
+
 // tcg includes
 #include "tcg/tcg_macros.h"
 #include "tcg/tcg_point_ops.h"
@@ -75,10 +78,50 @@ void appendSquareOutline(TGraphics::DrawList2D &drawList, const TPointD &pos,
   drawList.addColorLine(p01, p00, color, true, width);
 }
 
+void appendStippledLine(TGraphics::DrawList2D &drawList, const TPointD &p0,
+                        const TPointD &p1, const TPixel32 &color,
+                        unsigned short stipple, double pixelSize) {
+  const double length = tdistance(p0, p1);
+  if (length <= 1e-6 || pixelSize <= 1e-12) return;
+
+  const TPointD unit = (p1 - p0) * (1.0 / length);
+  for (double start = 0.0; start < length; start += pixelSize) {
+    const int bit = ((int)std::floor(start / pixelSize)) & 15;
+    if ((stipple & (1u << bit)) == 0) continue;
+
+    const double end = std::min(start + pixelSize, length);
+    drawList.addColorLine(p0 + unit * start, p0 + unit * end, color, true);
+  }
+}
+
+void appendStippledSquareOutline(TGraphics::DrawList2D &drawList,
+                                 const TPointD &pos, double radius,
+                                 const TPixel32 &color,
+                                 unsigned short stipple, double pixelSize) {
+  const TPointD p00(pos.x - radius, pos.y - radius);
+  const TPointD p10(pos.x + radius, pos.y - radius);
+  const TPointD p11(pos.x + radius, pos.y + radius);
+  const TPointD p01(pos.x - radius, pos.y + radius);
+  appendStippledLine(drawList, p00, p10, color, stipple, pixelSize);
+  appendStippledLine(drawList, p10, p11, color, stipple, pixelSize);
+  appendStippledLine(drawList, p11, p01, color, stipple, pixelSize);
+  appendStippledLine(drawList, p01, p00, color, stipple, pixelSize);
+}
+
 void drawSquareOutlineWithTGraphics(const TPointD &pos, double radius,
                                     const TPixel32 &color, double width = 1.0) {
   TGraphics::DrawList2D drawList;
   appendSquareOutline(drawList, pos, radius, color, width);
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
+
+void drawStippledSquareOutlineWithTGraphics(const TPointD &pos, double radius,
+                                            const TPixel32 &color,
+                                            unsigned short stipple,
+                                            double pixelSize) {
+  TGraphics::DrawList2D drawList;
+  appendStippledSquareOutline(drawList, pos, radius, color, stipple,
+                              pixelSize);
   TGraphics::drawWithOpenGLBackend(drawList);
 }
 
@@ -1715,34 +1758,7 @@ void PlasticTool::onShowSkelOSToggled(bool on) {
 namespace PlasticToolLocals {
 
 void drawSquare(const TPointD &pos, double radius) {
-  glBegin(GL_LINE_LOOP);
-  glVertex2d(pos.x - radius, pos.y - radius);
-  glVertex2d(pos.x + radius, pos.y - radius);
-  glVertex2d(pos.x + radius, pos.y + radius);
-  glVertex2d(pos.x - radius, pos.y + radius);
-  glEnd();
-}
-
-//------------------------------------------------------------------------
-
-void drawFullSquare(const TPointD &pos, double radius) {
-  glBegin(GL_QUADS);
-  glVertex2d(pos.x - radius, pos.y - radius);
-  glVertex2d(pos.x + radius, pos.y - radius);
-  glVertex2d(pos.x + radius, pos.y + radius);
-  glVertex2d(pos.x - radius, pos.y + radius);
-  glEnd();
-}
-
-//------------------------------------------------------------------------
-
-static void drawFilledSquare(const TPointD &pos, double radius) {
-  glBegin(GL_QUADS);
-  glVertex2d(pos.x - radius, pos.y - radius);
-  glVertex2d(pos.x + radius, pos.y - radius);
-  glVertex2d(pos.x + radius, pos.y + radius);
-  glVertex2d(pos.x - radius, pos.y + radius);
-  glEnd();
+  drawSquareOutlineWithTGraphics(pos, radius, TPixel32::Red);
 }
 
 //------------------------------------------------------------------------
@@ -1805,7 +1821,6 @@ static void drawText(const TPointD &pos, const QString &text,
 void PlasticTool::drawHighlights(const SkDP &sd,
                                  const PlasticSkeleton *skeleton,
                                  double pixelSize) {
-  glColor3f(1.0f, 0.0f, 0.0f);  // Red
   glLineWidth(1.0f);
 
   // Vertex highlights
@@ -1818,14 +1833,8 @@ void PlasticTool::drawHighlights(const SkDP &sd,
     assert(hookNumber >= 0);
 
     {
-      glPushAttrib(GL_LINE_BIT);
-
-      glEnable(GL_LINE_STIPPLE);
-      glLineStipple(1, 0xCCCC);
-
-      drawSquare(vx.P(), handleRadius);
-
-      glPopAttrib();
+      drawStippledSquareOutlineWithTGraphics(vx.P(), handleRadius,
+                                             TPixel32::Red, 0xCCCC, pixelSize);
     }
 
     drawText(vx.P() + TPointD(2.0 * handleRadius, 2.0 * handleRadius),
@@ -1834,7 +1843,8 @@ void PlasticTool::drawHighlights(const SkDP &sd,
     // Draw a handle at the projection of current mouse position towards the
     // highlighted edge
     double handleRadius = HANDLE_SIZE * pixelSize;
-    drawSquare(projection(*skeleton, m_seHigh, m_pos), handleRadius);
+    drawSquareOutlineWithTGraphics(projection(*skeleton, m_seHigh, m_pos),
+                                   handleRadius, TPixel32::Red);
   }
 }
 
