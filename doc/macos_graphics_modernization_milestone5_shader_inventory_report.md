@@ -350,6 +350,11 @@ The ruler overlay checkpoint routes ruler endpoint circles and the ruler segment
 through `DrawList2D` color-circle/color-line commands. This removes direct
 `tglDrawCircle`, `GL_LINE_STRIP`, and manual vertex emission from
 `rulertool.cpp`.
+The morph overlay checkpoint routes deformation control-point disks/outlines and
+base-to-handle segments through `DrawList2D` color-circle/color-line commands.
+This removes direct `glColor*`, `tglDrawDisk`, `tglDrawCircle`,
+`tglDrawSegment`, and a stale commented immediate-mode debug block from
+`morphtool.cpp`.
 
 ## Files Changed
 
@@ -367,6 +372,7 @@ through `DrawList2D` color-circle/color-line commands. This removes direct
 - `toonz/sources/tnztools/edittool.cpp`
 - `toonz/sources/tnztools/geometrictool.cpp`
 - `toonz/sources/tnztools/hooktool.cpp`
+- `toonz/sources/tnztools/morphtool.cpp`
 - `toonz/sources/tnztools/plastictool.cpp`
 - `toonz/sources/tnztools/plastictool_meshedit.cpp`
 - `toonz/sources/tnztools/selectiontool.cpp`
@@ -846,6 +852,8 @@ Shift-trace overlay control rectangles, dots, and curve guides now also emit
 `tgraphics` color-line/color-circle commands.
 Ruler endpoint circles and ruler segments now also emit `tgraphics`
 color-circle/color-line commands.
+Morph deformation control points and base-to-handle segments now also emit
+`tgraphics` color-circle/color-line commands.
 Geometric multiline Bezier speed-handle connector segments now also emit
 `tgraphics` color-line commands.
 Edit-tool shear-handle visible outlines now also emit `tgraphics` color-line commands.

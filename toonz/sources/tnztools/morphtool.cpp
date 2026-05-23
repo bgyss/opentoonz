@@ -2,6 +2,7 @@
 
 #include "morphtool.h"
 #include "tgl.h"
+#include "tgraphics.h"
 #include "tvectorgl.h"
 #include "tvectorrenderdata.h"
 #include "tvectorimage.h"
@@ -181,46 +182,32 @@ void MorphTool::draw() {
   }
 
   double u = m_pixelSize * 5;
+  TGraphics::DrawList2D drawList;
   for (int i = 0; i < (int)deformation.m_controlPoints.size(); i++) {
     TPointD p     = deformation.m_controlPoints[i];
     bool selected = deformation.m_selected == i;
     bool base     = (i & 1) == 0;
+    TPixel32 fillColor;
     if (base)
       if (selected)
-        glColor3d(0.8, 0.8, 0.1);
+        fillColor = TPixel32(204, 204, 26);
       else
-        glColor3d(0.5, 0.5, 0.1);
+        fillColor = TPixel32(128, 128, 26);
     else if (selected)
-      glColor3d(0.8, 0.3, 0.1);
+      fillColor = TPixel32(204, 77, 26);
     else
-      glColor3d(0.5, 0.1, 0.1);
+      fillColor = TPixel32(128, 26, 26);
 
     double r = base ? u * 2 : u * 1;
-    tglDrawDisk(p, r);
-    glColor3d(0, 0, 0);
-    tglDrawCircle(p, r);
+    drawList.addColorCircle(p, r, fillColor, true, false);
+    drawList.addColorCircle(p, r, TPixel32::Black, false, false);
   }
-  glColor3f(0, 1, 0);
   for (int i = 0; i + 1 < (int)deformation.m_controlPoints.size(); i += 2) {
     TPointD a = deformation.m_controlPoints[i];
     TPointD b = deformation.m_controlPoints[i + 1];
-    tglDrawSegment(a, b);
+    drawList.addColorLine(a, b, TPixel32::Green, false);
   }
-  /*
-deformation.update();
-glBegin(GL_LINES);
-for(double x = -200; x<=200; x+=20)
-for(double y = -200; y<=200; y+=20)
-{
-TPointD p0(x,y);
-TPointD p1 = deformation.apply(p0);
-glColor3d(0,1,0);
-tglVertex(p0);
-glColor3d(1,0,0);
-tglVertex(p1);
-}
-glEnd();
-*/
+  TGraphics::drawWithOpenGLBackend(drawList);
 }
 
 bool MorphTool::keyDown(QKeyEvent *event) {
