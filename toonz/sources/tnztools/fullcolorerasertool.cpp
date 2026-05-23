@@ -31,6 +31,7 @@
 #include "bluredbrush.h"
 #include "trop.h"
 #include "tgl.h"
+#include "tgraphics.h"
 #include "tstroke.h"
 #include "drawutil.h"
 #include "tinbetween.h"
@@ -1293,8 +1294,10 @@ void FullColorEraserTool::draw() {
     // If toggled off, don't draw brush outline
     if (!Preferences::instance()->isCursorOutlineEnabled()) return;
 
-    glColor3d(1.0, 0.0, 0.0);
-    tglDrawCircle(m_brushPos, (m_size.getValue() + 1) * 0.5);
+    TGraphics::DrawList2D drawList;
+    drawList.addColorCircle(m_brushPos, (m_size.getValue() + 1) * 0.5,
+                            TPixel32::Red, false, false);
+    TGraphics::drawWithOpenGLBackend(drawList);
   } else if (m_eraseType.getValue() == RECTERASE) {
     TPixel color = ToonzCheck::instance()->getChecks() & ToonzCheck::eBlackBg
                        ? TPixel32::White
@@ -1318,12 +1321,12 @@ void FullColorEraserTool::draw() {
     TPixel color = ToonzCheck::instance()->getChecks() & ToonzCheck::eBlackBg
                        ? TPixel32::White
                        : TPixel32::Black;
-    tglColor(color);
-    tglDrawCircle(m_polyline[0], 2 * m_thick);
-    glBegin(GL_LINE_STRIP);
-    for (UINT i = 0; i < m_polyline.size(); i++) tglVertex(m_polyline[i]);
-    tglVertex(m_mousePos);
-    glEnd();
+    TGraphics::DrawList2D drawList;
+    drawList.addColorCircle(m_polyline[0], 2 * m_thick, color, false, false);
+    for (UINT i = 1; i < m_polyline.size(); i++)
+      drawList.addColorLine(m_polyline[i - 1], m_polyline[i], color, false);
+    drawList.addColorLine(m_polyline.back(), m_mousePos, color, false);
+    TGraphics::drawWithOpenGLBackend(drawList);
   } else if (m_eraseType.getValue() == FREEHANDERASE && !m_track.isEmpty()) {
     TPixel color = ToonzCheck::instance()->getChecks() & ToonzCheck::eBlackBg
                        ? TPixel32::White

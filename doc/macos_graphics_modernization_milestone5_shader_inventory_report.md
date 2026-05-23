@@ -375,6 +375,10 @@ grid-aware migration.
 The raster eraser polyline checkpoint routes the start-point marker and active
 polyline preview through `DrawList2D` color-circle/color-line commands, removing
 the immediate-mode `GL_LINE_STRIP` preview from `rastererasertool.cpp`.
+The full-color eraser checkpoint routes the normal-mode cursor ring and active
+polyline preview through `DrawList2D` color-circle/color-line commands, removing
+direct `glColor3d`, `tglDrawCircle`, and `GL_LINE_STRIP` preview drawing from
+those `fullcolorerasertool.cpp` paths.
 
 ## Files Changed
 
@@ -390,6 +394,7 @@ the immediate-mode `GL_LINE_STRIP` preview from `rastererasertool.cpp`.
 - `toonz/sources/tnzcore/CMakeLists.txt`
 - `toonz/sources/tnztools/controlpointeditortool.cpp`
 - `toonz/sources/tnztools/edittool.cpp`
+- `toonz/sources/tnztools/fullcolorerasertool.cpp`
 - `toonz/sources/tnztools/fullcolorbrushtool.cpp`
 - `toonz/sources/tnztools/geometrictool.cpp`
 - `toonz/sources/tnztools/hooktool.cpp`
@@ -890,6 +895,8 @@ color-circle commands with alpha preserved in the draw-list colors.
 Toonz raster brush MyPaint-style min/max cursor outlines now also emit
 `tgraphics` color-circle commands.
 Raster eraser polyline start markers and active preview lines now also emit
+`tgraphics` color-circle/color-line commands.
+Full-color eraser normal cursor rings and polyline previews now also emit
 `tgraphics` color-circle/color-line commands.
 Geometric multiline Bezier speed-handle connector segments now also emit
 `tgraphics` color-line commands.
