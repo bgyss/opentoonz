@@ -465,11 +465,15 @@ frame-range stroke-centerline and freehand filled-stroke preview rendering
 remain on their current stroke paths.
 The geometric overlay checkpoint routes vector snap rings, circle primitive
 preview rings, and multiline join-distance rings through `DrawList2D`
-color-circle commands. Stroke centerline, speed-handle disks, ellipse matrix,
-and arc prompt rings remain on their existing paths for separate migrations.
+color-circle commands. Stroke centerline, ellipse matrix, and arc prompt rings
+remain on their existing paths for separate migrations.
 The geometric arc checkpoint routes multi-arc endpoint join rings through
 `DrawList2D` color-circle commands while leaving the generated arc stroke
 centerline previews on the existing stroke renderer.
+The geometric speed-handle checkpoint routes multiline speed-handle disks
+through filled `DrawList2D` color-circle commands. The adjacent speed-handle
+segments were already on `DrawList2D`; the generated multiline stroke preview
+remains on the existing stroke renderer.
 
 ## Files Changed
 
@@ -1184,6 +1188,13 @@ git diff --check
 rg -n "^WITH_GRAPHICS_METAL:BOOL=" toonz/build/nix-relwithdebinfo/CMakeCache.txt toonz/build/nix-relwithdebinfo-metal/CMakeCache.txt
 nix develop path:. --command bash scripts/macos/assert-arm64-bundle.sh
 nix develop path:. --command toonz/build/nix-relwithdebinfo-metal/tnzcore/tgraphics_metal_probe
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tnztools OpenToonz --parallel 3
+rg -n "tglDrawDisk" toonz/sources/tnztools/geometrictool.cpp || true
+bash scripts/graphics_inventory.sh
+git diff --check
+rg -n "^WITH_GRAPHICS_METAL:BOOL=" toonz/build/nix-relwithdebinfo/CMakeCache.txt toonz/build/nix-relwithdebinfo-metal/CMakeCache.txt
+nix develop path:. --command bash scripts/macos/assert-arm64-bundle.sh
+nix develop path:. --command toonz/build/nix-relwithdebinfo-metal/tnzcore/tgraphics_metal_probe
 ```
 
 Validation evidence:
@@ -1322,6 +1333,14 @@ Checked 281 Mach-O files for arm64.
 tgraphics_metal_probe: ok on Apple M1 Max
 tnztools/libtnztools.dylib linked after geometric arc join-ring migration
 OpenToonz linked after geometric arc join-ring migration
+OpenToonz graphics API inventory: all graphics markers files=106 matches=2215; fixed-function drawing files=63 matches=1442
+WITH_GRAPHICS_METAL:BOOL=OFF
+WITH_GRAPHICS_METAL:BOOL=ON
+Checked 281 Mach-O files for arm64.
+tgraphics_metal_probe: ok on Apple M1 Max
+tnztools/libtnztools.dylib linked after geometric speed-handle disk migration
+OpenToonz linked after geometric speed-handle disk migration
+geometrictool.cpp focused disk scan: no tglDrawDisk calls remain
 OpenToonz graphics API inventory: all graphics markers files=106 matches=2215; fixed-function drawing files=63 matches=1442
 WITH_GRAPHICS_METAL:BOOL=OFF
 WITH_GRAPHICS_METAL:BOOL=ON

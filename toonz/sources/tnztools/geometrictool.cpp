@@ -107,6 +107,13 @@ void drawCircleWithTGraphics(const TPointD &center, double radius,
   TGraphics::drawWithOpenGLBackend(drawList);
 }
 
+void drawDiskWithTGraphics(const TPointD &center, double radius,
+                           const TPixel32 &color) {
+  TGraphics::DrawList2D drawList;
+  drawList.addColorCircle(center, radius, color, true, false);
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
+
 void appendDashedLine(TGraphics::DrawList2D &drawList, const TPointD &p0,
                       const TPointD &p1, const TPixel32 &color,
                       double dashLength = 6.0, double gapLength = 4.0) {
@@ -2420,8 +2427,8 @@ void MultiLinePrimitive::draw() {
       TPointD p1 = m_vertex[index - 1];
       if (tdistance(p0, p1) > 0.1) {
         drawLineWithTGraphics(p0, p1, TPixel(79, 128, 255));
-        tglDrawDisk(p0, 2 * pixelSize);
-        tglDrawDisk(p1, 4 * pixelSize);
+        drawDiskWithTGraphics(p0, 2 * pixelSize, TPixel(79, 128, 255));
+        drawDiskWithTGraphics(p1, 4 * pixelSize, TPixel(79, 128, 255));
       }
       // Draw current speedIn/Out if count > 5
       if (m_speedMoved && count > 5) {
@@ -2429,9 +2436,9 @@ void MultiLinePrimitive::draw() {
         TPointD p1 = m_vertex[count - 2];
         TPointD p2 = m_vertex[count - 3];
         drawLineWithTGraphics(p0, p2, TPixel(79, 128, 255));
-        tglDrawDisk(p0, 2 * pixelSize);
-        tglDrawDisk(p1, 4 * pixelSize);
-        tglDrawDisk(p2, 2 * pixelSize);
+        drawDiskWithTGraphics(p0, 2 * pixelSize, TPixel(79, 128, 255));
+        drawDiskWithTGraphics(p1, 4 * pixelSize, TPixel(79, 128, 255));
+        drawDiskWithTGraphics(p2, 2 * pixelSize, TPixel(79, 128, 255));
       }
     }
 
