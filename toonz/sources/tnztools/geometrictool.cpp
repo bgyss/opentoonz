@@ -100,6 +100,13 @@ void drawLineWithTGraphics(const TPointD &p0, const TPointD &p1,
   TGraphics::drawWithOpenGLBackend(drawList);
 }
 
+void drawCircleWithTGraphics(const TPointD &center, double radius,
+                             const TPixel32 &color) {
+  TGraphics::DrawList2D drawList;
+  drawList.addColorCircle(center, radius, color, false, false);
+  TGraphics::drawWithOpenGLBackend(drawList);
+}
+
 void appendDashedLine(TGraphics::DrawList2D &drawList, const TPointD &p0,
                       const TPointD &p1, const TPixel32 &color,
                       double dashLength = 6.0, double gapLength = 4.0) {
@@ -1928,8 +1935,8 @@ void Primitive::drawSnap() {
     m_param->m_pixelSize = m_tool->getPixelSize();
     double thick         = 6.0 * m_param->m_pixelSize;
     if (m_param->m_foundSnap) {
-      tglColor(TPixelD(0.1, 0.9, 0.1));
-      tglDrawCircle(m_param->m_snapPoint, thick);
+      drawCircleWithTGraphics(m_param->m_snapPoint, thick,
+                              toPixel32(TPixelD(0.1, 0.9, 0.1)));
     }
   }
 }
@@ -2211,8 +2218,8 @@ void RectanglePrimitive::onEnter() {
 void CirclePrimitive::draw() {
   drawSnap();
   if (m_isEditing || m_isPrompting) {
-    tglColor(m_isEditing ? m_color : TPixel32::Green);
-    tglDrawCircle(m_centre, m_radius);
+    drawCircleWithTGraphics(m_centre, m_radius,
+                            m_isEditing ? m_color : TPixel32::Green);
   }
 }
 
@@ -2428,12 +2435,11 @@ void MultiLinePrimitive::draw() {
       }
     }
 
-    if (m_closed)
-      tglColor(TPixel32((m_color.r + 127) % 255, m_color.g,
-                        (m_color.b + 127) % 255, m_color.m));
-    else
-      tglColor(m_color);
-    tglDrawCircle(m_vertex[0], joinDistance * pixelSize);
+    TPixel32 joinColor = m_closed ? TPixel32((m_color.r + 127) % 255,
+                                             m_color.g,
+                                             (m_color.b + 127) % 255, m_color.m)
+                                  : m_color;
+    drawCircleWithTGraphics(m_vertex[0], joinDistance * pixelSize, joinColor);
   }
 }
 

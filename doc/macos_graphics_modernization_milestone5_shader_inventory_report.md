@@ -463,6 +463,10 @@ The fill preview checkpoint routes the area-fill polyline preview and drag-line
 preview through `DrawList2D` color-circle/color-line commands. Existing
 frame-range stroke-centerline and freehand filled-stroke preview rendering
 remain on their current stroke paths.
+The geometric overlay checkpoint routes vector snap rings, circle primitive
+preview rings, and multiline join-distance rings through `DrawList2D`
+color-circle commands. Stroke centerline, speed-handle disks, ellipse matrix,
+and arc prompt rings remain on their existing paths for separate migrations.
 
 ## Files Changed
 
@@ -1165,6 +1169,12 @@ git diff --check
 rg -n "^WITH_GRAPHICS_METAL:BOOL=" toonz/build/nix-relwithdebinfo/CMakeCache.txt toonz/build/nix-relwithdebinfo-metal/CMakeCache.txt
 nix develop path:. --command bash scripts/macos/assert-arm64-bundle.sh
 nix develop path:. --command toonz/build/nix-relwithdebinfo-metal/tnzcore/tgraphics_metal_probe
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tnztools OpenToonz --parallel 3
+bash scripts/graphics_inventory.sh
+git diff --check
+rg -n "^WITH_GRAPHICS_METAL:BOOL=" toonz/build/nix-relwithdebinfo/CMakeCache.txt toonz/build/nix-relwithdebinfo-metal/CMakeCache.txt
+nix develop path:. --command bash scripts/macos/assert-arm64-bundle.sh
+nix develop path:. --command toonz/build/nix-relwithdebinfo-metal/tnzcore/tgraphics_metal_probe
 ```
 
 Validation evidence:
@@ -1290,6 +1300,13 @@ tgraphics_metal_probe: ok on Apple M1 Max
 tnztools/libtnztools.dylib linked after fill preview migration
 OpenToonz linked after fill preview migration
 OpenToonz graphics API inventory: all graphics markers files=106 matches=2221; fixed-function drawing files=63 matches=1448; fixed-function matrix files=55 matches=454
+WITH_GRAPHICS_METAL:BOOL=OFF
+WITH_GRAPHICS_METAL:BOOL=ON
+Checked 281 Mach-O files for arm64.
+tgraphics_metal_probe: ok on Apple M1 Max
+tnztools/libtnztools.dylib linked after geometric overlay migration
+OpenToonz linked after geometric overlay migration
+OpenToonz graphics API inventory: all graphics markers files=106 matches=2217; fixed-function drawing files=63 matches=1444
 WITH_GRAPHICS_METAL:BOOL=OFF
 WITH_GRAPHICS_METAL:BOOL=ON
 Checked 281 Mach-O files for arm64.
