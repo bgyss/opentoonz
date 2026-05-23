@@ -172,8 +172,10 @@ TPointD ControlPointEditorTool::calculateSnap(TPointD pos) {
 void ControlPointEditorTool::drawSnap() {
   double thick = 6.0;
   if (m_foundSnap) {
-    tglColor(TPixelD(0.1, 0.9, 0.1));
-    tglDrawCircle(m_snapPoint, thick);
+    TGraphics::DrawList2D drawList;
+    drawList.addColorCircle(m_snapPoint, thick, TPixel32(26, 230, 26), false,
+                            false);
+    TGraphics::drawWithOpenGLBackend(drawList);
   }
 }
 
@@ -329,14 +331,13 @@ void ControlPointEditorTool::drawControlPoint() {
     TThickPoint point = m_controlPointEditorStroke.getControlPoint(i);
     TPointD pa        = m_controlPointEditorStroke.getSpeedInPoint(i);
     TPointD pb        = m_controlPointEditorStroke.getSpeedOutPoint(i);
-    tglColor(color_handle);
-    tglDrawSegment(pa, point);
+    drawList.addColorLine(pa, point, color_handle, false);
     if (i == pointIndex && pointType == ControlPointEditorStroke::SPEED_IN)
       appendPointRect(drawList, pa, pix2_5, color_handle);
     else
       appendPointRect(drawList, pa, pix1_5, color_handle);
 
-    tglDrawSegment(pb, point);
+    drawList.addColorLine(pb, point, color_handle, false);
     if (i == pointIndex && pointType == ControlPointEditorStroke::SPEED_OUT)
       appendPointRect(drawList, pb, pix2_5, color_handle);
     else
