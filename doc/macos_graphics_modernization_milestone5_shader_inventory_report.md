@@ -416,6 +416,9 @@ paths.
 The cutter snap-guide checkpoint routes the snap-at-intersection guide segment
 through a `DrawList2D` color-line command while preserving the existing green
 preview color and cursor-speed-derived guide direction.
+The type-tool overlay checkpoint routes preedit underlines and the active text
+cursor through `DrawList2D` color-line commands while leaving glyph and textbox
+rendering on their existing paths.
 
 ## Files Changed
 
@@ -454,6 +457,7 @@ preview color and cursor-speed-derived guide direction.
 - `toonz/sources/tnztools/rulertool.cpp`
 - `toonz/sources/tnztools/shifttracetool.cpp`
 - `toonz/sources/tnztools/trackertool.cpp`
+- `toonz/sources/tnztools/typetool.cpp`
 - `toonz/sources/tnztools/toonzrasterbrushtool.cpp`
 - `toonz/sources/tnztools/toonzrasterbrushtool.h`
 - `toonz/sources/tnztools/vectorerasertool.cpp`
@@ -964,6 +968,8 @@ Iron, pump, and pinch hover cursor rings now also emit `tgraphics`
 color-circle commands.
 Cutter snap-at-intersection guide segments now also emit `tgraphics` color-line
 commands.
+Type-tool preedit underlines and active text cursors now also emit `tgraphics`
+color-line commands.
 Geometric multiline Bezier speed-handle connector segments now also emit
 `tgraphics` color-line commands.
 Edit-tool shear-handle visible outlines now also emit `tgraphics` color-line commands.

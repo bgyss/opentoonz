@@ -20,6 +20,7 @@
 #include "tundo.h"
 #include "tvectorgl.h"
 #include "tgl.h"
+#include "tgraphics.h"
 #include "tregion.h"
 #include "tvectorrenderdata.h"
 #include "toonz/tpalettehandle.h"
@@ -936,8 +937,9 @@ glPushMatrix();
     if (m_preeditRange.first <= j && j < m_preeditRange.second) {
       TPointD a(m_string[j].m_charPosition);
       TPointD b = a + TPointD(charWidth, 0);
-      glColor3d(1, 0, 0);
-      tglDrawSegment(a, b);
+      TGraphics::DrawList2D drawList;
+      drawList.addColorLine(a, b, TPixel32::Red, false);
+      TGraphics::drawWithOpenGLBackend(drawList);
     }
   }
 
@@ -952,13 +954,13 @@ glPushMatrix();
 
   if (m_active) {
     // draw cursor
-    tglColor(TPixel32::Black);
-    if (!m_isVertical || instance->hasVertical())
-      tglDrawSegment(m_cursorPoint,
-                     m_cursorPoint + m_scale * TPointD(0, -m_dimension));
-    else
-      tglDrawSegment(m_cursorPoint,
-                     m_cursorPoint + m_scale * TPointD(m_dimension, 0));
+    const TPointD cursorEnd =
+        (!m_isVertical || instance->hasVertical())
+            ? m_cursorPoint + m_scale * TPointD(0, -m_dimension)
+            : m_cursorPoint + m_scale * TPointD(m_dimension, 0);
+    TGraphics::DrawList2D drawList;
+    drawList.addColorLine(m_cursorPoint, cursorEnd, TPixel32::Black, false);
+    TGraphics::drawWithOpenGLBackend(drawList);
   }
 
   TPointD drawableCursor = m_cursorPoint;
