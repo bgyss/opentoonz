@@ -379,6 +379,10 @@ The full-color eraser checkpoint routes the normal-mode cursor ring and active
 polyline preview through `DrawList2D` color-circle/color-line commands, removing
 direct `glColor3d`, `tglDrawCircle`, and `GL_LINE_STRIP` preview drawing from
 those `fullcolorerasertool.cpp` paths.
+The full-color eraser multi-arc checkpoint routes straight preview segments,
+dashed three-point guide lines, and join-point circles through `DrawList2D`
+color-line/color-circle commands. The actual generated stroke centerlines remain
+on the existing stroke-render path.
 
 ## Files Changed
 
@@ -898,6 +902,8 @@ Raster eraser polyline start markers and active preview lines now also emit
 `tgraphics` color-circle/color-line commands.
 Full-color eraser normal cursor rings and polyline previews now also emit
 `tgraphics` color-circle/color-line commands.
+Full-color eraser multi-arc guides and join circles now also emit `tgraphics`
+color-line/color-circle commands.
 Geometric multiline Bezier speed-handle connector segments now also emit
 `tgraphics` color-line commands.
 Edit-tool shear-handle visible outlines now also emit `tgraphics` color-line commands.

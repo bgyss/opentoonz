@@ -61,6 +61,22 @@ TEnv::IntVar FullcolorEraserRange("FullcolorEraseRange", 0);
 
 namespace {
 
+void appendDashedLine(TGraphics::DrawList2D &drawList, const TPointD &p0,
+                      const TPointD &p1, const TPixel32 &color,
+                      double dashLength = 6.0, double gapLength = 4.0) {
+  const double dx     = p1.x - p0.x;
+  const double dy     = p1.y - p0.y;
+  const double length = sqrt(dx * dx + dy * dy);
+  if (length <= 1e-6 || dashLength <= 0.0 || gapLength < 0.0) return;
+
+  const TPointD unit(dx / length, dy / length);
+  for (double start = 0.0; start < length; start += dashLength + gapLength) {
+    const double rawEnd = start + dashLength;
+    const double end    = rawEnd < length ? rawEnd : length;
+    drawList.addColorLine(p0 + unit * start, p0 + unit * end, color, false);
+  }
+}
+
 int computeThickness(int pressure, const TIntPairProperty &property) {
   double p   = pressure / 255.0;
   double t   = p * p * p;
@@ -362,36 +378,39 @@ void MultiArcPrimitive::draw() {
                          : TPixel32::Red;
   switch (m_clickNumber) {
   case 1:
-    tglColor(m_color);
-    tglDrawSegment(m_startPoint, m_endPoint);
+    {
+      TGraphics::DrawList2D drawList;
+      drawList.addColorLine(m_startPoint, m_endPoint, m_color, false);
+      TGraphics::drawWithOpenGLBackend(drawList);
+    }
 
     if (m_stroke) {
       drawStrokeCenterline(*m_stroke, sqrt(tglGetPixelSize2()));
       TPointD firstPoint = m_stroke->getControlPoint(0);
+      TPixel32 color     = m_color;
       if (firstPoint == m_endPoint) {
-        tglColor(TPixel32((m_color.r + 127) % 255, m_color.g,
-                          (m_color.b + 127) % 255, m_color.m));
+        color = TPixel32((m_color.r + 127) % 255, m_color.g,
+                         (m_color.b + 127) % 255, m_color.m);
       }
-      tglDrawCircle(m_stroke->getControlPoint(0), joinDistance * pixelSize);
+      TGraphics::DrawList2D drawList;
+      drawList.addColorCircle(m_stroke->getControlPoint(0),
+                              joinDistance * pixelSize, color, false, false);
+      TGraphics::drawWithOpenGLBackend(drawList);
     }
 
     break;
 
   case 2:
-    tglColor(ToonzCheck::instance()->getChecks() & ToonzCheck::eBlackBg
-                 ? TPixel32::White
-                 : TPixel32::Black);
-
-    glLineStipple(1, 0x5555);
-    glEnable(GL_LINE_STIPPLE);
-    glBegin(GL_LINE_STRIP);
-    tglVertex(m_startPoint);
-    tglVertex(m_centralPoint);
-    tglVertex(m_endPoint);
-    glEnd();
-    glDisable(GL_LINE_STIPPLE);
-
-    tglColor(m_color);
+    {
+      TGraphics::DrawList2D drawList;
+      TPixel32 guideColor = ToonzCheck::instance()->getChecks() &
+                                    ToonzCheck::eBlackBg
+                                ? TPixel32::White
+                                : TPixel32::Black;
+      appendDashedLine(drawList, m_startPoint, m_centralPoint, guideColor);
+      appendDashedLine(drawList, m_centralPoint, m_endPoint, guideColor);
+      TGraphics::drawWithOpenGLBackend(drawList);
+    }
 
     if (m_stroke) drawStrokeCenterline(*m_stroke, sqrt(tglGetPixelSize2()));
 
@@ -400,11 +419,15 @@ void MultiArcPrimitive::draw() {
 
     if (m_stroke) {
       TPointD firstPoint = m_stroke->getControlPoint(0);
+      TPixel32 color     = m_color;
       if (firstPoint == m_endPoint) {
-        tglColor(TPixel32((m_color.r + 127) % 255, m_color.g,
-                          (m_color.b + 127) % 255, m_color.m));
+        color = TPixel32((m_color.r + 127) % 255, m_color.g,
+                         (m_color.b + 127) % 255, m_color.m);
       }
-      tglDrawCircle(m_stroke->getControlPoint(0), joinDistance * pixelSize);
+      TGraphics::DrawList2D drawList;
+      drawList.addColorCircle(m_stroke->getControlPoint(0),
+                              joinDistance * pixelSize, color, false, false);
+      TGraphics::drawWithOpenGLBackend(drawList);
     }
     break;
   };
