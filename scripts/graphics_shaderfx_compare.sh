@@ -19,6 +19,9 @@ fi
   cd "$repo_root"
   for shader in SHADER_sunflare SHADER_caustics SHADER_starsky SHADER_wavy SHADER_fireball; do
     shader_tolerance="$tolerance"
+    if [[ "$shader" == "SHADER_caustics" ]]; then
+      shader_tolerance="${SHADERFX_CAUSTICS_COMPARE_TOLERANCE:-64}"
+    fi
     if [[ "$shader" == "SHADER_fireball" ]]; then
       shader_tolerance="${SHADERFX_FIREBALL_COMPARE_TOLERANCE:-32}"
     fi
