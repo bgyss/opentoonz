@@ -421,6 +421,10 @@ cursor through `DrawList2D` color-line commands while leaving glyph and textbox
 rendering on their existing paths.
 The vector eraser cursor checkpoint routes the normal erase brush outline
 through a `DrawList2D` color-circle command when cursor outlines are enabled.
+The Toonz vector brush overlay checkpoint routes snap rings, range-start cross
+markers, and min/max brush outline rings through `DrawList2D`
+color-circle/color-line commands while keeping track fragment rendering on its
+existing path.
 
 ## Files Changed
 
@@ -462,6 +466,7 @@ through a `DrawList2D` color-circle command when cursor outlines are enabled.
 - `toonz/sources/tnztools/typetool.cpp`
 - `toonz/sources/tnztools/toonzrasterbrushtool.cpp`
 - `toonz/sources/tnztools/toonzrasterbrushtool.h`
+- `toonz/sources/tnztools/toonzvectorbrushtool.cpp`
 - `toonz/sources/tnztools/vectorerasertool.cpp`
 - `toonz/sources/tnztools/viewtools.cpp`
 - `toonz/sources/toonz/CMakeLists.txt`
@@ -974,6 +979,8 @@ Cutter snap-at-intersection guide segments now also emit `tgraphics` color-line
 commands.
 Type-tool preedit underlines and active text cursors now also emit `tgraphics`
 color-line commands.
+Toonz vector brush snap rings, range-start crosses, and min/max brush outline
+rings now also emit `tgraphics` color-circle/color-line commands.
 Geometric multiline Bezier speed-handle connector segments now also emit
 `tgraphics` color-line commands.
 Edit-tool shear-handle visible outlines now also emit `tgraphics` color-line commands.

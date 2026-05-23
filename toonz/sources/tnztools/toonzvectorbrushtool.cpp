@@ -43,6 +43,7 @@
 #include "tinbetween.h"
 
 #include "tgl.h"
+#include "tgraphics.h"
 #include "trop.h"
 
 // Qt includes
@@ -1551,14 +1552,16 @@ void ToonzVectorBrushTool::draw() {
   
   // draw snapping
   double snapMarkRadius = 6.0 * m_pixelSize;
+  TGraphics::DrawList2D overlayDrawList;
   if (m_snapped) {
-    tglColor(TPixelD(0.1, 0.9, 0.1));
-    tglDrawCircle(m_snapPoint, snapMarkRadius);
+    overlayDrawList.addColorCircle(m_snapPoint, snapMarkRadius,
+                                   TPixel32(26, 230, 26), false, false);
   }
   if (m_snappedSelf) {
-    tglColor(TPixelD(0.9, 0.9, 0.1));
-    tglDrawCircle(m_snapPointSelf, snapMarkRadius);
+    overlayDrawList.addColorCircle(m_snapPointSelf, snapMarkRadius,
+                                   TPixel32(230, 230, 26), false, false);
   }
+  if (!overlayDrawList.empty()) TGraphics::drawWithOpenGLBackend(overlayDrawList);
 
   // frame range
   for(TrackList::iterator i = m_rangeTracks.begin(); i != m_rangeTracks.end(); ++i) {
@@ -1568,9 +1571,12 @@ void ToonzVectorBrushTool::draw() {
     TPointD point = i->getFirstPoint();
     glColor3d(1.0, 0.0, 0.0);
     i->drawAllFragments();
-    glColor3d(0.0, 0.6, 0.0);
-    tglDrawSegment(point - offset1, point + offset1);
-    tglDrawSegment(point - offset2, point + offset2);
+    TGraphics::DrawList2D crossDrawList;
+    crossDrawList.addColorLine(point - offset1, point + offset1,
+                               TPixel32(0, 153, 0), false);
+    crossDrawList.addColorLine(point - offset2, point + offset2,
+                               TPixel32(0, 153, 0), false);
+    TGraphics::drawWithOpenGLBackend(crossDrawList);
   }
 
   if (getApplication()->getCurrentObject()->isSpline()) return;
@@ -1587,16 +1593,20 @@ void ToonzVectorBrushTool::draw() {
 
   // Draw the brush outline - change color when the Ink / Paint check is
   // activated
-  if ((ToonzCheck::instance()->getChecks() & ToonzCheck::eInk) ||
-      (ToonzCheck::instance()->getChecks() & ToonzCheck::ePaint) ||
-      (ToonzCheck::instance()->getChecks() & ToonzCheck::eInk1))
-    glColor3d(0.5, 0.8, 0.8);
-  // normally draw in red
-  else
-    glColor3d(1.0, 0.0, 0.0);
-
-  tglDrawCircle(m_brushPos, 0.5 * m_minThick * Stage::inch / m_cameraDpi);
-  tglDrawCircle(m_brushPos, 0.5 * m_maxThick * Stage::inch / m_cameraDpi);
+  const TPixel32 cursorColor =
+      ((ToonzCheck::instance()->getChecks() & ToonzCheck::eInk) ||
+       (ToonzCheck::instance()->getChecks() & ToonzCheck::ePaint) ||
+       (ToonzCheck::instance()->getChecks() & ToonzCheck::eInk1))
+          ? TPixel32(128, 204, 204)
+          : TPixel32::Red;
+  TGraphics::DrawList2D cursorDrawList;
+  cursorDrawList.addColorCircle(m_brushPos,
+                                0.5 * m_minThick * Stage::inch / m_cameraDpi,
+                                cursorColor, false, false);
+  cursorDrawList.addColorCircle(m_brushPos,
+                                0.5 * m_maxThick * Stage::inch / m_cameraDpi,
+                                cursorColor, false, false);
+  TGraphics::drawWithOpenGLBackend(cursorDrawList);
 }
 
 //--------------------------------------------------------------------------------------------------------------
