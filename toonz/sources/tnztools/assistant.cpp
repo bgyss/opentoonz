@@ -15,6 +15,7 @@
 #include <toonz/txshsimplelevel.h>
 
 #include <tgl.h>
+#include <tgraphics.h>
 #include <tproperty.h>
 #include <tpixelutils.h>
 
@@ -56,20 +57,18 @@ TGuideline::drawSegment(
   cl.m *= alpha;
   TPixelD clBack = TAssistantBase::makeContrastColor(cl);
 
-  glPushAttrib(GL_ALL_ATTRIB_BITS);
-  tglEnableBlending();
-  tglEnableLineSmooth(true, 1.0 * TAssistant::lineWidthScale);
   TPointD d = p1 - p0;
   double k = norm2(d);
   if (k > TConsts::epsilon*TConsts::epsilon) {
     k = 0.5*pixelSize*TAssistant::lineWidthScale/sqrt(k);
     d = TPointD(-k*d.y, k*d.x);
-    tglColor(clBack);
-    tglDrawSegment(p0 - d, p1 - d);
-    tglColor(cl);
-    tglDrawSegment(p0 + d, p1 + d);
+    TGraphics::DrawList2D drawList;
+    drawList.addColorLine(p0 - d, p1 - d, toPixel32(clBack), true,
+                          TAssistant::lineWidthScale);
+    drawList.addColorLine(p0 + d, p1 + d, toPixel32(cl), true,
+                          TAssistant::lineWidthScale);
+    TGraphics::drawWithOpenGLBackend(drawList);
   }
-  glPopAttrib();
 }
 
 //---------------------------------------------------------------------------------------------------

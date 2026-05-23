@@ -389,6 +389,9 @@ The full-color eraser multi-arc checkpoint routes straight preview segments,
 dashed three-point guide lines, and join-point circles through `DrawList2D`
 color-line/color-circle commands. The actual generated stroke centerlines remain
 on the existing stroke-render path.
+The assistant guideline checkpoint routes double-stroked guideline segments
+through `DrawList2D` color-line commands, preserving the existing contrast/front
+colors, alpha, and line-width scale.
 
 ## Files Changed
 
@@ -402,6 +405,7 @@ on the existing stroke-render path.
 - `toonz/sources/common/tgraphics/tgraphics_metal_probe.cpp`
 - `toonz/sources/common/tvrender/tofflinegl_probe.cpp`
 - `toonz/sources/tnzcore/CMakeLists.txt`
+- `toonz/sources/tnztools/assistant.cpp`
 - `toonz/sources/tnztools/controlpointeditortool.cpp`
 - `toonz/sources/tnztools/edittool.cpp`
 - `toonz/sources/tnztools/fullcolorerasertool.cpp`
@@ -915,6 +919,8 @@ Full-color eraser normal cursor rings and polyline previews now also emit
 `tgraphics` color-circle/color-line commands.
 Full-color eraser multi-arc guides and join circles now also emit `tgraphics`
 color-line/color-circle commands.
+Assistant guideline double-stroked segments now also emit `tgraphics`
+color-line commands.
 Geometric multiline Bezier speed-handle connector segments now also emit
 `tgraphics` color-line commands.
 Edit-tool shear-handle visible outlines now also emit `tgraphics` color-line commands.
