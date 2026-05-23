@@ -43,6 +43,7 @@
 #include "tpixelutils.h"
 #include "tsystem.h"
 #include "tcolorstyles.h"
+#include "tgraphics.h"
 
 // Qt includes
 #include <QCoreApplication>  // Qt translation support
@@ -614,23 +615,28 @@ void FullColorBrushTool::draw() {
     double minAlpha = alpha * (1.0 - 1.0 / (1.0 + minX));
     double maxAlpha = alpha * (1.0 - 1.0 / (1.0 + maxX));
 
-    glPushAttrib(GL_ALL_ATTRIB_BITS);
-    tglEnableBlending();
-    tglEnableLineSmooth(true, 0.5);
+    TGraphics::DrawList2D drawList;
+    auto addCursorCircle = [&drawList](const TPointD &center, double radius,
+                                       const TPixel32 &color, double alpha) {
+      const int matte = tcrop(tround(alpha * 255.0), 0, 255);
+      if (matte <= 0) return;
 
+      drawList.addColorCircle(center, radius,
+                              TPixel32(color.r, color.g, color.b, matte),
+                              false, matte < 255);
+    };
     if (m_minCursorThick < m_maxCursorThick - pixelSize) {
-      glColor4d(1.0, 1.0, 1.0, minAlpha);
-      tglDrawCircle(m_brushPos, (m_minCursorThick + 1) * 0.5 - pixelSize);
-      glColor4d(0.0, 0.0, 0.0, minAlpha);
-      tglDrawCircle(m_brushPos, (m_minCursorThick + 1) * 0.5);
+      addCursorCircle(m_brushPos, (m_minCursorThick + 1) * 0.5 - pixelSize,
+                      TPixel32::White, minAlpha);
+      addCursorCircle(m_brushPos, (m_minCursorThick + 1) * 0.5, TPixel32::Black,
+                      minAlpha);
     }
 
-    glColor4d(1.0, 1.0, 1.0, maxAlpha);
-    tglDrawCircle(m_brushPos, (m_maxCursorThick + 1) * 0.5 - pixelSize);
-    glColor4d(0.0, 0.0, 0.0, maxAlpha);
-    tglDrawCircle(m_brushPos, (m_maxCursorThick + 1) * 0.5);
-
-    glPopAttrib();
+    addCursorCircle(m_brushPos, (m_maxCursorThick + 1) * 0.5 - pixelSize,
+                    TPixel32::White, maxAlpha);
+    addCursorCircle(m_brushPos, (m_maxCursorThick + 1) * 0.5, TPixel32::Black,
+                    maxAlpha);
+    TGraphics::drawWithOpenGLBackend(drawList);
   }
   m_inputmanager.draw();
 }

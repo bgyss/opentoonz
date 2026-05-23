@@ -364,6 +364,10 @@ Selection tracks and stroke centerlines remain on their existing legacy paths.
 The paint-brush cursor checkpoint routes the brush cursor outline helper through
 `DrawList2D` color-line/color-circle commands, removing direct `glColor*`,
 `tglDrawCircle`, and repeated `tglDrawSegment` calls from the cursor preview.
+The full-color brush cursor checkpoint routes the min/max cursor outline circles
+through `DrawList2D` color-circle commands, preserving the existing alpha fade
+while removing direct `glColor4d` and `tglDrawCircle` calls from that cursor
+preview.
 
 ## Files Changed
 
@@ -379,6 +383,7 @@ The paint-brush cursor checkpoint routes the brush cursor outline helper through
 - `toonz/sources/tnzcore/CMakeLists.txt`
 - `toonz/sources/tnztools/controlpointeditortool.cpp`
 - `toonz/sources/tnztools/edittool.cpp`
+- `toonz/sources/tnztools/fullcolorbrushtool.cpp`
 - `toonz/sources/tnztools/geometrictool.cpp`
 - `toonz/sources/tnztools/hooktool.cpp`
 - `toonz/sources/tnztools/magnettool.cpp`
@@ -871,6 +876,8 @@ Control-point editor snap circles and speed-handle connector segments now also
 emit `tgraphics` color-circle/color-line commands.
 Paint-brush cursor outlines now also emit `tgraphics`
 color-line/color-circle commands.
+Full-color brush min/max cursor outlines now also emit `tgraphics`
+color-circle commands with alpha preserved in the draw-list colors.
 Geometric multiline Bezier speed-handle connector segments now also emit
 `tgraphics` color-line commands.
 Edit-tool shear-handle visible outlines now also emit `tgraphics` color-line commands.
