@@ -419,6 +419,8 @@ preview color and cursor-speed-derived guide direction.
 The type-tool overlay checkpoint routes preedit underlines and the active text
 cursor through `DrawList2D` color-line commands while leaving glyph and textbox
 rendering on their existing paths.
+The vector eraser cursor checkpoint routes the normal erase brush outline
+through a `DrawList2D` color-circle command when cursor outlines are enabled.
 
 ## Files Changed
 
@@ -964,6 +966,8 @@ Assistant edit-point fills, outlines, crosshairs, and dot markers now also emit
 `tgraphics` color-circle/color-line commands with outline width preserved.
 Vector eraser, raster tape, and RGB picker polyline previews now also emit
 `tgraphics` color-circle/color-line commands.
+Vector eraser normal brush outlines now also emit `tgraphics` color-circle
+commands.
 Iron, pump, and pinch hover cursor rings now also emit `tgraphics`
 color-circle commands.
 Cutter snap-at-intersection guide segments now also emit `tgraphics` color-line

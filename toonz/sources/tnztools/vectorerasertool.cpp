@@ -477,8 +477,10 @@ void EraserTool::draw() {
       // If toggled off, don't draw brush outline
       if (!Preferences::instance()->isCursorOutlineEnabled()) return;
 
-      tglColor(TPixel32(255, 0, 255));
-      tglDrawCircle(m_brushPos, m_pointSize);
+      TGraphics::DrawList2D drawList;
+      drawList.addColorCircle(m_brushPos, m_pointSize, TPixel32::Magenta,
+                              false, false);
+      TGraphics::drawWithOpenGLBackend(drawList);
     }
     if ((m_eraseType.getValue() == FREEHAND_ERASE ||
          m_eraseType.getValue() == POLYLINE_ERASE ||
