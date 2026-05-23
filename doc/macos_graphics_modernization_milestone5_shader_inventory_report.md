@@ -445,6 +445,11 @@ The bender overlay checkpoint routes the bender segment, rotation guide,
 endpoint square markers, mouse-point square marker, and up-direction arrow
 through `DrawList2D` color-line/color-rect/color-triangle commands. The red
 stroke-centerline preview remains on the existing legacy stroke drawing path.
+The input manager preview checkpoint routes non-fixed track preview strokes and
+the dormant debug track/circle visualization through `DrawList2D`
+color-line/color-circle commands. This removes OpenGL attrib, blend, line
+smooth, color, segment, and circle calls from `TInputManager::draw()` while
+preserving the existing pixel-size offset geometry.
 
 ## Files Changed
 
@@ -466,6 +471,7 @@ stroke-centerline preview remains on the existing legacy stroke drawing path.
 - `toonz/sources/tnztools/fullcolorbrushtool.cpp`
 - `toonz/sources/tnztools/geometrictool.cpp`
 - `toonz/sources/tnztools/hooktool.cpp`
+- `toonz/sources/tnztools/inputmanager.cpp`
 - `toonz/sources/tnztools/irontool.cpp`
 - `toonz/sources/tnztools/magnettool.cpp`
 - `toonz/sources/tnztools/morphtool.cpp`
@@ -1118,6 +1124,13 @@ git diff --check
 rg -n "^WITH_GRAPHICS_METAL:BOOL=" toonz/build/nix-relwithdebinfo/CMakeCache.txt toonz/build/nix-relwithdebinfo-metal/CMakeCache.txt
 nix develop path:. --command bash scripts/macos/assert-arm64-bundle.sh
 nix develop path:. --command toonz/build/nix-relwithdebinfo-metal/tnzcore/tgraphics_metal_probe
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tnztools OpenToonz --parallel 3
+rg -n "gl[A-Z]|tglDraw|tglEnable|GL_" toonz/sources/tnztools/inputmanager.cpp || true
+bash scripts/graphics_inventory.sh
+git diff --check
+rg -n "^WITH_GRAPHICS_METAL:BOOL=" toonz/build/nix-relwithdebinfo/CMakeCache.txt toonz/build/nix-relwithdebinfo-metal/CMakeCache.txt
+nix develop path:. --command bash scripts/macos/assert-arm64-bundle.sh
+nix develop path:. --command toonz/build/nix-relwithdebinfo-metal/tnzcore/tgraphics_metal_probe
 ```
 
 Validation evidence:
@@ -1213,6 +1226,14 @@ tnztools/libtnztools.dylib linked after bender overlay migration
 OpenToonz linked after bender overlay migration
 bendertool.cpp direct drawing marker scan: only the legacy stroke-centerline tglColor fallback remains
 OpenToonz graphics API inventory: all graphics markers files=107 matches=2241; fixed-function drawing files=65 matches=1466
+WITH_GRAPHICS_METAL:BOOL=OFF
+WITH_GRAPHICS_METAL:BOOL=ON
+Checked 281 Mach-O files for arm64.
+tgraphics_metal_probe: ok on Apple M1 Max
+tnztools/libtnztools.dylib linked after input manager preview migration
+OpenToonz linked after input manager preview migration
+inputmanager.cpp focused scan: only tglGetPixelSize2 remains for pixel-size math
+OpenToonz graphics API inventory: all graphics markers files=106 matches=2238; fixed-function drawing files=64 matches=1463
 WITH_GRAPHICS_METAL:BOOL=OFF
 WITH_GRAPHICS_METAL:BOOL=ON
 Checked 281 Mach-O files for arm64.

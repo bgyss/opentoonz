@@ -4,8 +4,10 @@
 #include <tools/inputmanager.h>
 
 // TnzCore includes
+#include <tgraphics.h>
 #include <tgl.h>
 
+#include <algorithm>
 
 //*****************************************************************************************
 //    static members
@@ -13,6 +15,20 @@
 
 static const bool debugInputManager = false;
 TInputState::TouchId TInputManager::m_lastTouchId = 0;
+
+namespace {
+
+int toByte(double value) {
+  int byte = (int)(value * 255.0 + 0.5);
+  return std::max(0, std::min(255, byte));
+}
+
+TPixel32 toPixel32(const double color[4]) {
+  return TPixel32(toByte(color[0]), toByte(color[1]), toByte(color[2]),
+                  toByte(color[3]));
+}
+
+}  // namespace
 
 
 //*****************************************************************************************
@@ -602,12 +618,10 @@ TInputManager::draw() {
   
   // paint not fixed parts of tracks
   if (drawPreview) {
-    glPushAttrib(GL_ALL_ATTRIB_BITS);
-    tglEnableBlending();
-    tglEnableLineSmooth(true, 1.0);
+    TGraphics::DrawList2D drawList;
     double pixelSize = sqrt(tglGetPixelSize2());
-    double colorBlack[4] = { 0.0, 0.0, 0.0, 0.5 };
-    double colorWhite[4] = { 1.0, 1.0, 1.0, 0.5 };
+    const TPixel32 colorBlack(0, 0, 0, 128);
+    const TPixel32 colorWhite(255, 255, 255, 128);
     for(TTrackList::const_iterator ti = getOutputTracks().begin(); ti != getOutputTracks().end(); ++ti) {
       TTrack &track = **ti;
       int start = std::max(0, track.fixedSize() - track.fixedPointsAdded);
@@ -619,25 +633,24 @@ TInputManager::draw() {
         if (k > TConsts::epsilon*TConsts::epsilon) {
           k = 0.5*pixelSize/sqrt(k);
           d = TPointD(-k*d.y, k*d.x);
-          glColor4dv(colorWhite);
-          tglDrawSegment(*a - d, *b - d);
-          glColor4dv(colorBlack);
-          tglDrawSegment(*a + d, *b + d);
+          drawList.addColorLine(*a - d, *b - d, colorWhite, true);
+          drawList.addColorLine(*a + d, *b + d, colorBlack, true);
           a = b;
         }
       }
     }
-    glPopAttrib();
+    TGraphics::drawWithOpenGLBackend(drawList);
   }
   
   // paint all tracks modifications for debug
   if (debugInputManager) {
+    TGraphics::DrawList2D drawList;
     double pixelSize = sqrt(tglGetPixelSize2());
     double color[4] = { 0.0, 0.0, 0.0, 0.5 };
     int cnt = m_tracks.size();
     for(int li = 0; li < cnt; ++li) {
       HSV2RGB(240 + li*120.0/(cnt-1), 1, 1, &color[0], &color[1], &color[2]);
-      glColor4dv(color);
+      const TPixel32 trackColor = toPixel32(color);
       for(TTrackList::const_iterator ti = m_tracks[li].begin(); ti != m_tracks[li].end(); ++ti) {
         assert(*ti);
         const TTrack &track = **ti;
@@ -650,7 +663,7 @@ TInputManager::draw() {
             TPointD d = *b - *a;
             double k = norm2(d);
             if (k > 4*pixelSize*pixelSize) {
-              tglDrawSegment(*a, *b);
+              drawList.addColorLine(*a, *b, trackColor, true);
               radius = 0;
               a = b;
             } else {
@@ -659,10 +672,12 @@ TInputManager::draw() {
           }
           
           if (radius && li == 0)
-            tglDrawCircle(*b, radius*pixelSize*3);
+            drawList.addColorCircle(*b, radius*pixelSize*3, trackColor, false,
+                                    true);
         }
       }
     }
+    TGraphics::drawWithOpenGLBackend(drawList);
   }
 
   // paint modifiers
