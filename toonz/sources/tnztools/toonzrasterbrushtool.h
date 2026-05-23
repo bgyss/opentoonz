@@ -4,6 +4,7 @@
 #define TOONZRASTERBRUSHTOOL_H
 
 #include <tgeometry.h>
+#include <tgraphics.h>
 #include <tproperty.h>
 #include <trasterimage.h>
 #include <ttoonzimage.h>
@@ -293,10 +294,13 @@ protected:
   bool m_propertyUpdating = false;
 
 protected:
-  static void drawLine(const TPointD &point, const TPointD &centre,
-                       bool horizontal, bool isDecimal);
+  static void appendEmptyCircleLine(TGraphics::DrawList2D &drawList,
+                                    const TPointD &point,
+                                    const TPointD &centre, bool horizontal,
+                                    bool isDecimal, const TPixel32 &color);
   static void drawEmptyCircle(TPointD point, int thick, bool isLxEven,
-                              bool isLyEven, bool isPencil);
+                              bool isLyEven, bool isPencil,
+                              const TPixel32 &color);
 
   TPointD getCenteredCursorPos(const TPointD &originalCursorPos);
 };

@@ -820,113 +820,120 @@ ToolOptionsBox *ToonzRasterBrushTool::createOptionsBox() {
 
 //-------------------------------------------------------------------------------------------------------
 
-void ToonzRasterBrushTool::drawLine(const TPointD &point, const TPointD &centre,
-                                    bool horizontal, bool isDecimal) {
+void ToonzRasterBrushTool::appendEmptyCircleLine(
+    TGraphics::DrawList2D &drawList, const TPointD &point,
+    const TPointD &centre, bool horizontal, bool isDecimal,
+    const TPixel32 &color) {
+  auto appendSegment = [&drawList, &color](const TPointD &p0,
+                                           const TPointD &p1) {
+    drawList.addColorLine(p0, p1, color, false);
+  };
+
   if (!isDecimal) {
     if (horizontal) {
-      tglDrawSegment(TPointD(point.x - 1.5, point.y + 0.5) + centre,
+      appendSegment(TPointD(point.x - 1.5, point.y + 0.5) + centre,
                      TPointD(point.x - 0.5, point.y + 0.5) + centre);
-      tglDrawSegment(TPointD(point.y - 0.5, -point.x + 1.5) + centre,
+      appendSegment(TPointD(point.y - 0.5, -point.x + 1.5) + centre,
                      TPointD(point.y - 0.5, -point.x + 0.5) + centre);
-      tglDrawSegment(TPointD(-point.x + 0.5, -point.y + 0.5) + centre,
+      appendSegment(TPointD(-point.x + 0.5, -point.y + 0.5) + centre,
                      TPointD(-point.x - 0.5, -point.y + 0.5) + centre);
-      tglDrawSegment(TPointD(-point.y - 0.5, point.x - 0.5) + centre,
+      appendSegment(TPointD(-point.y - 0.5, point.x - 0.5) + centre,
                      TPointD(-point.y - 0.5, point.x + 0.5) + centre);
 
-      tglDrawSegment(TPointD(point.y - 0.5, point.x + 0.5) + centre,
+      appendSegment(TPointD(point.y - 0.5, point.x + 0.5) + centre,
                      TPointD(point.y - 0.5, point.x - 0.5) + centre);
-      tglDrawSegment(TPointD(point.x - 0.5, -point.y + 0.5) + centre,
+      appendSegment(TPointD(point.x - 0.5, -point.y + 0.5) + centre,
                      TPointD(point.x - 1.5, -point.y + 0.5) + centre);
-      tglDrawSegment(TPointD(-point.y - 0.5, -point.x + 0.5) + centre,
+      appendSegment(TPointD(-point.y - 0.5, -point.x + 0.5) + centre,
                      TPointD(-point.y - 0.5, -point.x + 1.5) + centre);
-      tglDrawSegment(TPointD(-point.x - 0.5, point.y + 0.5) + centre,
+      appendSegment(TPointD(-point.x - 0.5, point.y + 0.5) + centre,
                      TPointD(-point.x + 0.5, point.y + 0.5) + centre);
     } else {
-      tglDrawSegment(TPointD(point.x - 1.5, point.y + 1.5) + centre,
+      appendSegment(TPointD(point.x - 1.5, point.y + 1.5) + centre,
                      TPointD(point.x - 1.5, point.y + 0.5) + centre);
-      tglDrawSegment(TPointD(point.x - 1.5, point.y + 0.5) + centre,
+      appendSegment(TPointD(point.x - 1.5, point.y + 0.5) + centre,
                      TPointD(point.x - 0.5, point.y + 0.5) + centre);
-      tglDrawSegment(TPointD(point.y + 0.5, -point.x + 1.5) + centre,
+      appendSegment(TPointD(point.y + 0.5, -point.x + 1.5) + centre,
                      TPointD(point.y - 0.5, -point.x + 1.5) + centre);
-      tglDrawSegment(TPointD(point.y - 0.5, -point.x + 1.5) + centre,
+      appendSegment(TPointD(point.y - 0.5, -point.x + 1.5) + centre,
                      TPointD(point.y - 0.5, -point.x + 0.5) + centre);
-      tglDrawSegment(TPointD(-point.x + 0.5, -point.y - 0.5) + centre,
+      appendSegment(TPointD(-point.x + 0.5, -point.y - 0.5) + centre,
                      TPointD(-point.x + 0.5, -point.y + 0.5) + centre);
-      tglDrawSegment(TPointD(-point.x + 0.5, -point.y + 0.5) + centre,
+      appendSegment(TPointD(-point.x + 0.5, -point.y + 0.5) + centre,
                      TPointD(-point.x - 0.5, -point.y + 0.5) + centre);
-      tglDrawSegment(TPointD(-point.y - 1.5, point.x - 0.5) + centre,
+      appendSegment(TPointD(-point.y - 1.5, point.x - 0.5) + centre,
                      TPointD(-point.y - 0.5, point.x - 0.5) + centre);
-      tglDrawSegment(TPointD(-point.y - 0.5, point.x - 0.5) + centre,
+      appendSegment(TPointD(-point.y - 0.5, point.x - 0.5) + centre,
                      TPointD(-point.y - 0.5, point.x + 0.5) + centre);
 
-      tglDrawSegment(TPointD(point.y + 0.5, point.x - 0.5) + centre,
+      appendSegment(TPointD(point.y + 0.5, point.x - 0.5) + centre,
                      TPointD(point.y - 0.5, point.x - 0.5) + centre);
-      tglDrawSegment(TPointD(point.y - 0.5, point.x - 0.5) + centre,
+      appendSegment(TPointD(point.y - 0.5, point.x - 0.5) + centre,
                      TPointD(point.y - 0.5, point.x + 0.5) + centre);
-      tglDrawSegment(TPointD(point.x - 1.5, -point.y - 0.5) + centre,
+      appendSegment(TPointD(point.x - 1.5, -point.y - 0.5) + centre,
                      TPointD(point.x - 1.5, -point.y + 0.5) + centre);
-      tglDrawSegment(TPointD(point.x - 1.5, -point.y + 0.5) + centre,
+      appendSegment(TPointD(point.x - 1.5, -point.y + 0.5) + centre,
                      TPointD(point.x - 0.5, -point.y + 0.5) + centre);
-      tglDrawSegment(TPointD(-point.y - 1.5, -point.x + 1.5) + centre,
+      appendSegment(TPointD(-point.y - 1.5, -point.x + 1.5) + centre,
                      TPointD(-point.y - 0.5, -point.x + 1.5) + centre);
-      tglDrawSegment(TPointD(-point.y - 0.5, -point.x + 1.5) + centre,
+      appendSegment(TPointD(-point.y - 0.5, -point.x + 1.5) + centre,
                      TPointD(-point.y - 0.5, -point.x + 0.5) + centre);
-      tglDrawSegment(TPointD(-point.x + 0.5, point.y + 1.5) + centre,
+      appendSegment(TPointD(-point.x + 0.5, point.y + 1.5) + centre,
                      TPointD(-point.x + 0.5, point.y + 0.5) + centre);
-      tglDrawSegment(TPointD(-point.x + 0.5, point.y + 0.5) + centre,
+      appendSegment(TPointD(-point.x + 0.5, point.y + 0.5) + centre,
                      TPointD(-point.x - 0.5, point.y + 0.5) + centre);
     }
   } else {
     if (horizontal) {
-      tglDrawSegment(TPointD(point.x - 0.5, point.y + 0.5) + centre,
+      appendSegment(TPointD(point.x - 0.5, point.y + 0.5) + centre,
                      TPointD(point.x + 0.5, point.y + 0.5) + centre);
-      tglDrawSegment(TPointD(point.y + 0.5, point.x - 0.5) + centre,
+      appendSegment(TPointD(point.y + 0.5, point.x - 0.5) + centre,
                      TPointD(point.y + 0.5, point.x + 0.5) + centre);
-      tglDrawSegment(TPointD(point.y + 0.5, -point.x + 0.5) + centre,
+      appendSegment(TPointD(point.y + 0.5, -point.x + 0.5) + centre,
                      TPointD(point.y + 0.5, -point.x - 0.5) + centre);
-      tglDrawSegment(TPointD(point.x + 0.5, -point.y - 0.5) + centre,
+      appendSegment(TPointD(point.x + 0.5, -point.y - 0.5) + centre,
                      TPointD(point.x - 0.5, -point.y - 0.5) + centre);
-      tglDrawSegment(TPointD(-point.x - 0.5, -point.y - 0.5) + centre,
+      appendSegment(TPointD(-point.x - 0.5, -point.y - 0.5) + centre,
                      TPointD(-point.x + 0.5, -point.y - 0.5) + centre);
-      tglDrawSegment(TPointD(-point.y - 0.5, -point.x + 0.5) + centre,
+      appendSegment(TPointD(-point.y - 0.5, -point.x + 0.5) + centre,
                      TPointD(-point.y - 0.5, -point.x - 0.5) + centre);
-      tglDrawSegment(TPointD(-point.y - 0.5, point.x - 0.5) + centre,
+      appendSegment(TPointD(-point.y - 0.5, point.x - 0.5) + centre,
                      TPointD(-point.y - 0.5, point.x + 0.5) + centre);
-      tglDrawSegment(TPointD(-point.x + 0.5, point.y + 0.5) + centre,
+      appendSegment(TPointD(-point.x + 0.5, point.y + 0.5) + centre,
                      TPointD(-point.x - 0.5, point.y + 0.5) + centre);
     } else {
-      tglDrawSegment(TPointD(point.x - 0.5, point.y + 1.5) + centre,
+      appendSegment(TPointD(point.x - 0.5, point.y + 1.5) + centre,
                      TPointD(point.x - 0.5, point.y + 0.5) + centre);
-      tglDrawSegment(TPointD(point.x - 0.5, point.y + 0.5) + centre,
+      appendSegment(TPointD(point.x - 0.5, point.y + 0.5) + centre,
                      TPointD(point.x + 0.5, point.y + 0.5) + centre);
-      tglDrawSegment(TPointD(point.y + 1.5, point.x - 0.5) + centre,
+      appendSegment(TPointD(point.y + 1.5, point.x - 0.5) + centre,
                      TPointD(point.y + 0.5, point.x - 0.5) + centre);
-      tglDrawSegment(TPointD(point.y + 0.5, point.x - 0.5) + centre,
+      appendSegment(TPointD(point.y + 0.5, point.x - 0.5) + centre,
                      TPointD(point.y + 0.5, point.x + 0.5) + centre);
-      tglDrawSegment(TPointD(point.y + 1.5, -point.x + 0.5) + centre,
+      appendSegment(TPointD(point.y + 1.5, -point.x + 0.5) + centre,
                      TPointD(point.y + 0.5, -point.x + 0.5) + centre);
-      tglDrawSegment(TPointD(point.y + 0.5, -point.x + 0.5) + centre,
+      appendSegment(TPointD(point.y + 0.5, -point.x + 0.5) + centre,
                      TPointD(point.y + 0.5, -point.x - 0.5) + centre);
-      tglDrawSegment(TPointD(point.x - 0.5, -point.y - 1.5) + centre,
+      appendSegment(TPointD(point.x - 0.5, -point.y - 1.5) + centre,
                      TPointD(point.x - 0.5, -point.y - 0.5) + centre);
-      tglDrawSegment(TPointD(point.x - 0.5, -point.y - 0.5) + centre,
+      appendSegment(TPointD(point.x - 0.5, -point.y - 0.5) + centre,
                      TPointD(point.x + 0.5, -point.y - 0.5) + centre);
 
-      tglDrawSegment(TPointD(-point.x + 0.5, -point.y - 1.5) + centre,
+      appendSegment(TPointD(-point.x + 0.5, -point.y - 1.5) + centre,
                      TPointD(-point.x + 0.5, -point.y - 0.5) + centre);
-      tglDrawSegment(TPointD(-point.x + 0.5, -point.y - 0.5) + centre,
+      appendSegment(TPointD(-point.x + 0.5, -point.y - 0.5) + centre,
                      TPointD(-point.x - 0.5, -point.y - 0.5) + centre);
-      tglDrawSegment(TPointD(-point.y - 1.5, -point.x + 0.5) + centre,
+      appendSegment(TPointD(-point.y - 1.5, -point.x + 0.5) + centre,
                      TPointD(-point.y - 0.5, -point.x + 0.5) + centre);
-      tglDrawSegment(TPointD(-point.y - 0.5, -point.x + 0.5) + centre,
+      appendSegment(TPointD(-point.y - 0.5, -point.x + 0.5) + centre,
                      TPointD(-point.y - 0.5, -point.x - 0.5) + centre);
-      tglDrawSegment(TPointD(-point.y - 1.5, point.x - 0.5) + centre,
+      appendSegment(TPointD(-point.y - 1.5, point.x - 0.5) + centre,
                      TPointD(-point.y - 0.5, point.x - 0.5) + centre);
-      tglDrawSegment(TPointD(-point.y - 0.5, point.x - 0.5) + centre,
+      appendSegment(TPointD(-point.y - 0.5, point.x - 0.5) + centre,
                      TPointD(-point.y - 0.5, point.x + 0.5) + centre);
-      tglDrawSegment(TPointD(-point.x + 0.5, point.y + 1.5) + centre,
+      appendSegment(TPointD(-point.x + 0.5, point.y + 1.5) + centre,
                      TPointD(-point.x + 0.5, point.y + 0.5) + centre);
-      tglDrawSegment(TPointD(-point.x + 0.5, point.y + 0.5) + centre,
+      appendSegment(TPointD(-point.x + 0.5, point.y + 0.5) + centre,
                      TPointD(-point.x - 0.5, point.y + 0.5) + centre);
     }
   }
@@ -936,17 +943,20 @@ void ToonzRasterBrushTool::drawLine(const TPointD &point, const TPointD &centre,
 
 void ToonzRasterBrushTool::drawEmptyCircle(TPointD pos, int thick,
                                            bool isLxEven, bool isLyEven,
-                                           bool isPencil) {
+                                           bool isPencil,
+                                           const TPixel32 &color) {
   if (isLxEven) pos.x += 0.5;
   if (isLyEven) pos.y += 0.5;
 
-  if (!isPencil)
-    tglDrawCircle(pos, (thick + 1) * 0.5);
-  else {
+  TGraphics::DrawList2D drawList;
+  if (!isPencil) {
+    drawList.addColorCircle(pos, (thick + 1) * 0.5, color, false, false);
+  } else {
     int x = 0, y = tround((thick * 0.5) - 0.5);
     int d           = 3 - 2 * (int)(thick * 0.5);
     bool horizontal = true, isDecimal = thick % 2 != 0;
-    drawLine(TPointD(x, y), pos, horizontal, isDecimal);
+    appendEmptyCircleLine(drawList, TPointD(x, y), pos, horizontal, isDecimal,
+                          color);
     while (y > x) {
       if (d < 0) {
         d          = d + 4 * x + 6;
@@ -957,9 +967,11 @@ void ToonzRasterBrushTool::drawEmptyCircle(TPointD pos, int thick,
         y--;
       }
       x++;
-      drawLine(TPointD(x, y), pos, horizontal, isDecimal);
+      appendEmptyCircleLine(drawList, TPointD(x, y), pos, horizontal, isDecimal,
+                            color);
     }
   }
+  TGraphics::drawWithOpenGLBackend(drawList);
 }
 
 //-------------------------------------------------------------------------------------------------------
@@ -1559,20 +1571,19 @@ void ToonzRasterBrushTool::draw() {
     return;
   }
 
-  tglColor(cursorColor);
   if (TToonzImageP ti = img) {
     TRasterP ras = ti->getRaster();
     int lx       = ras->getLx();
     int ly       = ras->getLy();
     drawEmptyCircle(m_brushPos, tround(m_minThick), lx % 2 == 0, ly % 2 == 0,
-                    m_pencil.getValue());
+                    m_pencil.getValue(), cursorColor);
     drawEmptyCircle(m_brushPos, tround(m_maxThick), lx % 2 == 0, ly % 2 == 0,
-                    m_pencil.getValue());
+                    m_pencil.getValue(), cursorColor);
   } else {
     drawEmptyCircle(m_brushPos, tround(m_minThick), true, true,
-                    m_pencil.getValue());
+                    m_pencil.getValue(), cursorColor);
     drawEmptyCircle(m_brushPos, tround(m_maxThick), true, true,
-                    m_pencil.getValue());
+                    m_pencil.getValue(), cursorColor);
   }
 }
 

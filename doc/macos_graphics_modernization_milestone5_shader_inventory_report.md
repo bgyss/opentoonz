@@ -372,6 +372,9 @@ The Toonz raster brush checkpoint routes the MyPaint-style min/max cursor
 outline circles through `DrawList2D` color-circle commands. Pixel-grid empty
 circle cursor drawing remains on the legacy raster-brush path for a later,
 grid-aware migration.
+The Toonz raster brush normal-cursor checkpoint routes the regular outline
+circles and pixel-grid pencil outline segments through `DrawList2D`, preserving
+the existing ink/paint cyan versus red cursor color choice.
 The raster eraser polyline checkpoint routes the start-point marker and active
 polyline preview through `DrawList2D` color-circle/color-line commands, removing
 the immediate-mode `GL_LINE_STRIP` preview from `rastererasertool.cpp`.
@@ -418,6 +421,7 @@ on the existing stroke-render path.
 - `toonz/sources/tnztools/shifttracetool.cpp`
 - `toonz/sources/tnztools/trackertool.cpp`
 - `toonz/sources/tnztools/toonzrasterbrushtool.cpp`
+- `toonz/sources/tnztools/toonzrasterbrushtool.h`
 - `toonz/sources/tnztools/viewtools.cpp`
 - `toonz/sources/toonz/CMakeLists.txt`
 - `toonz/sources/toonz/cleanuppreview.cpp`
@@ -901,6 +905,8 @@ Full-color brush min/max cursor outlines now also emit `tgraphics`
 color-circle commands with alpha preserved in the draw-list colors.
 Toonz raster brush MyPaint-style min/max cursor outlines now also emit
 `tgraphics` color-circle commands.
+Toonz raster brush normal cursor circles and pixel-grid pencil cursor segments
+now also emit `tgraphics` color-circle/color-line commands.
 Raster eraser polyline start markers and active preview lines now also emit
 `tgraphics` color-circle/color-line commands.
 Raster eraser normal cursor circles and pixel-grid pencil cursor segments now
