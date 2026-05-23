@@ -161,4 +161,7 @@ of checking in generated artifacts.
 3. Do not revert user changes or normalize unrelated generated, vendored, or
    binary files.
 4. Prefer targeted edits and targeted validation over repository-wide churn.
-5. In final handoffs, list the files changed and the validation actually run.
+5. When a task produces multiple independent behavioral or security fixes,
+   split them into separate reviewable commits and PRs whenever practical.
+   Keep each PR focused on one fix plus its directly related validation.
+6. In final handoffs, list the files changed and the validation actually run.
