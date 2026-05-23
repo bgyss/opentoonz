@@ -4,6 +4,7 @@
 #include "tools/toolutils.h"
 #include "tthreadmessage.h"
 #include "tgl.h"
+#include "tgraphics.h"
 #include "tstroke.h"
 #include "tvectorimage.h"
 #include "tmathutil.h"
@@ -286,7 +287,6 @@ public:
 
     if (m_strokeIndex1 == -1 || m_strokeIndex1 >= (int)(vi->getStrokeCount()))
       return;
-    tglColor(TPixelD(0.1, 0.9, 0.1));
 
     TStroke *stroke1   = vi->getStroke(m_strokeIndex1);
     TThickPoint point1 = stroke1->getPoint(m_w1);
@@ -295,7 +295,9 @@ public:
     m_pixelSize  = getPixelSize();
     double thick = std::max(6.0 * m_pixelSize, point1.thick);
 
-    tglDrawCircle(point1, thick);
+    TGraphics::DrawList2D drawList;
+    drawList.addColorCircle(point1, thick, TPixel32(26, 230, 26), false,
+                            false);
 
     TThickPoint point2;
 
@@ -305,13 +307,19 @@ public:
         point2           = stroke2->getPoint(m_w2);
         thick            = std::max(6.0 * m_pixelSize, point2.thick);
       } else {
-        tglColor(TPixelD(0.6, 0.7, 0.4));
         thick  = 4 * m_pixelSize;
         point2 = m_pos;
       }
-      tglDrawCircle(point2, thick);
-      tglDrawSegment(point1, point2);
+      drawList.addColorCircle(point2, thick,
+                              m_strokeIndex2 != -1 ? TPixel32(26, 230, 26)
+                                                   : TPixel32(153, 179, 102),
+                              false, false);
+      drawList.addColorLine(point1, point2,
+                            m_strokeIndex2 != -1 ? TPixel32(26, 230, 26)
+                                                 : TPixel32(153, 179, 102),
+                            false);
     }
+    TGraphics::drawWithOpenGLBackend(drawList);
     // glPopMatrix();
   }
 
