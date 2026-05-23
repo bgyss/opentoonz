@@ -13,6 +13,7 @@
 #include <toonz/toonzscene.h>
 #include <toonz/sceneproperties.h>
 
+#include <tgraphics.h>
 #include <tgl.h>
 #include <tpixelutils.h>
 
@@ -92,26 +93,25 @@ TReplicator::drawReplicatorPoints(const TPointD *points, int count) {
   TPixelD color = (drawFlags & DRAW_ERROR) ? colorError : colorBase;
   color.m *= 0.3;
   TPixelD colorBack = makeContrastColor(color);
-  
-  glPushAttrib(GL_ALL_ATTRIB_BITS);
-  tglEnableBlending();
-  tglEnableLineSmooth(true, 1.0 * lineWidthScale);
-  
+
+  TGraphics::DrawList2D drawList;
   double pixelSize = sqrt(tglGetPixelSize2());
   TPointD a(5*pixelSize, 0), da(0, 0.5*pixelSize);
   TPointD b(0, 5*pixelSize), db(0.5*pixelSize, 0);
   
   for(int i = 0; i < count; ++i) {
     const TPointD &p = points[i];
-    tglColor(colorBack);
-    tglDrawSegment(p - a - da, p + a - da);
-    tglDrawSegment(p - b - db, p + b - db);
-    tglColor(color);
-    tglDrawSegment(p - a + da, p + a + da);
-    tglDrawSegment(p - b + db, p + b + db);
+    drawList.addColorLine(p - a - da, p + a - da, toPixel32(colorBack), true,
+                          lineWidthScale);
+    drawList.addColorLine(p - b - db, p + b - db, toPixel32(colorBack), true,
+                          lineWidthScale);
+    drawList.addColorLine(p - a + da, p + a + da, toPixel32(color), true,
+                          lineWidthScale);
+    drawList.addColorLine(p - b + db, p + b + db, toPixel32(color), true,
+                          lineWidthScale);
   }
 
-  glPopAttrib();
+  TGraphics::drawWithOpenGLBackend(drawList);
 }
 
 //---------------------------------------------------------------------------------------------------
@@ -221,4 +221,3 @@ TReplicator::scanReplicators(
   
   return (int)multiplier;
 }
-

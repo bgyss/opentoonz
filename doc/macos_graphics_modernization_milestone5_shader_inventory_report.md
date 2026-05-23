@@ -450,6 +450,11 @@ the dormant debug track/circle visualization through `DrawList2D`
 color-line/color-circle commands. This removes OpenGL attrib, blend, line
 smooth, color, segment, and circle calls from `TInputManager::draw()` while
 preserving the existing pixel-size offset geometry.
+The replicator point checkpoint routes replicated assistant point crosshairs
+through `DrawList2D` color-line commands, preserving the contrast/front color
+pairing, alpha, pixel-size offsets, and assistant line-width scale. The
+column/meta-image transform matrix stack in the replicator scan remains on the
+existing OpenGL path.
 
 ## Files Changed
 
@@ -482,6 +487,7 @@ preserving the existing pixel-size offset geometry.
 - `toonz/sources/tnztools/pumptool.cpp`
 - `toonz/sources/tnztools/rastertapetool.cpp`
 - `toonz/sources/tnztools/rastererasertool.cpp`
+- `toonz/sources/tnztools/replicator.cpp`
 - `toonz/sources/tnztools/rgbpickertool.cpp`
 - `toonz/sources/tnztools/selectiontool.cpp`
 - `toonz/sources/tnztools/setsaveboxtool.cpp`
@@ -1131,6 +1137,13 @@ git diff --check
 rg -n "^WITH_GRAPHICS_METAL:BOOL=" toonz/build/nix-relwithdebinfo/CMakeCache.txt toonz/build/nix-relwithdebinfo-metal/CMakeCache.txt
 nix develop path:. --command bash scripts/macos/assert-arm64-bundle.sh
 nix develop path:. --command toonz/build/nix-relwithdebinfo-metal/tnzcore/tgraphics_metal_probe
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tnztools OpenToonz --parallel 3
+rg -n "glPushAttrib|tglEnable|tglColor|tglDrawSegment|tglDrawCircle|glPopAttrib|glColor" toonz/sources/tnztools/replicator.cpp || true
+bash scripts/graphics_inventory.sh
+git diff --check
+rg -n "^WITH_GRAPHICS_METAL:BOOL=" toonz/build/nix-relwithdebinfo/CMakeCache.txt toonz/build/nix-relwithdebinfo-metal/CMakeCache.txt
+nix develop path:. --command bash scripts/macos/assert-arm64-bundle.sh
+nix develop path:. --command toonz/build/nix-relwithdebinfo-metal/tnzcore/tgraphics_metal_probe
 ```
 
 Validation evidence:
@@ -1234,6 +1247,14 @@ tnztools/libtnztools.dylib linked after input manager preview migration
 OpenToonz linked after input manager preview migration
 inputmanager.cpp focused scan: only tglGetPixelSize2 remains for pixel-size math
 OpenToonz graphics API inventory: all graphics markers files=106 matches=2238; fixed-function drawing files=64 matches=1463
+WITH_GRAPHICS_METAL:BOOL=OFF
+WITH_GRAPHICS_METAL:BOOL=ON
+Checked 281 Mach-O files for arm64.
+tgraphics_metal_probe: ok on Apple M1 Max
+tnztools/libtnztools.dylib linked after replicator point marker migration
+OpenToonz linked after replicator point marker migration
+replicator.cpp focused drawing scan: no direct point-marker drawing calls remain
+OpenToonz graphics API inventory: all graphics markers files=106 matches=2236; fixed-function drawing files=63 matches=1461
 WITH_GRAPHICS_METAL:BOOL=OFF
 WITH_GRAPHICS_METAL:BOOL=ON
 Checked 281 Mach-O files for arm64.
