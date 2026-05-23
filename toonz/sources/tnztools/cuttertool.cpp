@@ -21,6 +21,7 @@
 #include "toonzqt/tselectionhandle.h"
 
 #include "tgl.h"
+#include "tgraphics.h"
 
 using namespace ToolUtils;
 
@@ -199,8 +200,9 @@ public:
 
       v = v * (len);
 
-      tglColor(TPixelD(0.1, 0.9, 0.1));
-      tglDrawSegment(p - v, p + v);
+      TGraphics::DrawList2D drawList;
+      drawList.addColorLine(p - v, p + v, TPixel32(26, 230, 26), false);
+      TGraphics::drawWithOpenGLBackend(drawList);
     }
     // glPopMatrix();
   }

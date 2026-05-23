@@ -413,6 +413,9 @@ The deformation cursor checkpoint routes the iron, pump, and pinch hover cursor
 rings through `DrawList2D` color-circle commands. The active deformation stroke
 and selected-stroke preview paths remain on the existing vector/stroke render
 paths.
+The cutter snap-guide checkpoint routes the snap-at-intersection guide segment
+through a `DrawList2D` color-line command while preserving the existing green
+preview color and cursor-speed-derived guide direction.
 
 ## Files Changed
 
@@ -428,6 +431,7 @@ paths.
 - `toonz/sources/tnzcore/CMakeLists.txt`
 - `toonz/sources/tnztools/assistant.cpp`
 - `toonz/sources/tnztools/controlpointeditortool.cpp`
+- `toonz/sources/tnztools/cuttertool.cpp`
 - `toonz/sources/tnztools/edittool.cpp`
 - `toonz/sources/tnztools/fullcolorerasertool.cpp`
 - `toonz/sources/tnztools/fullcolorbrushtool.cpp`
@@ -958,6 +962,8 @@ Vector eraser, raster tape, and RGB picker polyline previews now also emit
 `tgraphics` color-circle/color-line commands.
 Iron, pump, and pinch hover cursor rings now also emit `tgraphics`
 color-circle commands.
+Cutter snap-at-intersection guide segments now also emit `tgraphics` color-line
+commands.
 Geometric multiline Bezier speed-handle connector segments now also emit
 `tgraphics` color-line commands.
 Edit-tool shear-handle visible outlines now also emit `tgraphics` color-line commands.
