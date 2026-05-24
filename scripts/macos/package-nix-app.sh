@@ -155,6 +155,27 @@ copy_qt_plugins() {
   shopt -u nullglob
 }
 
+compile_metal_resources() {
+  local resources_dir="$app_path/Contents/Resources"
+  local metal_source="$resources_dir/tgraphics_metal_shaders.metal"
+  local metal_library="$resources_dir/tgraphics_metal_shaders.metallib"
+  local metal_air="$resources_dir/tgraphics_metal_shaders.air"
+
+  [[ -f "$metal_source" ]] || return 0
+  [[ ! -f "$metal_library" ]] || return 0
+
+  if ! xcrun --find metal >/dev/null 2>&1 ||
+     ! xcrun --find metallib >/dev/null 2>&1 ||
+     ! xcrun metal -v >/dev/null 2>&1; then
+    return 0
+  fi
+
+  xcrun metal -c "$metal_source" -o "$metal_air"
+  xcrun metallib "$metal_air" -o "$metal_library"
+  rm -f "$metal_air"
+  echo "Compiled Metal shader library: $metal_library"
+}
+
 if otool -L "$macos_dir/OpenToonz" | grep -Eq '@(loader|executable)_path/\.\./Frameworks'; then
   if [[ ! -d "$frameworks_dir" ]]; then
     echo "error: app already references Contents/Frameworks, but that directory is missing" >&2
@@ -193,6 +214,7 @@ fi
 copy_qt_plugins
 copy_missing_store_dylibs
 rewrite_bundle_dylib_references
+compile_metal_resources
 
 if [[ -n "${OPENTOONZ_GNU_LIBICONV_LIBRARY:-}" ]]; then
   if [[ ! -f "$OPENTOONZ_GNU_LIBICONV_LIBRARY" ]]; then

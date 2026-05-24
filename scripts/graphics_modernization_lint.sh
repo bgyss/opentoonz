@@ -206,6 +206,13 @@ if [[ -f scripts/macos/verify-metal-resources.sh ]]; then
     'require_metallib=' scripts/macos/verify-metal-resources.sh
 fi
 
+if [[ -f scripts/macos/package-nix-app.sh ]]; then
+  require_present "macOS packager compiles Metal shader library when host tools are available" \
+    'compile_metal_resources' scripts/macos/package-nix-app.sh
+  require_present "macOS packager invokes metallib" \
+    'xcrun metallib' scripts/macos/package-nix-app.sh
+fi
+
 if [[ -f .github/workflows/workflow_macos.yml ]]; then
   require_present "macOS Metal CI enables Metal build" \
     'cmake_extra_args: -DWITH_GRAPHICS_METAL=ON' .github/workflows/workflow_macos.yml
