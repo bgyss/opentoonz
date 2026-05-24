@@ -3,6 +3,7 @@ set -euo pipefail
 
 export PATH="/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 app_path="${1:-${OPENTOONZ_APP:-toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app}}"
 repo_root="${OPENTOONZ_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 
@@ -258,5 +259,7 @@ if [[ "${OPENTOONZ_ADHOC_SIGN:-1}" == "1" ]]; then
   codesign --force --deep --sign - "$app_path"
   codesign --verify --deep --strict --verbose=2 "$app_path"
 fi
+
+bash "$script_dir/verify-bundled-qt-runtime.sh" "$app_path"
 
 echo "Packaged $app_path"

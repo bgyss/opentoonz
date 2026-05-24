@@ -82,7 +82,9 @@ jobs:
       - name: Check graphics modernization invariants
         run: |
           bash scripts/graphics_modernization_lint.sh
-          bash scripts/verify_golden_scene_manifest.sh
+          bash scripts/verify_opengl_selection_compatibility.sh
+          bash scripts/verify_graphics_fixture_scenes.sh "$RUNNER_TEMP/opentoonz-graphics-fixtures"
+          bash scripts/verify_golden_scene_manifest.sh --require-complete
 
       - name: Restore ccache
         uses: actions/cache@v5
@@ -108,6 +110,8 @@ jobs:
         if: ${{ matrix.run_metal_smoke == '1' }}
         run: |
           nix develop path:. --command bash scripts/verify_metal_probe_images.sh "$RUNNER_TEMP/opentoonz-metal-probe-images"
+          nix develop path:. --command bash scripts/verify_macos_offscreen_style_probes.sh
+          nix develop path:. --command bash scripts/verify_macos_preview_export_probe.sh "$RUNNER_TEMP/opentoonz-preview-export-probe"
           nix develop path:. --command bash scripts/graphics_shaderfx_compare.sh "$RUNNER_TEMP/opentoonz-shaderfx-compare"
           nix develop path:. --command bash scripts/verify_shaderfx_scene_fixtures.sh "$RUNNER_TEMP/opentoonz-shaderfx-compare"
 
@@ -120,20 +124,39 @@ jobs:
       - name: Verify Metal shader resources
         if: ${{ matrix.run_metal_smoke == '1' }}
         run: |
-          bash scripts/macos/verify-metal-resources.sh "$OPENTOONZ_APP"
+          bash scripts/macos/verify-bundled-qt-runtime.sh "$OPENTOONZ_APP"
+          OPENTOONZ_METAL_RESOURCE_SUMMARY="$RUNNER_TEMP/opentoonz-metal-resources/summary.txt" \
+            bash scripts/macos/verify-metal-resources.sh "$OPENTOONZ_APP"
           test -x toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
           test -x toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe
 
-      - name: Run packaged sample scene graphics smoke
+      - name: Run packaged manifest graphics smoke
         if: ${{ matrix.run_metal_smoke == '1' }}
         run: |
-          OPENTOONZ_GRAPHICS_SMOKE_SCENE=doc/sample_data/dwanko_run.tnz \
+          OPENTOONZ_GRAPHICS_FIXTURE_DIR="$RUNNER_TEMP/opentoonz-graphics-fixtures" \
+          OPENTOONZ_SHADERFX_COMPARE_DIR="$RUNNER_TEMP/opentoonz-shaderfx-compare" \
           OPENTOONZ_GRAPHICS_SMOKE_BACKENDS="opengl metal" \
           OPENTOONZ_GRAPHICS_SMOKE_SECONDS=5 \
           OPENTOONZ_GRAPHICS_SMOKE_COOLDOWN_SECONDS=2 \
           OPENTOONZ_GRAPHICS_SMOKE_SCREENSHOT=1 \
-          bash scripts/macos/graphics-app-smoke.sh "$RUNNER_TEMP/opentoonz-graphics-app-smoke-sample-scene"
-          bash scripts/verify_graphics_app_smoke_artifacts.sh "$RUNNER_TEMP/opentoonz-graphics-app-smoke-sample-scene"
+          bash scripts/graphics_app_smoke_manifest.sh \
+            doc/macos_graphics_golden_scenes.tsv \
+            "$RUNNER_TEMP/opentoonz-graphics-app-smoke-manifest"
+
+      - name: Run packaged direct Metal scene smoke
+        if: ${{ matrix.run_metal_smoke == '1' }}
+        run: |
+          OPENTOONZ_GRAPHICS_SMOKE_SCENE=doc/sample_data/dwanko_run.tnz \
+          OPENTOONZ_GRAPHICS_SMOKE_BACKENDS=metal \
+          OPENTOONZ_GRAPHICS_METAL_DIRECT_ONLY=1 \
+          OPENTOONZ_GRAPHICS_SMOKE_SECONDS=5 \
+          OPENTOONZ_GRAPHICS_SMOKE_COOLDOWN_SECONDS=2 \
+          OPENTOONZ_GRAPHICS_SMOKE_SCREENSHOT=0 \
+          bash scripts/macos/graphics-app-smoke.sh \
+            "$RUNNER_TEMP/opentoonz-graphics-app-smoke-direct-metal"
+          bash scripts/verify_graphics_app_smoke_artifacts.sh \
+            "$RUNNER_TEMP/opentoonz-graphics-app-smoke-direct-metal" \
+            --require-direct-metal
 
       - name: Import Apple signing certificate
         if: ${{ github.event_name == 'release' && matrix.graphics == 'opengl-fallback' && env.MACOS_CERTIFICATE_P12_BASE64 != '' && env.MACOS_CERTIFICATE_PASSWORD != '' }}
@@ -185,8 +208,12 @@ jobs:
           name: OpenToonz-macos-arm64-metal-graphics-probes-${{ github.sha }}
           path: |
             ${{ runner.temp }}/opentoonz-metal-probe-images/*
+            ${{ runner.temp }}/opentoonz-metal-resources/*
+            ${{ runner.temp }}/opentoonz-preview-export-probe/*
             ${{ runner.temp }}/opentoonz-shaderfx-compare/*
-            ${{ runner.temp }}/opentoonz-graphics-app-smoke-sample-scene/*
+            ${{ runner.temp }}/opentoonz-graphics-fixtures/*
+            ${{ runner.temp }}/opentoonz-graphics-app-smoke-manifest/*
+            ${{ runner.temp }}/opentoonz-graphics-app-smoke-direct-metal/*
           if-no-files-found: error
 
       - uses: actions/upload-artifact@v6

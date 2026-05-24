@@ -362,6 +362,7 @@ protected:
   bool presentRasterWithMetal(const TRaster32P& raster);
   bool presentCurrentOpenGLFrameWithMetal();
   bool m_metalPresentedDirectContent = false;
+  bool m_metalFrameDiagnosticsLogged = false;
 
 protected:
   void mult3DMatrix();

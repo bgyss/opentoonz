@@ -2,10 +2,10 @@ id	category	status	path	frame	validation	notes
 raster-basic	raster	repo	doc/sample_data/tga_paint.tnz	1	manual-open-gl-metal-screenshot	Committed sample scene for aliased TGA paint and Toonz raster/TLV handling.
 vector-basic	vector	repo	doc/sample_data/other_materials/raylit_source.pli	1	manual-open-gl-metal-screenshot	Committed vector level material from the sample pack; still needs a full vector scene fixture.
 style-editor	palette-style	repo	doc/sample_data/tga_paint.tnz	1	manual-style-editor-smoke	Committed sample scene for ink and paint palette/style workflows.
-mesh-skeleton	mesh-skeleton	required	TBD	1	manual-tool-smoke	Mesh deformation or skeleton-driven deformation still needs a committed scene fixture.
+mesh-skeleton	mesh-skeleton	generated	/tmp/opentoonz-graphics-fixtures/mesh_skeleton_basic.tnz	1	scripts/generate_graphics_fixture_scenes.sh	Generated mesh-column scene with a real .mesh frame, triangular faces, and vertex rigidity data; full animated plastic deformation parity still needs manual tool smoke.
 camera-overlays	camera-overlays	repo	doc/sample_data/dwanko_run.tnz	24	manual-viewer-smoke	Committed camera-follow sample scene with layered background and FX.
-onion-skin	onion-skin	required	TBD	1	manual-viewer-smoke	Onion skin coverage still needs a committed scene fixture.
-sub-xsheet	sub-xsheet	required	TBD	1	manual-render-smoke	Sub-xsheet compositing still needs a committed scene fixture.
+onion-skin	onion-skin	repo	doc/sample_data/tga_paint.tnz	3	manual-viewer-onion-skin-smoke	Committed multi-frame sample scene; enable onion skin during the smoke to compare adjacent frames under OpenGL and Metal.
+sub-xsheet	sub-xsheet	generated	/tmp/opentoonz-graphics-fixtures/sub_xsheet_basic.tnz	1	scripts/generate_graphics_fixture_scenes.sh	Generated nested child-level scene using committed sample TLV assets for sub-xsheet compositing smoke coverage.
 shaderfx-sample-raylit	shader-effects	repo	doc/sample_data/dwanko_run.tnz	24	manual-preview-export-smoke	Committed sample scene with ray light and compositing effects.
 shaderfx-hslblend	shader-effects	generated	/tmp/opentoonz-shaderfx-compare/HSLBlendGPU-metal.tnz	1	scripts/graphics_shaderfx_compare.sh	Generated scene-render fixture for migrated HSLBlendGPU shader effect.
 shaderfx-radialblur	shader-effects	generated	/tmp/opentoonz-shaderfx-compare/radialblurGPU-metal.tnz	1	scripts/graphics_shaderfx_compare.sh	Generated scene-render fixture for migrated radialblurGPU shader effect.

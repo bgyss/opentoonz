@@ -26,6 +26,22 @@ if (( ${#metal_images[@]} == 0 )); then
   exit 1
 fi
 
+required_cases=(
+  editing_tool_overlay
+  legacy_offline_raster_placement
+  transparent_style_icon
+)
+
+for case_name in "${required_cases[@]}"; do
+  for suffix in metal opengl diff; do
+    image="$artifact_dir/${case_name}_${suffix}.png"
+    if [[ ! -s "$image" ]]; then
+      echo "verify-metal-probe-images: missing required case artifact: $image" >&2
+      exit 1
+    fi
+  done
+done
+
 if (( ${#metal_images[@]} != ${#opengl_images[@]} ||
       ${#metal_images[@]} != ${#diff_images[@]} )); then
   echo "verify-metal-probe-images: mismatched artifact counts in $artifact_dir" >&2

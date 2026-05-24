@@ -118,6 +118,11 @@ void drawCircleWithTGraphics(const TPointD& center, double radius,
   TGraphics::drawWithOpenGLBackend(drawList);
 }
 
+bool canUseOpenGLSelectionPicking(TToolViewer* viewer) {
+  return viewer && viewer->is3DView() &&
+         TGraphics::requestedBackendType() != TGraphics::BackendType::Metal;
+}
+
 }  // namespace
 
 TEnv::IntVar SkeletonGlobalKeyFrame("SkeletonToolGlobalKeyFrame", 0);
@@ -465,9 +470,11 @@ bool SkeletonTool::doesApply() const {
 //-------------------------------------------------------------------
 
 void SkeletonTool::mouseMove(const TPointD&, const TMouseEvent& e) {
-  const bool useCpuPicking = !getViewer()->is3DView();
+  TToolViewer* viewer       = getViewer();
+  const bool useCpuPicking  = viewer && !viewer->is3DView();
+  const bool useGlSelection = canUseOpenGLSelectionPicking(viewer);
   int selectedDevice       = useCpuPicking ? pickCpu(e.m_pos) : -1;
-  if (selectedDevice < 0 && !useCpuPicking) selectedDevice = pick(e.m_pos);
+  if (selectedDevice < 0 && useGlSelection) selectedDevice = pick(e.m_pos);
   if (selectedDevice != m_device) {
     m_device = selectedDevice;
     invalidate();
@@ -494,9 +501,11 @@ void SkeletonTool::leftButtonDown(const TPointD& ppos, const TMouseEvent& e) {
   TXsheet* xsh            = app->getCurrentScene()->getScene()->getXsheet();
   TPointD pos             = ppos;
 
-  const bool useCpuPicking = !getViewer()->is3DView();
+  TToolViewer* viewer       = getViewer();
+  const bool useCpuPicking  = viewer && !viewer->is3DView();
+  const bool useGlSelection = canUseOpenGLSelectionPicking(viewer);
   int selectedDevice       = useCpuPicking ? pickCpu(e.m_pos) : -1;
-  if (selectedDevice < 0 && !useCpuPicking) selectedDevice = pick(e.m_pos);
+  if (selectedDevice < 0 && useGlSelection) selectedDevice = pick(e.m_pos);
 
   // change drawing
   if (selectedDevice == TD_ChangeDrawing ||
@@ -642,9 +651,11 @@ void SkeletonTool::leftButtonUp(const TPointD& pos, const TMouseEvent& e) {
   }
   if (m_device == TD_IncrementDrawing || m_device == TD_DecrementDrawing ||
       m_device == TD_ChangeDrawing) {
-    const bool useCpuPicking = !getViewer()->is3DView();
+    TToolViewer* viewer       = getViewer();
+    const bool useCpuPicking  = viewer && !viewer->is3DView();
+    const bool useGlSelection = canUseOpenGLSelectionPicking(viewer);
     m_device                 = useCpuPicking ? pickCpu(e.m_pos) : -1;
-    if (m_device < 0 && !useCpuPicking) m_device = pick(e.m_pos);
+    if (m_device < 0 && useGlSelection) m_device = pick(e.m_pos);
   } else
     m_device = -1;
   invalidate();

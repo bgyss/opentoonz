@@ -4,6 +4,7 @@
 #include "tfilepath_io.h"
 #include "tversion.h"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -39,6 +40,12 @@ const std::map<std::string, std::string> systemPathMap{
     {"LIBRARY", "library"}, {"STUDIOPALETTE", "studiopalette"},
     {"FXPRESETS", "fxs"},   {"PROFILES", "profiles"},
     {"CONFIG", "config"},   {"PROJECTS", "projects"}};
+
+#ifdef _WIN32
+const char *PathSeparator = "\\";
+#else
+const char *PathSeparator = "/";
+#endif
 
 #ifdef MACOSX
 bool copyDirectoryIfMissing(const QString &sourcePath,
@@ -261,12 +268,33 @@ public:
     m_workingDirectory           = workingDirectory;
 
     // check if portable
-    TFilePath portableCheck =
-        TFilePath(m_workingDirectory + "\\portablestuff\\");
+    TFilePath portableCheck = TFilePath(m_workingDirectory + PathSeparator +
+                                        "portablestuff" + PathSeparator);
     TFileStatus portableStatus(portableCheck);
     m_isPortable = portableStatus.doesExist();
 
 #ifdef MACOSX
+    if (!m_isPortable) {
+      QString applicationDir;
+      if (QCoreApplication::instance())
+        applicationDir = QCoreApplication::applicationDirPath();
+      if (applicationDir.isEmpty())
+        applicationDir =
+            QFileInfo(QString::fromStdString(m_applicationFileName))
+                .absoluteDir()
+                .absolutePath();
+      const QString bundleStuffPath =
+          QDir::cleanPath(
+              QDir(applicationDir).filePath("../Resources/portablestuff")) +
+          QDir::separator();
+      portableCheck  = TFilePath(bundleStuffPath.toStdWString());
+      portableStatus = TFileStatus(portableCheck);
+      m_isPortable   = portableStatus.doesExist();
+      if (m_isPortable) {
+        setMacBundleWritableStuffDir(portableCheck);
+      }
+    }
+
     // macOS 10.12 (Sierra) translocates applications before running them
     // depending on how it was installed. This separates the app from the
     // portablestuff folder and we don't know where it is so we stop treating it
@@ -274,9 +302,10 @@ public:
     // everything together when it translocates. Contents/Resources is preferred
     // because files at the app bundle root cannot be sealed by codesign.
     if (!m_isPortable) {
-      portableCheck =
-          TFilePath(m_workingDirectory + "\\" + getApplicationFileName() +
-                    ".app\\Contents\\Resources\\portablestuff\\");
+      portableCheck = TFilePath(
+          m_workingDirectory + PathSeparator + getApplicationFileName() +
+          ".app" + PathSeparator + "Contents" + PathSeparator + "Resources" +
+          PathSeparator + "portablestuff" + PathSeparator);
       portableStatus = TFileStatus(portableCheck);
       m_isPortable   = portableStatus.doesExist();
       if (m_isPortable) {
@@ -284,9 +313,9 @@ public:
       }
     }
     if (!m_isPortable) {
-      portableCheck =
-          TFilePath(m_workingDirectory + "\\" + getApplicationFileName() +
-                    ".app\\portablestuff\\");
+      portableCheck = TFilePath(
+          m_workingDirectory + PathSeparator + getApplicationFileName() +
+          ".app" + PathSeparator + "portablestuff" + PathSeparator);
       portableStatus = TFileStatus(portableCheck);
       m_isPortable   = portableStatus.doesExist();
       if (m_isPortable) {
@@ -574,10 +603,10 @@ void Variable::assignValue(std::string value) {
 void TEnv::setApplicationFileName(std::string appFileName) {
   TFilePath fp(appFileName);
 #ifdef MACOSX
-  if (fp.getWideName().find(L".app"))
+  if (fp.getWideName().find(L".app") != std::wstring::npos)
     for (int i = 0; i < 3; i++) fp = fp.getParentDir();
 #elif defined(LINUX) || defined(FREEBSD)
-  if (fp.getWideName().find(L".appimage"))
+  if (fp.getWideName().find(L".appimage") != std::wstring::npos)
     for (int i = 0; i < 2; i++) fp = fp.getParentDir();
 #endif
   EnvGlobals::instance()->setApplicationFileName(fp.getName());
@@ -696,7 +725,7 @@ bool TEnv::setArgPathValue(std::string key, std::string value) {
     eg->setStuffDir(rootPath);
     for (auto itr = systemPathMap.begin(); itr != systemPathMap.end(); ++itr) {
       std::string k   = getSystemVarPrefix() + (*itr).first;
-      std::string val = value + "\\" + (*itr).second;
+      std::string val = value + PathSeparator + (*itr).second;
       // set all unregistered values
       if (eg->getArgPathValue(k) == "") eg->setArgPathValue(k, val);
     }

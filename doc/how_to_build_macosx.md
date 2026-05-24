@@ -248,6 +248,11 @@ and screenshots outside the repository:
 bash scripts/macos/graphics-app-smoke.sh /tmp/opentoonz-graphics-app-smoke
 ```
 
+The smoke script asks the bundle identifier
+`io.github.opentoonz.OpenToonz` to quit normally before using process signals.
+Override `OPENTOONZ_GRAPHICS_SMOKE_BUNDLE_ID` only when testing a bundle with a
+different identifier.
+
 Backend troubleshooting:
 
 - If Metal behaves differently, rerun the same scene with

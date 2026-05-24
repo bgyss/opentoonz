@@ -3,7 +3,11 @@
 #include "trasterimage.h"
 
 #include <QGuiApplication>
+#include <QDir>
+#include <QImage>
+#include <QString>
 
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 
@@ -22,6 +26,80 @@ void printPixel(const TPixel32 &pixel) {
   std::cerr << "rgba=(" << static_cast<int>(pixel.r) << ","
             << static_cast<int>(pixel.g) << "," << static_cast<int>(pixel.b)
             << "," << static_cast<int>(pixel.m) << ")";
+}
+
+QImage rasterToImage(const TRaster32P &raster) {
+  if (!raster) return QImage();
+
+  QImage image(raster->getLx(), raster->getLy(), QImage::Format_ARGB32);
+  raster->lock();
+  for (int y = 0; y < raster->getLy(); ++y) {
+    const TPixel32 *src = raster->pixels(y);
+    QRgb *dst           = reinterpret_cast<QRgb *>(image.scanLine(y));
+    for (int x = 0; x < raster->getLx(); ++x) {
+      dst[x] = qRgba(src[x].r, src[x].g, src[x].b, src[x].m);
+    }
+  }
+  raster->unlock();
+  return image;
+}
+
+TRaster32P makeDiffRaster(const TRaster32P &a, const TRaster32P &b) {
+  if (!a || !b || a->getSize() != b->getSize()) return TRaster32P();
+
+  TRaster32P diff(a->getLx(), a->getLy());
+  a->lock();
+  b->lock();
+  diff->lock();
+  for (int y = 0; y < a->getLy(); ++y) {
+    const TPixel32 *aLine = a->pixels(y);
+    const TPixel32 *bLine = b->pixels(y);
+    TPixel32 *dLine       = diff->pixels(y);
+    for (int x = 0; x < a->getLx(); ++x) {
+      const int dr = std::min(std::abs(aLine[x].r - bLine[x].r) * 32, 255);
+      const int dg = std::min(std::abs(aLine[x].g - bLine[x].g) * 32, 255);
+      const int db = std::min(std::abs(aLine[x].b - bLine[x].b) * 32, 255);
+      const int da = std::min(std::abs(aLine[x].m - bLine[x].m) * 32, 255);
+      dLine[x]     = TPixel32(dr, dg, db, da == 0 ? 255 : da);
+    }
+  }
+  diff->unlock();
+  b->unlock();
+  a->unlock();
+  return diff;
+}
+
+bool writePreviewExportArtifacts(const TRaster32P &active,
+                                 const TRaster32P &legacy,
+                                 const QString &outputDir) {
+  if (outputDir.isEmpty()) return true;
+
+  QDir dir(outputDir);
+  if (!dir.exists() && !dir.mkpath(QStringLiteral("."))) {
+    std::cerr << "tofflinegl_probe: could not create artifact directory "
+              << outputDir.toStdString() << std::endl;
+    return false;
+  }
+
+  const QString backend = QString::fromLatin1(
+      TGraphics::activeBackendType() == TGraphics::BackendType::Metal ? "metal"
+                                                                      : "opengl");
+  const QImage activeImage = rasterToImage(active);
+  const QImage legacyImage = rasterToImage(legacy);
+  const QImage diffImage   = rasterToImage(makeDiffRaster(active, legacy));
+
+  if (!activeImage.save(dir.filePath(QStringLiteral("preview_export_") +
+                                     backend + QStringLiteral(".png"))) ||
+      !legacyImage.save(dir.filePath(
+          QStringLiteral("preview_export_legacy_opengl.png"))) ||
+      !diffImage.save(dir.filePath(QStringLiteral("preview_export_") +
+                                   backend + QStringLiteral("_diff.png")))) {
+    std::cerr << "tofflinegl_probe: could not write preview/export artifacts"
+              << std::endl;
+    return false;
+  }
+
+  return true;
 }
 
 bool matchesColor(const TRaster32P &raster, const TPixel32 &expected) {
@@ -114,6 +192,19 @@ TRaster32P renderTGraphicsRasterDraw(const TDimension &size,
 int main(int argc, char *argv[]) {
   QGuiApplication app(argc, argv);
 
+  QString artifactDir;
+  for (int i = 1; i < argc; ++i) {
+    const QString arg = QString::fromLocal8Bit(argv[i]);
+    if (arg == QStringLiteral("--write-preview-export-images") && i + 1 < argc) {
+      artifactDir = QString::fromLocal8Bit(argv[++i]);
+    } else {
+      std::cerr << "usage: tofflinegl_probe "
+                   "[--write-preview-export-images DIR]"
+                << std::endl;
+      return EXIT_FAILURE;
+    }
+  }
+
   const TDimension size(16, 12);
   const TPixel32 clearColor(37, 79, 131, 255);
 
@@ -148,6 +239,8 @@ int main(int argc, char *argv[]) {
       renderTGraphicsRasterDraw(size, clearColor, textureRect);
   if (!tgraphicsRaster) return fail("tgraphics raster draw readback is null");
   if (!matchesRaster(tgraphicsRaster, legacyRaster)) return EXIT_FAILURE;
+  if (!writePreviewExportArtifacts(tgraphicsRaster, legacyRaster, artifactDir))
+    return EXIT_FAILURE;
 
   std::cout << "tofflinegl_probe: ok backend="
             << backendName(TGraphics::activeBackendType()) << std::endl;

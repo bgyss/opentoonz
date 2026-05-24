@@ -11,6 +11,7 @@ capture_screenshot="${OPENTOONZ_GRAPHICS_SMOKE_SCREENSHOT:-1}"
 direct_only="${OPENTOONZ_GRAPHICS_METAL_DIRECT_ONLY:-0}"
 scene_path="${OPENTOONZ_GRAPHICS_SMOKE_SCENE:-}"
 bundle_id="${OPENTOONZ_GRAPHICS_SMOKE_BUNDLE_ID:-io.github.opentoonz.OpenToonz}"
+actions="${OPENTOONZ_GRAPHICS_SMOKE_ACTIONS:-}"
 
 if [[ ! -d "$app_path" ]]; then
   echo "graphics-app-smoke: missing app bundle: $app_path" >&2
@@ -22,6 +23,24 @@ app_exe="$app_path/Contents/MacOS/OpenToonz"
 if [[ ! -x "$app_exe" ]]; then
   echo "graphics-app-smoke: missing app executable: $app_exe" >&2
   exit 1
+fi
+
+mkdir -p "$artifact_dir"
+preflight_file="$artifact_dir/preflight.txt"
+{
+  echo "app_path=$app_path"
+  echo "app_exe=$app_exe"
+  echo "qt_runtime_verifier=not-run"
+} >"$preflight_file"
+
+qt_runtime_verifier="$repo_root/scripts/macos/verify-bundled-qt-runtime.sh"
+if [[ -x "$qt_runtime_verifier" ]]; then
+  {
+    echo "app_path=$app_path"
+    echo "app_exe=$app_exe"
+    echo "qt_runtime_verifier=$qt_runtime_verifier"
+    "$qt_runtime_verifier" "$app_path"
+  } >"$preflight_file"
 fi
 
 case "$duration" in
@@ -47,18 +66,39 @@ if [[ -n "$scene_path" ]]; then
   fi
 fi
 
-mkdir -p "$artifact_dir"
+process_is_running() {
+  local pid="$1"
+  local state
+  state="$(ps -p "$pid" -o stat= 2>/dev/null || true)"
+  if [[ -n "$state" ]]; then
+    [[ "$state" != Z* ]]
+    return
+  fi
+  kill -0 "$pid" 2>/dev/null
+}
 
 terminate_app() {
   local pid="$1"
-  if ! kill -0 "$pid" 2>/dev/null; then
+  if ! process_is_running "$pid"; then
     return 0
   fi
 
   if command -v osascript >/dev/null 2>&1; then
-    osascript -e "tell application id \"$bundle_id\" to quit" >/dev/null 2>&1 || true
+    osascript -e "tell application id \"$bundle_id\" to quit" >/dev/null 2>&1 &
+    local quit_pid="$!"
+    for _ in 1 2 3; do
+      if ! process_is_running "$quit_pid"; then
+        break
+      fi
+      sleep 1
+    done
+    if process_is_running "$quit_pid"; then
+      kill "$quit_pid" 2>/dev/null || true
+    fi
+    wait "$quit_pid" 2>/dev/null || true
+
     for _ in 1 2 3 4 5; do
-      if ! kill -0 "$pid" 2>/dev/null; then
+      if ! process_is_running "$pid"; then
         return 0
       fi
       sleep 1
@@ -67,7 +107,7 @@ terminate_app() {
 
   kill "$pid" 2>/dev/null || true
   for _ in 1 2 3 4 5; do
-    if ! kill -0 "$pid" 2>/dev/null; then
+    if ! process_is_running "$pid"; then
       return 0
     fi
     sleep 1
@@ -79,6 +119,14 @@ terminate_app() {
 check_log_for_startup_failure() {
   local backend="$1"
   local log_file="$2"
+
+  if grep -E \
+    "You might be loading two sets of Qt binaries|Class .* is implemented in both .*Qt5|Could not load the Qt platform plugin \"cocoa\"" \
+    "$log_file" >/dev/null 2>&1; then
+    echo "graphics-app-smoke: backend=$backend appears to have loaded duplicate Qt runtime libraries" >&2
+    echo "graphics-app-smoke: log: $log_file" >&2
+    return 1
+  fi
 
   if grep -E \
     "This application failed to start|Could not find the Qt platform plugin|no Qt platform plugin could be initialized|Symbol not found|dyld\\[[0-9]+\\]:|Trace/BPT trap|Abort trap|Segmentation fault" \
@@ -127,6 +175,67 @@ capture_backend_screenshot() {
   } >"$screenshot_info_file"
 }
 
+run_backend_actions() {
+  local backend="$1"
+  local action_file="$2"
+  local pid="$3"
+
+  if [[ -z "$actions" || "$actions" == "none" ]]; then
+    echo "actions=disabled" >"$action_file"
+    return 0
+  fi
+
+  if [[ "$actions" != "basic-viewer" ]]; then
+    echo "graphics-app-smoke: unsupported OPENTOONZ_GRAPHICS_SMOKE_ACTIONS: $actions" >&2
+    return 1
+  fi
+
+  if ! command -v osascript >/dev/null 2>&1; then
+    echo "graphics-app-smoke: osascript is unavailable for backend=$backend actions=$actions" >&2
+    return 1
+  fi
+
+  {
+    echo "actions=$actions"
+    echo "backend=$backend"
+    echo "bundle_id=$bundle_id"
+    echo "pid=$pid"
+  } >"$action_file"
+
+  osascript >>"$action_file" 2>&1 <<APPLESCRIPT &
+tell application "System Events"
+  set targetProcesses to every process whose unix id is $pid
+  if (count of targetProcesses) is 0 then error "OpenToonz process not found for pid $pid"
+  set frontmost of item 1 of targetProcesses to true
+  delay 1
+  keystroke " "
+  delay 0.3
+  keystroke " "
+  delay 0.3
+  key code 124
+  delay 0.2
+  key code 123
+  delay 0.2
+  keystroke "+"
+  delay 0.2
+  keystroke "-"
+end tell
+APPLESCRIPT
+  local action_pid="$!"
+  for _ in 1 2 3 4 5; do
+    if ! process_is_running "$action_pid"; then
+      wait "$action_pid"
+      return "$?"
+    fi
+    sleep 1
+  done
+
+  echo "graphics-app-smoke: actions timed out for backend=$backend" >>"$action_file"
+  kill "$action_pid" 2>/dev/null || true
+  wait "$action_pid" 2>/dev/null || true
+  return 1
+}
+
 run_backend() {
   local backend="$1"
   local backend_dir="$artifact_dir/$backend"
@@ -134,6 +243,7 @@ run_backend() {
   local env_file="$backend_dir/environment.txt"
   local screenshot_file="$backend_dir/screenshot.png"
   local screenshot_info_file="$backend_dir/screenshot.txt"
+  local action_file="$backend_dir/actions.txt"
 
   mkdir -p "$backend_dir"
   {
@@ -141,6 +251,7 @@ run_backend() {
     echo "OPENTOONZ_GRAPHICS_METAL_DIRECT_ONLY=$direct_only"
     echo "OPENTOONZ_GRAPHICS_SMOKE_SCENE=$scene_path"
     echo "OPENTOONZ_GRAPHICS_SMOKE_BUNDLE_ID=$bundle_id"
+    echo "OPENTOONZ_GRAPHICS_SMOKE_ACTIONS=$actions"
     echo "OPENTOONZ_APP=$app_path"
     echo "duration_seconds=$duration"
     echo "cooldown_seconds=$cooldown"
@@ -155,11 +266,18 @@ run_backend() {
     cd "$repo_root"
     OPENTOONZ_GRAPHICS_BACKEND="$backend" \
       OPENTOONZ_GRAPHICS_METAL_DIRECT_ONLY="$direct_only" \
+      OPENTOONZ_GRAPHICS_METAL_FRAME_DIAGNOSTICS=1 \
       "$app_exe" "${app_args[@]}"
   ) >"$log_file" 2>&1 &
   local pid="$!"
 
   sleep "$duration"
+
+  if ! run_backend_actions "$backend" "$action_file" "$pid"; then
+    terminate_app "$pid"
+    wait "$pid" 2>/dev/null || true
+    return 1
+  fi
 
   if ! check_log_for_startup_failure "$backend" "$log_file"; then
     terminate_app "$pid"

@@ -82,6 +82,13 @@ while IFS=$'\t' read -r id category status path frame validation notes; do
     exit 1
   fi
 
+  if [[ "$status" == "generated" ]]; then
+    if [[ "$validation" != scripts/* || ! -x "$validation" ]]; then
+      echo "verify-golden-scene-manifest: generated row $line_number has no executable validation script" >&2
+      exit 1
+    fi
+  fi
+
   seen["$category"]=1
 done <"$manifest"
 

@@ -266,6 +266,34 @@ bool validateCheckerboard(const TRaster32P& readback, int width, int height,
   return true;
 }
 
+bool validateTransparentStyleIcon(const TRaster32P& readback, int width,
+                                  int height, int cellWidth, int cellHeight,
+                                  const TPixel32& color0,
+                                  const TPixel32& color1,
+                                  const TPixel32& overlayColor) {
+  readback->lock();
+  for (int y = 0; y < height; ++y) {
+    const TPixel32* line = readback->pixels(y);
+    for (int x = 0; x < width; ++x) {
+      const TPixel32 checker =
+          (((x / cellWidth) + (y / cellHeight)) & 1) ? color1 : color0;
+      const TPixel32 expected = openGLBlend(overlayColor, checker);
+      if (!closePixel(line[x], expected)) {
+        readback->unlock();
+        std::cerr << "tgraphics_metal_probe: style icon pixel mismatch at " << x
+                  << "," << y << " expected ";
+        printPixel(expected);
+        std::cerr << " actual ";
+        printPixel(line[x]);
+        std::cerr << std::endl;
+        return false;
+      }
+    }
+  }
+  readback->unlock();
+  return true;
+}
+
 bool compareRasters(const TRaster32P& metal, const TRaster32P& opengl,
                     const char* caseName, const QString& artifactDir) {
   if (!metal || !opengl) return false;
@@ -666,6 +694,46 @@ int main(int argc, char* argv[]) {
   }
 
   {
+    const int iconWidth          = 12;
+    const int iconHeight         = 10;
+    const int cellWidth          = 3;
+    const int cellHeight         = 2;
+    const TPixel32 checkerColor0 = TPixel32::Black;
+    const TPixel32 checkerColor1 = TPixel32::White;
+    const TPixel32 overlayColor(71, 139, 221, 96);
+
+    TGraphics::DrawList2D drawList;
+    drawList.addCheckerboard(TRectD(0, 0, iconWidth, iconHeight),
+                             TDimensionD(cellWidth, cellHeight), TPointD(),
+                             checkerColor0, checkerColor1);
+    drawList.addColorRect(TRectD(0, 0, iconWidth, iconHeight), overlayColor,
+                          true);
+
+    TRaster32P readback = renderMetal(drawList, iconWidth, iconHeight);
+    if (!readback)
+      return fail("could not read back transparent style icon Metal target");
+    if (!requireDimensions(readback, iconWidth, iconHeight)) {
+      return fail(
+          "transparent style icon readback dimensions do not match render "
+          "target");
+    }
+    if (!validateTransparentStyleIcon(readback, iconWidth, iconHeight,
+                                      cellWidth, cellHeight, checkerColor0,
+                                      checkerColor1, overlayColor)) {
+      return EXIT_FAILURE;
+    }
+
+    TRaster32P openGLReadback = renderOpenGL(drawList, iconWidth, iconHeight);
+    if (!openGLReadback)
+      return fail(
+          "could not read back transparent style icon OpenGL baseline");
+    if (!compareRasters(readback, openGLReadback, "transparent style icon",
+                        artifactDir)) {
+      return EXIT_FAILURE;
+    }
+  }
+
+  {
     const TPixel32 lineClearColor(7, 9, 11, 255);
     const TPixel32 lineColor(240, 30, 50, 255);
     TGraphics::DrawList2D drawList;
@@ -738,6 +806,67 @@ int main(int argc, char* argv[]) {
     if (!openGLReadback)
       return fail("could not read back wide color line OpenGL baseline");
     if (!compareRasters(readback, openGLReadback, "wide color line",
+                        artifactDir)) {
+      return EXIT_FAILURE;
+    }
+  }
+
+  {
+    const int overlayWidth  = 18;
+    const int overlayHeight = 14;
+    const TPixel32 overlayClearColor(24, 27, 31, 255);
+    const TPixel32 selectionColor(67, 154, 255, 255);
+    const TPixel32 handleFillColor(255, 255, 255, 255);
+    const TPixel32 handleOutlineColor(24, 85, 190, 255);
+    const TPixel32 skeletonColor(255, 187, 57, 255);
+    const TPixel32 vectorPointColor(233, 76, 88, 255);
+
+    TGraphics::DrawList2D drawList;
+    drawList.setClearColor(overlayClearColor);
+    drawList.addColorLine(TPointD(2, 2), TPointD(15, 2), selectionColor,
+                          false, 1.0);
+    drawList.addColorLine(TPointD(15, 2), TPointD(15, 10), selectionColor,
+                          false, 1.0);
+    drawList.addColorLine(TPointD(15, 10), TPointD(2, 10), selectionColor,
+                          false, 1.0);
+    drawList.addColorLine(TPointD(2, 10), TPointD(2, 2), selectionColor,
+                          false, 1.0);
+    drawList.addColorLine(TPointD(4, 9), TPointD(8, 4), skeletonColor, false,
+                          2.0);
+    drawList.addColorLine(TPointD(8, 4), TPointD(13, 8), skeletonColor, false,
+                          2.0);
+    drawList.addColorCircle(TPointD(2, 2), 1.0, handleFillColor, true, false);
+    drawList.addColorCircle(TPointD(15, 2), 1.0, handleFillColor, true, false);
+    drawList.addColorCircle(TPointD(15, 10), 1.0, handleFillColor, true,
+                            false);
+    drawList.addColorCircle(TPointD(2, 10), 1.0, handleFillColor, true, false);
+    drawList.addColorCircle(TPointD(2, 2), 1.0, handleOutlineColor, false,
+                            false, 1.0);
+    drawList.addColorCircle(TPointD(15, 2), 1.0, handleOutlineColor, false,
+                            false, 1.0);
+    drawList.addColorCircle(TPointD(15, 10), 1.0, handleOutlineColor, false,
+                            false, 1.0);
+    drawList.addColorCircle(TPointD(2, 10), 1.0, handleOutlineColor, false,
+                            false, 1.0);
+    drawList.addColorCircle(TPointD(5, 6), 1.0, vectorPointColor, true,
+                            false);
+    drawList.addColorCircle(TPointD(11, 5), 1.0, vectorPointColor, true,
+                            false);
+
+    TRaster32P readback = renderMetal(drawList, overlayWidth, overlayHeight);
+    if (!readback)
+      return fail("could not read back editing tool overlay Metal target");
+    if (!requireDimensions(readback, overlayWidth, overlayHeight)) {
+      return fail(
+          "editing tool overlay readback dimensions do not match render "
+          "target");
+    }
+
+    TRaster32P openGLReadback =
+        renderOpenGL(drawList, overlayWidth, overlayHeight);
+    if (!openGLReadback)
+      return fail("could not read back editing tool overlay OpenGL baseline");
+    if (!compareRasters(readback, openGLReadback, "editing tool overlay",
                         artifactDir)) {
       return EXIT_FAILURE;
     }
@@ -1047,6 +1176,45 @@ int main(int argc, char* argv[]) {
     if (!openGLReadback)
       return fail("could not read back raster rect OpenGL baseline");
     if (!compareRasters(readback, openGLReadback, "raster rect", artifactDir)) {
+      return EXIT_FAILURE;
+    }
+  }
+
+  {
+    const TPixel32 clearColor(23, 31, 41, 255);
+    const TPixel32 placementColor = TPixel32::White;
+    const int rectX0              = 2;
+    const int rectY0              = 3;
+    const int rectX1              = 7;
+    const int rectY1              = 6;
+
+    TGraphics::DrawList2D drawList;
+    drawList.setClearColor(clearColor);
+    drawList.addColorRect(TRectD(rectX0, rectY0, rectX1, rectY1),
+                          placementColor, false);
+
+    TRaster32P readback = renderMetal(drawList, width, height);
+    if (!readback)
+      return fail(
+          "could not read back legacy offline raster placement Metal target");
+    if (!requireDimensions(readback, width, height)) {
+      return fail(
+          "legacy offline raster placement dimensions do not match render "
+          "target");
+    }
+    if (!validateColorRects(readback, width, height, clearColor, rectX0, rectY0,
+                            rectX1, rectY1, placementColor, 0, 0, 0, 0,
+                            TPixel32::Transparent)) {
+      return EXIT_FAILURE;
+    }
+
+    TRaster32P openGLReadback = renderOpenGL(drawList, width, height);
+    if (!openGLReadback)
+      return fail(
+          "could not read back legacy offline raster placement OpenGL "
+          "baseline");
+    if (!compareRasters(readback, openGLReadback,
+                        "legacy offline raster placement", artifactDir)) {
       return EXIT_FAILURE;
     }
   }

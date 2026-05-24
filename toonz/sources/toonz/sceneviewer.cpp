@@ -93,6 +93,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iostream>
 
 #include "sceneviewer.h"
 
@@ -1589,6 +1590,20 @@ bool SceneViewer::presentCurrentOpenGLFrameWithMetal() {
 
 //-------------------------------------------------------------------------------
 
+void logMetalFrameDiagnostics(bool directContent, bool compatibilitySnapshot,
+                              int width, int height) {
+  if (!qEnvironmentVariableIsSet("OPENTOONZ_GRAPHICS_METAL_FRAME_DIAGNOSTICS"))
+    return;
+
+  std::cerr << "OpenToonz graphics smoke: metal_frame direct_content="
+            << (directContent ? 1 : 0)
+            << " compatibility_snapshot="
+            << (compatibilitySnapshot ? 1 : 0) << " width=" << width
+            << " height=" << height << std::endl;
+}
+
+//-------------------------------------------------------------------------------
+
 // Builds the view area, in camera reference
 TRectD SceneViewer::getPreviewRect() const {
   TApp* app               = TApp::instance();
@@ -2833,8 +2848,19 @@ void SceneViewer::paintGL() {
   if (!m_isPicking && m_lutCalibrator && m_lutCalibrator->isValid())
     m_lutCalibrator->onEndDraw(m_fbo);
 
-  if (!shouldSkipMetalCompatibilitySnapshot() ||
-      !m_metalPresentedDirectContent) {
+  const bool compatibilitySnapshot =
+      !shouldSkipMetalCompatibilitySnapshot() || !m_metalPresentedDirectContent;
+  if (shouldPresentWithMetal() &&
+      (!m_metalFrameDiagnosticsLogged ||
+       (m_metalPresentedDirectContent && !compatibilitySnapshot))) {
+    logMetalFrameDiagnostics(m_metalPresentedDirectContent,
+                             compatibilitySnapshot,
+                             std::max(1, width() * getDevPixRatio()),
+                             std::max(1, height() * getDevPixRatio()));
+    if (m_metalPresentedDirectContent && !compatibilitySnapshot)
+      m_metalFrameDiagnosticsLogged = true;
+  }
+  if (compatibilitySnapshot) {
     presentCurrentOpenGLFrameWithMetal();
   }
 }
