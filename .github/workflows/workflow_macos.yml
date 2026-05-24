@@ -34,7 +34,7 @@ jobs:
             cmake_extra_args: -DWITH_GRAPHICS_METAL=OFF
             run_metal_smoke: '0'
           - graphics: metal
-            cmake_extra_args: -DWITH_GRAPHICS_METAL=ON -DWITH_GRAPHICS_METAL_REQUIRE_METALLIB=ON
+            cmake_extra_args: -DWITH_GRAPHICS_METAL=ON
             run_metal_smoke: '1'
     env:
       OPENTOONZ_APP: toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app
@@ -128,7 +128,6 @@ jobs:
         if: ${{ matrix.run_metal_smoke == '1' }}
         run: |
           bash scripts/macos/verify-bundled-qt-runtime.sh "$OPENTOONZ_APP"
-          OPENTOONZ_REQUIRE_METALLIB=1 \
           OPENTOONZ_METAL_RESOURCE_SUMMARY="$RUNNER_TEMP/opentoonz-metal-resources/summary.txt" \
             bash scripts/macos/verify-metal-resources.sh "$OPENTOONZ_APP"
           test -x toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe

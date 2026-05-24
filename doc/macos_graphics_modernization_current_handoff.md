@@ -174,9 +174,9 @@ milestone reports through the CI checkpoint.
 - `scripts/verify_macos_ci_artifacts.sh` verifies downloaded Apple-hosted
   macOS CI artifacts after `gh run download`. It requires successful OpenGL and
   Metal build summaries with elapsed-time, warning-count, and ccache fields,
-  strict Metal `.metallib` resource packaging, bundled-runtime preflight
-  metadata, direct Metal frame traces, internal preview-export, Style Editor,
-  and viewer-input traces, packaged `tcomposer` nonblack statistics, and probe
+  Metal resource summary status, bundled-runtime preflight metadata, direct
+  Metal frame traces, internal preview-export, Style Editor, viewer-input, and
+  drawing-gesture traces, packaged `tcomposer` nonblack statistics, and probe
   summary evidence.
 - `scripts/verify_sample_data.sh` validates the committed `doc/sample_data`
   pack used by the golden scene manifest: license, key scene files,
@@ -199,8 +199,10 @@ milestone reports through the CI checkpoint.
   repository and bundled Metal source presence, file sizes, SHA-256 hashes,
   byte-for-byte source parity, `.metallib` presence, detected command-line Metal
   tools, whether strict `.metallib` mode was requested, and verifier status. The
-  macOS Metal CI leg uploads that summary and runs with
-  `OPENTOONZ_REQUIRE_METALLIB=1`.
+  macOS Metal CI leg uploads that summary. GitHub-hosted runners can pass with
+  `status=source-only-toolchain-unavailable`; release-grade strict `.metallib`
+  evidence still requires running with `OPENTOONZ_REQUIRE_METALLIB=1` on a
+  machine where `metal` and `metallib` are available.
 - The macOS Metal CI leg now also runs the manifest-driven packaged app smoke
   with generated graphics fixtures, screenshot capture enabled, and
   comparison-aware artifact verification for every available manifest `.tnz`
@@ -685,15 +687,12 @@ proven.
   normal selection now routes through CPU picking.
 - Apple-hosted CI evidence should be refreshed after any further parity changes.
 - `.metallib` packaging was not proven in this local environment because the
-  installed Xcode lacks the Metal command-line toolchain. The release/CI path now
-  requires `-DWITH_GRAPHICS_METAL_REQUIRE_METALLIB=ON` plus
-  `OPENTOONZ_REQUIRE_METALLIB=1`, so source-only Metal packages fail strict
-  validation instead of passing as release-ready. Local validation on the
-  rebuilt app showed `require_metallib=0 status=source-only-toolchain-unavailable`
-  for the fallback check, `require_metallib=1 status=error` for strict package
-  verification, and the strict CMake preset failed at configure time with the
-  intended `WITH_GRAPHICS_METAL_REQUIRE_METALLIB` fatal error before the cache
-  was restored to non-strict local Metal mode.
+  installed Xcode lacks the Metal command-line toolchain. The GitHub-hosted
+  macOS runner currently has the same limitation, so CI validates bundled
+  `.metal` source parity and records `status=source-only-toolchain-unavailable`
+  in the resource summary when `metal` and `metallib` are missing. Release-grade
+  strict validation still requires `OPENTOONZ_REQUIRE_METALLIB=1` on a runner or
+  machine where Apple's command-line Metal tools are available.
 - Full packaging succeeded in this run with `OPENTOONZ_ADHOC_SIGN=0`. A normal
   signing-enabled packaging run should still be used before release handoff.
 - Backend selection and troubleshooting are now documented, but Metal remains

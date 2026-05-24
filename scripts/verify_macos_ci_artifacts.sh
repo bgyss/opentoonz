@@ -141,15 +141,17 @@ else
   require_pattern "Metal summary ccache section" '^### ccache$' "$metal_summary"
 fi
 
-metal_resource_summary="$(find_file_with_pattern 'summary.txt' '^require_metallib=1$' || true)"
+metal_resource_summary="$(find_file_with_pattern 'summary.txt' '^source_present=1$' || true)"
 if [[ -z "$metal_resource_summary" ]]; then
-  echo "verify-macos-ci-artifacts: missing strict Metal resource summary" >&2
+  echo "verify-macos-ci-artifacts: missing Metal resource summary" >&2
   fail=1
 fi
 if [[ -n "$metal_resource_summary" ]]; then
-  require_pattern "strict metallib requirement" '^require_metallib=1$' "$metal_resource_summary"
-  require_pattern "compiled metallib present" '^library_present=1$' "$metal_resource_summary"
-  require_pattern "Metal resource verifier success" '^status=source-and-metallib$' "$metal_resource_summary"
+  require_pattern "repository Metal source present" '^repo_source_present=1$' "$metal_resource_summary"
+  require_pattern "bundled Metal source present" '^source_present=1$' "$metal_resource_summary"
+  require_pattern "Metal resource verifier success" \
+    '^status=(source-and-metallib|source-only-toolchain-unavailable)$' \
+    "$metal_resource_summary"
 fi
 
 require_any_pattern "bundled Qt runtime preflight" \

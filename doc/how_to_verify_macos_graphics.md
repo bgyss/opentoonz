@@ -574,12 +574,11 @@ OPENTOONZ_METAL_RESOURCE_SUMMARY=/tmp/opentoonz-metal-resources-summary.txt \
   bash scripts/macos/verify-metal-resources.sh toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app
 ```
 
-The macOS Metal CI leg configures with
-`-DWITH_GRAPHICS_METAL_REQUIRE_METALLIB=ON` and runs the verifier with
-`OPENTOONZ_REQUIRE_METALLIB=1`, so a source-only bundle cannot pass the release
-Metal path. Developers without the Xcode Metal command-line toolchain can still
-run the non-strict verifier to prove bundled source parity and runtime fallback
-coverage.
+The macOS Metal CI leg runs the non-strict verifier and uploads the summary.
+This proves bundled source parity on GitHub-hosted runners even when Apple's
+command-line Metal tools are unavailable. Release-grade Metal package
+validation still requires running the strict form above on a runner or machine
+where `xcrun --find metal` and `xcrun --find metallib` succeed.
 
 To verify downloaded Apple-hosted macOS CI artifacts after a workflow run:
 
@@ -589,11 +588,11 @@ bash scripts/verify_macos_ci_artifacts.sh /tmp/opentoonz-macos-ci-artifacts
 ```
 
 The CI artifact verifier checks both matrix build summaries, elapsed build
-time, warning-count fields, ccache summaries, strict Metal `.metallib`
-packaging, packaged app preflight metadata, direct Metal frame traces,
-preview-export traces, Style Editor traces, viewer-input traces, packaged
-`tcomposer` nonblack statistics, and probe summary evidence. Use this verifier
-when refreshing the Apple-hosted CI evidence required before any default-backend
+time, warning-count fields, ccache summaries, Metal resource summary status,
+packaged app preflight metadata, direct Metal frame traces, preview-export
+traces, Style Editor traces, viewer-input traces, packaged `tcomposer`
+nonblack statistics, and probe summary evidence. Use this verifier when
+refreshing the Apple-hosted CI evidence required before any default-backend
 change.
 
 For user-facing backend selection and troubleshooting commands, see

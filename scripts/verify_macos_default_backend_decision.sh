@@ -58,7 +58,7 @@ require_pattern "Metal CI leg" 'graphics: metal' "$workflow_file"
 require_pattern "OpenGL fallback disables Metal" \
   'cmake_extra_args: -DWITH_GRAPHICS_METAL=OFF' "$workflow_file"
 require_pattern "Metal leg enables Metal" \
-  'cmake_extra_args: -DWITH_GRAPHICS_METAL=ON -DWITH_GRAPHICS_METAL_REQUIRE_METALLIB=ON' \
+  'cmake_extra_args: -DWITH_GRAPHICS_METAL=ON' \
   "$workflow_file"
 
 require_pattern "build timing summary" 'elapsed_seconds' "$build_summary_script"

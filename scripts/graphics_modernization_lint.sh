@@ -200,10 +200,10 @@ if [[ -f scripts/macos/verify-metal-resources.sh ]]; then
 fi
 
 if [[ -f .github/workflows/workflow_macos.yml ]]; then
-  require_present "macOS Metal CI requires compiled metallib at configure time" \
-    'WITH_GRAPHICS_METAL_REQUIRE_METALLIB=ON' .github/workflows/workflow_macos.yml
-  require_present "macOS Metal CI verifies compiled metallib in app bundle" \
-    'OPENTOONZ_REQUIRE_METALLIB=1' .github/workflows/workflow_macos.yml
+  require_present "macOS Metal CI enables Metal build" \
+    'cmake_extra_args: -DWITH_GRAPHICS_METAL=ON' .github/workflows/workflow_macos.yml
+  require_present "macOS Metal CI writes Metal resource summary" \
+    'OPENTOONZ_METAL_RESOURCE_SUMMARY' .github/workflows/workflow_macos.yml
 fi
 
 if [[ -f scripts/macos/graphics-app-smoke.sh ]]; then
@@ -419,8 +419,8 @@ if [[ -f scripts/verify_macos_ci_artifacts.sh ]]; then
     'missing OpenGL fallback build summary' scripts/verify_macos_ci_artifacts.sh
   require_present "CI artifact verifier checks Metal build summary" \
     'missing Metal build summary' scripts/verify_macos_ci_artifacts.sh
-  require_present "CI artifact verifier checks strict Metal resources" \
-    'require_metallib=1' scripts/verify_macos_ci_artifacts.sh
+  require_present "CI artifact verifier checks Metal resource summary" \
+    'source-only-toolchain-unavailable' scripts/verify_macos_ci_artifacts.sh
   require_present "CI artifact verifier checks direct Metal frame traces" \
     'metal_frame direct_content=1 compatibility_snapshot=0' \
     scripts/verify_macos_ci_artifacts.sh

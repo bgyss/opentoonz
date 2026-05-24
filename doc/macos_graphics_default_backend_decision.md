@@ -26,8 +26,8 @@ builds remain explicit through `WITH_GRAPHICS_METAL=ON`.
   counts, `WITH_GRAPHICS_METAL`, and ccache summaries for each macOS matrix
   leg.
 - `scripts/verify_macos_ci_artifacts.sh` defines the post-download audit for
-  Apple-hosted macOS CI evidence, including both matrix build summaries, strict
-  Metal resource packaging, direct Metal frame traces, app smoke traces,
+  Apple-hosted macOS CI evidence, including both matrix build summaries,
+  Metal resource summary status, direct Metal frame traces, app smoke traces,
   packaged `tcomposer` output statistics, and probe summaries.
 
 ## Remaining Gaps Before Switching Default
@@ -40,6 +40,10 @@ builds remain explicit through `WITH_GRAPHICS_METAL=ON`.
   vector/FX-heavy scenes.
 - Apple-hosted CI run IDs and final logs for the expanded smoke matrix still
   need to be recorded after the current local gates are pushed.
+- Strict compiled `.metallib` packaging still needs evidence from a runner or
+  machine with Apple's command-line `metal` and `metallib` tools. The current
+  GitHub-hosted runner can still prove bundled Metal source parity and records
+  toolchain availability in the resource summary.
 - The release artifact policy still signs/notarizes the OpenGL-fallback leg.
 
 ## Switch Criteria
