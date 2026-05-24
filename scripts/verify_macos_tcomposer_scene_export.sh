@@ -116,9 +116,9 @@ run_backend() {
   (
     cd "$repo_root"
     OPENTOONZ_GRAPHICS_BACKEND="$backend" \
-      TOONZPROJECTS="$tcomposer_projects" \
       "$timeout_runner" "$timeout_seconds" "$tcomposer" "$scene_path" \
-        -o "$output_template" -frame "$frame" -nthreads 1 -TOONZROOT "$toonzroot"
+        -o "$output_template" -frame "$frame" -nthreads 1 \
+        -TOONZROOT "$toonzroot" -TOONZPROJECTS "$tcomposer_projects"
   ) >"$backend_dir/tcomposer.log" 2>&1
 
   if [[ ! -s "$output_frame" ]]; then
