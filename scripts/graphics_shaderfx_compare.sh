@@ -28,6 +28,7 @@ fi
       compare_shader="${SHADERFX_STARSKY_COMPARE:-0}"
     fi
     if [[ "$shader" == "SHADER_wavy" ]]; then
+      compare_shader="${SHADERFX_WAVY_COMPARE:-0}"
       shader_tolerance="${SHADERFX_WAVY_COMPARE_TOLERANCE:-8}"
     fi
     if [[ "$shader" == "SHADER_fireball" ]]; then

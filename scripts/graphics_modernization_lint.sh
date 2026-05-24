@@ -177,6 +177,8 @@ fi
 
 require_present "Shader FX compare documents wavy tolerance" \
   'SHADERFX_WAVY_COMPARE_TOLERANCE' "scripts/graphics_shaderfx_compare.sh"
+require_present "Shader FX compare gates wavy parity separately" \
+  'SHADERFX_WAVY_COMPARE' "scripts/graphics_shaderfx_compare.sh"
 
 if [[ -f scripts/macos/verify-bundled-qt-runtime.sh ]]; then
   require_present "bundled runtime GNU libiconv import check" \
