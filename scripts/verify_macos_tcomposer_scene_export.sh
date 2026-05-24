@@ -54,6 +54,31 @@ rm -rf "$artifact_dir"
 mkdir -p "$artifact_dir"
 mkdir -p "$tcomposer_projects"
 
+sandbox_project="$tcomposer_projects/sandbox"
+sandbox_project_file="$sandbox_project/sandbox_otprj.xml"
+if [[ ! -f "$sandbox_project_file" ]]; then
+  mkdir -p "$sandbox_project/inputs" "$sandbox_project/drawings" \
+    "$sandbox_project/scenes" "$sandbox_project/extras" \
+    "$sandbox_project/outputs" "$sandbox_project/palettes" \
+    "$sandbox_project/scripts"
+  cat >"$sandbox_project_file" <<'EOF'
+<project>
+  <version>
+    70 1
+  </version>
+  <folders>
+    <folder name="inputs" path="inputs"/>
+    <folder name="drawings" path="drawings"/>
+    <folder name="scenes" path="scenes"/>
+    <folder name="extras" path="extras"/>
+    <folder name="outputs" path="outputs"/>
+    <folder name="palettes" path="palettes"/>
+    <folder name="scripts" path="scripts"/>
+    </folders>
+  </project>
+EOF
+fi
+
 if [[ -x "$repo_root/scripts/macos/verify-bundled-qt-runtime.sh" ]]; then
   "$repo_root/scripts/macos/verify-bundled-qt-runtime.sh" "$app_path" \
     >"$artifact_dir/bundled-qt-runtime.txt"
@@ -196,6 +221,7 @@ done
   echo "manifest=$manifest_path"
   echo "fixture_dir=$fixture_dir"
   echo "tcomposer_projects=$tcomposer_projects"
+  echo "sandbox_project_file=$sandbox_project_file"
   echo "include_repo_scenes=$include_repo_scenes"
   echo "min_nonzero_pixels=$min_nonzero_pixels"
   echo "scene_count=${#scene_specs[@]}"
