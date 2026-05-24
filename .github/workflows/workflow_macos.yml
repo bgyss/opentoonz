@@ -81,11 +81,13 @@ jobs:
 
       - name: Check graphics modernization invariants
         run: |
-          bash scripts/graphics_modernization_lint.sh
-          bash scripts/verify_opengl_selection_compatibility.sh
-          bash scripts/verify_graphics_fixture_scenes.sh "$RUNNER_TEMP/opentoonz-graphics-fixtures"
-          bash scripts/verify_golden_scene_manifest.sh --require-complete
-          bash scripts/verify_macos_default_backend_decision.sh
+          nix develop path:. --command bash -lc '
+            bash scripts/graphics_modernization_lint.sh
+            bash scripts/verify_opengl_selection_compatibility.sh
+            bash scripts/verify_graphics_fixture_scenes.sh "$RUNNER_TEMP/opentoonz-graphics-fixtures"
+            bash scripts/verify_golden_scene_manifest.sh --require-complete
+            bash scripts/verify_macos_default_backend_decision.sh
+          '
 
       - name: Restore ccache
         uses: actions/cache@v5
