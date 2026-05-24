@@ -44,6 +44,11 @@ if [[ ! -x "$nonblank_verifier" ]]; then
   echo "verify-macos-tcomposer-scene-export: missing TGA nonblank verifier: $nonblank_verifier" >&2
   exit 1
 fi
+timeout_runner="$repo_root/scripts/run_with_timeout.py"
+if [[ ! -x "$timeout_runner" ]]; then
+  echo "verify-macos-tcomposer-scene-export: missing timeout runner: $timeout_runner" >&2
+  exit 1
+fi
 rm -rf "$artifact_dir"
 mkdir -p "$artifact_dir"
 
@@ -109,7 +114,7 @@ run_backend() {
   (
     cd "$repo_root"
     OPENTOONZ_GRAPHICS_BACKEND="$backend" \
-      timeout "$timeout_seconds" "$tcomposer" "$scene_path" \
+      "$timeout_runner" "$timeout_seconds" "$tcomposer" "$scene_path" \
         -o "$output_template" -frame "$frame" -nthreads 1 -TOONZROOT "$toonzroot"
   ) >"$backend_dir/tcomposer.log" 2>&1
 
