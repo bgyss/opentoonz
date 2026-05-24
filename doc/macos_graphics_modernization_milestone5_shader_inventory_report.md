@@ -916,12 +916,15 @@ Artifacts:
 - `/private/tmp/opentoonz-shaderfx-compare/radialblurGPU-metal.tnz`
 - `/private/tmp/opentoonz-shaderfx-compare/radialblurGPU-metal-saved-scene.pam`
 
-The default tolerance is 2 channel values. `fireball` uses
-`SHADERFX_FIREBALL_COMPARE_TOLERANCE=32` by default because its procedural noise
-uses transcendental functions where OpenGL GLSL and Metal Shading Language
-rounding can diverge at isolated threshold pixels. This keeps the strict
-tolerance for the other migrated shaders while still failing broad color,
-alpha, or coordinate mismatches.
+The default tolerance is 2 channel values. `wavy` uses
+`SHADERFX_WAVY_COMPARE_TOLERANCE=8` by default because GitHub-hosted macOS
+runners using the Apple paravirtual Metal device show small channel drift
+relative to local Apple Silicon while preserving the same wave shape and
+opacity. `fireball` uses `SHADERFX_FIREBALL_COMPARE_TOLERANCE=32` by default
+because its procedural noise uses transcendental functions where OpenGL GLSL
+and Metal Shading Language rounding can diverge at isolated threshold pixels.
+This keeps strict tolerances for the other migrated shaders while still
+failing broad color, alpha, or coordinate mismatches.
 
 ## Next Effects Recommendation
 
