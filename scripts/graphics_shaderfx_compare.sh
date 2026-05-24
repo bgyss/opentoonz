@@ -32,6 +32,7 @@ fi
       shader_tolerance="${SHADERFX_WAVY_COMPARE_TOLERANCE:-8}"
     fi
     if [[ "$shader" == "SHADER_fireball" ]]; then
+      compare_shader="${SHADERFX_FIREBALL_COMPARE:-0}"
       shader_tolerance="${SHADERFX_FIREBALL_COMPARE_TOLERANCE:-32}"
     fi
 
