@@ -78,6 +78,14 @@ if [[ ! -f "$sandbox_project_file" ]]; then
   </project>
 EOF
 fi
+created_scene_descriptors=()
+cleanup_scene_descriptors() {
+  local descriptor
+  for descriptor in "${created_scene_descriptors[@]}"; do
+    rm -f "$descriptor"
+  done
+}
+trap cleanup_scene_descriptors EXIT
 
 if [[ -x "$repo_root/scripts/macos/verify-bundled-qt-runtime.sh" ]]; then
   "$repo_root/scripts/macos/verify-bundled-qt-runtime.sh" "$app_path" \
@@ -189,6 +197,16 @@ for spec in "${scene_specs[@]}"; do
   if [[ ! -f "$scene_path" ]]; then
     echo "verify-macos-tcomposer-scene-export: missing scene: $scene_path" >&2
     exit 1
+  fi
+
+  scene_descriptor="$(dirname "$scene_path")/scenes.xml"
+  if [[ ! -f "$scene_descriptor" ]]; then
+    cat >"$scene_descriptor" <<EOF
+<parentProject type="projectFolder">
+  "$sandbox_project"
+</parentProject>
+EOF
+    created_scene_descriptors+=("$scene_descriptor")
   fi
 
   run_backend "$scene_id" "$scene_path" "$frame" opengl
