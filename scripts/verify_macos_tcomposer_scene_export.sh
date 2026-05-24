@@ -9,6 +9,7 @@ manifest_path="${OPENTOONZ_TCOMPOSER_MANIFEST:-$repo_root/doc/macos_graphics_gol
 fixture_dir="${OPENTOONZ_GRAPHICS_FIXTURE_DIR:-/tmp/opentoonz-graphics-fixtures}"
 include_repo_scenes="${OPENTOONZ_TCOMPOSER_INCLUDE_REPO_SCENES:-0}"
 min_nonzero_pixels="${OPENTOONZ_TCOMPOSER_MIN_NONZERO_PIXELS:-1}"
+tcomposer_projects="${OPENTOONZ_TCOMPOSER_PROJECTS:-$artifact_dir/projects}"
 
 case "$timeout_seconds" in
   ''|*[!0-9]*)
@@ -51,6 +52,7 @@ if [[ ! -x "$timeout_runner" ]]; then
 fi
 rm -rf "$artifact_dir"
 mkdir -p "$artifact_dir"
+mkdir -p "$tcomposer_projects"
 
 if [[ -x "$repo_root/scripts/macos/verify-bundled-qt-runtime.sh" ]]; then
   "$repo_root/scripts/macos/verify-bundled-qt-runtime.sh" "$app_path" \
@@ -114,6 +116,7 @@ run_backend() {
   (
     cd "$repo_root"
     OPENTOONZ_GRAPHICS_BACKEND="$backend" \
+      TOONZPROJECTS="$tcomposer_projects" \
       "$timeout_runner" "$timeout_seconds" "$tcomposer" "$scene_path" \
         -o "$output_template" -frame "$frame" -nthreads 1 -TOONZROOT "$toonzroot"
   ) >"$backend_dir/tcomposer.log" 2>&1
@@ -192,6 +195,7 @@ done
   echo "toonzroot=$toonzroot"
   echo "manifest=$manifest_path"
   echo "fixture_dir=$fixture_dir"
+  echo "tcomposer_projects=$tcomposer_projects"
   echo "include_repo_scenes=$include_repo_scenes"
   echo "min_nonzero_pixels=$min_nonzero_pixels"
   echo "scene_count=${#scene_specs[@]}"
