@@ -101,17 +101,7 @@ def parse_png(path):
     return width, height, color_type, bpp, bytes(pixels)
 
 
-def compare_pngs(actual_path, expected_path):
-    actual = parse_png(actual_path)
-    expected = parse_png(expected_path)
-    if actual[:4] != expected[:4]:
-        raise ValueError(
-            "PNG metadata differs: "
-            f"{actual_path}={actual[:4]} {expected_path}={expected[:4]}"
-        )
-
-    width, height, _color_type, bpp, actual_pixels = actual
-    expected_pixels = expected[4]
+def compare_pixels(width, height, bpp, actual_pixels, expected_pixels):
     total_delta = 0
     max_delta = 0
     differing_pixels = 0
@@ -140,7 +130,108 @@ def compare_pngs(actual_path, expected_path):
         "differing_ratio": differing_ratio,
         "max_channel_delta": max_delta,
         "mean_abs_channel_delta": mean_abs_delta,
+        "shift_x": 0,
+        "shift_y": 0,
     }
+
+
+def crop_for_shift(width, height, bpp, pixels, dx, dy):
+    x0 = max(0, dx)
+    y0 = max(0, dy)
+    x1 = min(width, width + dx)
+    y1 = min(height, height + dy)
+    cropped = bytearray()
+    for y in range(y0, y1):
+        start = (y * width + x0) * bpp
+        end = (y * width + x1) * bpp
+        cropped.extend(pixels[start:end])
+    return x1 - x0, y1 - y0, bytes(cropped)
+
+
+def shifted_expected_crop(width, height, bpp, pixels, dx, dy):
+    x0 = max(0, -dx)
+    y0 = max(0, -dy)
+    x1 = min(width, width - dx)
+    y1 = min(height, height - dy)
+    cropped = bytearray()
+    for y in range(y0, y1):
+        start = (y * width + x0) * bpp
+        end = (y * width + x1) * bpp
+        cropped.extend(pixels[start:end])
+    return bytes(cropped)
+
+
+def sampled_shift_score(width, height, bpp, actual_pixels, expected_pixels, dx, dy):
+    x0_actual = max(0, dx)
+    y0_actual = max(0, dy)
+    x0_expected = max(0, -dx)
+    y0_expected = max(0, -dy)
+    overlap_width = min(width, width + dx) - x0_actual
+    overlap_height = min(height, height + dy) - y0_actual
+    if overlap_width <= 0 or overlap_height <= 0:
+        return None
+
+    step = max(1, min(overlap_width, overlap_height) // 96)
+    total_delta = 0
+    samples = 0
+    for y in range(0, overlap_height, step):
+        actual_row = ((y0_actual + y) * width + x0_actual) * bpp
+        expected_row = ((y0_expected + y) * width + x0_expected) * bpp
+        for x in range(0, overlap_width, step):
+            actual_i = actual_row + x * bpp
+            expected_i = expected_row + x * bpp
+            for channel in range(bpp):
+                total_delta += abs(
+                    actual_pixels[actual_i + channel]
+                    - expected_pixels[expected_i + channel]
+                )
+            samples += bpp
+    return total_delta / samples
+
+
+def compare_pngs(actual_path, expected_path, max_shift):
+    actual = parse_png(actual_path)
+    expected = parse_png(expected_path)
+    if actual[:4] != expected[:4]:
+        raise ValueError(
+            "PNG metadata differs: "
+            f"{actual_path}={actual[:4]} {expected_path}={expected[:4]}"
+        )
+
+    width, height, _color_type, bpp, actual_pixels = actual
+    expected_pixels = expected[4]
+    best = compare_pixels(width, height, bpp, actual_pixels, expected_pixels)
+
+    best_shift = (0, 0)
+    best_score = sampled_shift_score(
+        width, height, bpp, actual_pixels, expected_pixels, 0, 0
+    )
+    for dy in range(-max_shift, max_shift + 1):
+        for dx in range(-max_shift, max_shift + 1):
+            if dx == 0 and dy == 0:
+                continue
+            score = sampled_shift_score(
+                width, height, bpp, actual_pixels, expected_pixels, dx, dy
+            )
+            if score is not None and (best_score is None or score < best_score):
+                best_score = score
+                best_shift = (dx, dy)
+
+    dx, dy = best_shift
+    if dx != 0 or dy != 0:
+        crop_width, crop_height, actual_crop = crop_for_shift(
+            width, height, bpp, actual_pixels, dx, dy
+        )
+        expected_crop = shifted_expected_crop(
+            width, height, bpp, expected_pixels, dx, dy
+        )
+        best = compare_pixels(
+            crop_width, crop_height, bpp, actual_crop, expected_crop
+        )
+        best["shift_x"] = dx
+        best["shift_y"] = dy
+
+    return best
 
 
 def main(argv):
@@ -150,11 +241,17 @@ def main(argv):
     parser.add_argument("--max-mean-delta", type=float, default=0.0)
     parser.add_argument("--max-channel-delta", type=int, default=0)
     parser.add_argument("--max-differing-ratio", type=float, default=0.0)
+    parser.add_argument(
+        "--max-shift",
+        type=int,
+        default=0,
+        help="try bounded x/y pixel translations and compare the best overlap",
+    )
     parser.add_argument("actual")
     parser.add_argument("expected")
     args = parser.parse_args(argv[1:])
 
-    stats = compare_pngs(args.actual, args.expected)
+    stats = compare_pngs(args.actual, args.expected, args.max_shift)
     failed = (
         stats["mean_abs_channel_delta"] > args.max_mean_delta
         or stats["max_channel_delta"] > args.max_channel_delta
@@ -168,7 +265,8 @@ def main(argv):
         f"differing_pixels={stats['differing_pixels']} "
         f"differing_ratio={stats['differing_ratio']:.8f} "
         f"max_channel_delta={stats['max_channel_delta']} "
-        f"mean_abs_channel_delta={stats['mean_abs_channel_delta']:.8f}"
+        f"mean_abs_channel_delta={stats['mean_abs_channel_delta']:.8f} "
+        f"shift_x={stats['shift_x']} shift_y={stats['shift_y']}"
     )
 
     if failed:

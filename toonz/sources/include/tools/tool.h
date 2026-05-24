@@ -390,10 +390,9 @@ public:
   //! coordinate.
   void invalidate(const TRectD &rect = TRectD());
 
-  /*!
-          Picks a region of the scene, using an OpenGL projection matrix to
-          restrict drawing to a small regionaround \p p of the viewport.
-          Returns -1 if no object's view has been changed.
+  /*! Picks a viewer object near \p p. Tools should prefer local CPU hit testing;
+          the generic viewer implementation returns -1 when no tool-specific
+          picker is available.
   */
   int pick(const TPointD &p);
   bool isPicking() const { return m_picking; }
@@ -688,7 +687,7 @@ public:
   //! return pos in pixel, bottom-left origin
   virtual TPointD worldToPos(const TPointD &worldPos) const = 0;
 
-  //! return the OpenGL nameId of the object intersecting point \b p
+  //! return the tool-specific id of the object intersecting point \b p
   //! (window coordinate, pixels, bottom-left origin)
   virtual int pick(const TPointD &point) = 0;
 

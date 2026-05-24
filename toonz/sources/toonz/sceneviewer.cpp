@@ -93,9 +93,12 @@
 
 #include <algorithm>
 #include <cmath>
+#include <fstream>
 #include <iostream>
 
 #include "sceneviewer.h"
+
+void logMetalSmokeEvent(const char* event, const SceneViewer* viewer);
 
 TEnv::IntVar RotateOnCameraCenter("RotateOnCameraCenter", 0);
 TEnv::DoubleVar RotateAngle("RotateAngle", 90);
@@ -994,6 +997,8 @@ SceneViewer::SceneViewer(ImageUtils::FullScreenWidget* parent)
     m_lutCalibrator = new LutCalibrator();
   if (Preferences::instance()->is30bitDisplayEnabled())
     setTextureFormat(TGL_TexFmt10);
+
+  logMetalSmokeEvent("constructed", this);
 }
 
 //-----------------------------------------------------------------------------
@@ -1595,11 +1600,67 @@ void logMetalFrameDiagnostics(bool directContent, bool compatibilitySnapshot,
   if (!qEnvironmentVariableIsSet("OPENTOONZ_GRAPHICS_METAL_FRAME_DIAGNOSTICS"))
     return;
 
-  std::cerr << "OpenToonz graphics smoke: metal_frame direct_content="
-            << (directContent ? 1 : 0)
-            << " compatibility_snapshot="
-            << (compatibilitySnapshot ? 1 : 0) << " width=" << width
-            << " height=" << height << std::endl;
+  const std::string message =
+      std::string("OpenToonz graphics smoke: metal_frame direct_content=") +
+      (directContent ? "1" : "0") + " compatibility_snapshot=" +
+      (compatibilitySnapshot ? "1" : "0") + " width=" +
+      std::to_string(width) + " height=" + std::to_string(height);
+  std::cerr << message << std::endl;
+
+  const QString tracePath =
+      qEnvironmentVariable("OPENTOONZ_GRAPHICS_SMOKE_TRACE_FILE");
+  if (!tracePath.isEmpty()) {
+    std::ofstream trace(tracePath.toStdString(), std::ios::app);
+    trace << message << '\n';
+  }
+}
+
+//-------------------------------------------------------------------------------
+
+void logMetalSmokeEvent(const char* event, const SceneViewer* viewer) {
+  if (!qEnvironmentVariableIsSet("OPENTOONZ_GRAPHICS_METAL_FRAME_DIAGNOSTICS"))
+    return;
+
+  const std::string message =
+      std::string("OpenToonz graphics smoke: sceneviewer_") + event +
+      " backend=" +
+      (TGraphics::requestedBackendType() == TGraphics::BackendType::Metal
+           ? "metal"
+           : "opengl") +
+      " visible=" + (viewer && viewer->isVisible() ? "1" : "0") +
+      " width=" + std::to_string(viewer ? viewer->width() : 0) +
+      " height=" + std::to_string(viewer ? viewer->height() : 0);
+  std::cerr << message << std::endl;
+
+  const QString tracePath =
+      qEnvironmentVariable("OPENTOONZ_GRAPHICS_SMOKE_TRACE_FILE");
+  if (!tracePath.isEmpty()) {
+    std::ofstream trace(tracePath.toStdString(), std::ios::app);
+    trace << message << '\n';
+  }
+}
+
+//-------------------------------------------------------------------------------
+
+void logMetalSceneContentDiagnostics(int rasterNodeCount, int textureQuadCount,
+                                     bool directRasterCoverage,
+                                     const std::string& diagnostic) {
+  if (!qEnvironmentVariableIsSet("OPENTOONZ_GRAPHICS_METAL_FRAME_DIAGNOSTICS"))
+    return;
+
+  const std::string message =
+      std::string("OpenToonz graphics smoke: metal_scene_content nodes=") +
+      std::to_string(rasterNodeCount) + " texture_quads=" +
+      std::to_string(textureQuadCount) + " full_coverage=" +
+      (directRasterCoverage ? "1" : "0") + " reason=" + diagnostic;
+  std::cerr << message << std::endl;
+
+  const QString tracePath =
+      qEnvironmentVariable("OPENTOONZ_GRAPHICS_SMOKE_TRACE_FILE");
+  if (!tracePath.isEmpty()) {
+    std::ofstream trace(tracePath.toStdString(), std::ios::app);
+    trace << message << '\n';
+  }
 }
 
 //-------------------------------------------------------------------------------
@@ -1800,6 +1861,8 @@ TPointD SceneViewer::worldToPos(const TPointD& worldPos) const {
 //-----------------------------------------------------------------------------
 
 void SceneViewer::showEvent(QShowEvent*) {
+  logMetalSmokeEvent("shown", this);
+
   m_visualSettings.m_sceneProperties =
       TApp::instance()->getCurrentScene()->getScene()->getProperties();
 
@@ -2741,6 +2804,8 @@ static void drawFpsGraph(int t0, int t1) {
 // #define FPS_HISTOGRAM
 
 void SceneViewer::paintGL() {
+  logMetalSmokeEvent("paint_gl", this);
+
 #ifdef _DEBUG
   if (!check_framebuffer_status()) {
     /* OpenGL widget creation/destruction timing (depending on platform?)
@@ -3054,9 +3119,15 @@ void SceneViewer::drawScene() {
       }
     }
     if (shouldPresentWithMetal()) {
+      const int rasterNodeCount = painter.getNodesCount();
       TGraphics::DrawList2D drawList;
+      std::string directRasterDiagnostic;
       const bool directRasterCoverage = painter.appendDirectRasterTextureQuads(
-          drawList, std::max(1, height() * getDevPixRatio()));
+          drawList, std::max(1, height() * getDevPixRatio()),
+          &directRasterDiagnostic);
+      logMetalSceneContentDiagnostics(
+          rasterNodeCount, static_cast<int>(drawList.textureQuads().size()),
+          directRasterCoverage, directRasterDiagnostic);
       if (!drawList.empty() && presentDrawListWithMetal(drawList)) {
         m_metalPresentedDirectContent = directRasterCoverage;
       }
@@ -3920,91 +3991,9 @@ void SceneViewer::onToolChanged() {
 //-----------------------------------------------------------------------------
 
 int SceneViewer::pick(const TPointD& point) {
-  // pick is typically called in a mouse event handler.
-  // makeCurrent() is not automatically called in these events.
-  // (to exploit the bug: open the FxEditor preview and then select the edit
-  // tool)
   ScopedBoolSetter pickingGuard(m_isPicking, true);
-  if (TGraphics::requestedBackendType() == TGraphics::BackendType::Metal)
-    return -1;
-
-  makeCurrent();
-  assert(glGetError() == GL_NO_ERROR);
-  GLint viewport[4];
-  glGetIntegerv(GL_VIEWPORT, viewport);
-  std::array<GLuint, 512> selectBuffer;
-  glSelectBuffer(selectBuffer.size(), selectBuffer.data());
-  glRenderMode(GL_SELECT);
-
-  // set the projection matrix
-  glMatrixMode(GL_PROJECTION);
-  GLdouble mat[16];
-  glGetDoublev(GL_PROJECTION_MATRIX, mat);
-  glPushMatrix();
-  glLoadIdentity();
-  pickMatrix(point.x, point.y, 5, 5, viewport);
-  glMultMatrixd(mat);
-  assert(glGetError() == GL_NO_ERROR);
-
-  // draw the scene
-  glMatrixMode(GL_MODELVIEW);
-  glPushMatrix();
-  glInitNames();
-  assert(glGetError() == GL_NO_ERROR);
-
-  // WARNING: We have to draw the scene in CAMERASTAND mode. Observe that the
-  // preview mode may
-  // invoke event processing - therefore triggering other pick events while in
-  // GL_SELECT
-  // render mode...
-  int previewMode = m_previewMode;
-  m_previewMode   = NO_PREVIEW;
-
-  //   OPTIMIZATION / QUICK FIX
-  // A 1x1 clipping rect around the picked pos can very well be used instead of
-  // redrawing
-  // the *entire viewer*.
-  // This is needed especially since some graphic cards (all NVidias we have
-  // tested) are
-  // very slow otherwise. This could be due to this particular rendering mode -
-  // or because
-  // we could be painting OUTSIDE a paintEvent()...
-
-  TRectD oldClipRect(m_clipRect);
-  m_clipRect = TRectD(point.x, point.y, point.x + 1, point.y + 1);
-
-  paintGL();  // draw identifiable objects
-
-  m_clipRect = oldClipRect;
-
-  m_previewMode = previewMode;
-
-  assert(glGetError() == GL_NO_ERROR);
-  glPopMatrix();
-
-  // restore the projection matrix
-  glMatrixMode(GL_PROJECTION);
-  glPopMatrix();
-  glMatrixMode(GL_MODELVIEW);
-
-  assert(glGetError() == GL_NO_ERROR);
-
-  // count hits
-  int ret      = -1;
-  int hitCount = glRenderMode(GL_RENDER);
-  GLuint* p    = selectBuffer.data();
-  for (int i = 0; i < hitCount; ++i) {
-    GLuint nameCount = *p++;
-    GLuint zmin      = *p++;
-    GLuint zmax      = *p++;
-    if (nameCount > 0) {
-      GLuint name = *p;
-      ret         = name;  // items.push_back(PickItem(name, zmin, zmax));
-    }
-    p += nameCount;
-  }
-  assert(glGetError() == GL_NO_ERROR);
-  return ret;
+  (void)point;
+  return -1;
 }
 
 //-----------------------------------------------------------------------------

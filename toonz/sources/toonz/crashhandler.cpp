@@ -517,7 +517,6 @@ void CrashHandler::install() {
   signal(SIGILL, signalHandler);
   signal(SIGINT, signalHandler);
   signal(SIGSEGV, signalHandler);
-  signal(SIGTERM, signalHandler);
 #endif
 }
 

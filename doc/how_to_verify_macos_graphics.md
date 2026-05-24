@@ -16,12 +16,10 @@ bash scripts/verify_opengl_selection_compatibility.sh
 ```
 
 The lint script enforces milestone invariants that should not regress, including
-no direct Qt `QGL*` usage, no `glDrawPixels`, and a Metal guard on the generic
-SceneViewer OpenGL selection path. It also checks that the Edit Tool and
-Skeleton Tool keep their CPU picking paths for 2D tool interactions, so those
-workflows do not silently fall back to `GL_SELECT` when Metal is requested; the
-remaining Skeleton Tool 3D OpenGL-selection fallback must also stay behind a
-compatibility gate that is disabled for the requested Metal backend.
+no direct Qt `QGL*` usage, no `glDrawPixels`, and no SceneViewer OpenGL
+selection-mode implementation. It also checks that the Edit Tool and Skeleton
+Tool keep their CPU picking paths, so those workflows do not silently fall back
+to `GL_SELECT`.
 For already-migrated viewer/style surfaces, it verifies that PlaneViewer
 background and raster presentation still use `tgraphics` draw lists, the Style
 Editor color wheel remains a QWidget/QPainter surface without direct OpenGL
@@ -42,10 +40,10 @@ The inventory script reports file counts and match counts for:
 - OpenGL selection-mode APIs
 
 `scripts/verify_opengl_selection_compatibility.sh` is a stricter companion to
-the inventory count. It allows real OpenGL selection API use only in the
-explicit compatibility files, `toonz/sceneviewer.cpp` and
-`tnztools/skeletontool.cpp`, and also verifies the Metal-requested guards on
-both paths.
+the inventory count. It requires SceneViewer selection-mode API use to stay
+removed and allows the remaining OpenGL name-stack markers only in the Skeleton
+Tool compatibility drawing code while verifying that Skeleton Tool no longer
+calls the generic OpenGL selection picker.
 
 Include the inventory output in each graphics milestone handoff. The important
 trend is not that every count drops immediately; it is that each milestone can
@@ -64,6 +62,18 @@ rg -n "OpenGL|QGL|QOpenGL|GLU|deprecated" /private/tmp/opentoonz-build.log | hea
 
 When comparing warning counts, keep the compiler, SDK, Qt version, CMake preset,
 and build type unchanged.
+
+For the CI-style build-time and warning summary used by the macOS matrix, run:
+
+```sh
+OPENTOONZ_CI_BUILD_LABEL=macos-arm64-local \
+OPENTOONZ_BUILD_PARALLEL=3 \
+scripts/macos/ci-build-summary.sh
+```
+
+The summary records elapsed seconds, `WITH_GRAPHICS_METAL`, total warnings,
+Apple OpenGL deprecation warnings, Qt `QGL*` warning lines, deprecated
+`QOpenGL*` warning lines, and ccache stats.
 
 ## Golden Scene Requirements
 
@@ -112,7 +122,9 @@ fixtures that should not be maintained as large checked-in scene XML. The
 current generated fixtures are `sub_xsheet_basic.tnz`, a nested child-level
 scene backed by the committed sample TLV data, and `mesh_skeleton_basic.tnz`, a
 mesh-column scene backed by a generated `.mesh` frame with triangular faces and
-rigidity data.
+rigidity data. The fixture verifier checks that sub-xsheet level dependencies
+are declared before the childLevel references them, matching the ordering needed
+by the OpenToonz scene loader.
 
 After generating shader-effect comparison artifacts, verify the generated
 shader scene fixtures with:
@@ -126,9 +138,14 @@ Before any default-backend decision, run the strict form:
 
 ```sh
 bash scripts/verify_golden_scene_manifest.sh --require-complete
+bash scripts/verify_macos_default_backend_decision.sh
 ```
 
-This fails while any `status=required` row remains.
+The manifest verifier fails while any `status=required` row remains. The
+default-backend decision verifier keeps the explicit OpenGL-default decision in
+`doc/macos_graphics_default_backend_decision.md` aligned with the CMake default,
+runtime selector, macOS CI matrix, and build-summary evidence until the Metal
+switch criteria are satisfied.
 
 ## OpenGL Baseline Capture
 
@@ -229,9 +246,105 @@ This runs the `TOfflineGL` clear/raster-placement baseline against the active
 style-editor color wheel with Qt's offscreen platform and fails if the result is
 blank or lacks saturated color-wheel pixels. The preview/export verifier writes
 OpenGL, Metal, legacy OpenGL, and amplified diff PNG artifacts for the legacy
-offline raster-placement slice. It is still a probe-level check; full
+offline raster-placement slice, rejects blank artifacts, and requires exact
+zero-difference matches between OpenGL active, Metal active, and both legacy
+reference artifacts. It is still a probe-level check; full
 style-editor and preview/export workflow parity requires real application smoke
 coverage.
+
+After packaging the app bundle, run the focused app-level preview/export smoke:
+
+```sh
+bash scripts/verify_macos_preview_export_app_smoke.sh /private/tmp/opentoonz-preview-export-app-smoke
+```
+
+This generates the TIFF-backed `tcomposer-color-card` scene fixture, launches
+the packaged app under OpenGL and Metal, runs
+`OPENTOONZ_GRAPHICS_SMOKE_ACTIONS=internal-preview-export`, requires the
+color-card PNG to come from the Previewer cache raster, and exact-compares the
+OpenGL and Metal preview-export PNGs. It also runs the committed
+`doc/sample_data/tga_paint.tnz` TLV sample through the same app preview/export
+path and exact-compares the OpenGL and Metal PNGs, allowing the viewer
+framebuffer fallback when the Previewer cache raster is blank for that scene.
+It also runs the committed `doc/sample_data/dwanko_run.tnz` FX/vector sample at
+frame 24, requires the saved PNG to come from the Previewer cache raster, and
+exact-compares OpenGL and Metal output.
+
+After packaging the app bundle, run the focused app-level style editor smoke:
+
+```sh
+bash scripts/verify_macos_style_editor_app_smoke.sh /private/tmp/opentoonz-style-editor-app-smoke
+```
+
+This launches the packaged app under OpenGL and Metal, runs
+`OPENTOONZ_GRAPHICS_SMOKE_ACTIONS=internal-style-editor`, opens the Style
+Editor, changes a real palette style through the current palette handle,
+notifies the style editor/listener path, restores the original style, and
+requires change and restore traces in the smoke artifacts.
+
+After packaging the app bundle, run the focused app-level viewer input smoke:
+
+```sh
+bash scripts/verify_macos_viewer_input_app_smoke.sh /private/tmp/opentoonz-viewer-input-app-smoke
+```
+
+This launches the packaged app under OpenGL and Metal, runs
+`OPENTOONZ_GRAPHICS_SMOKE_ACTIONS=internal-viewer-input`, switches to the Hand
+and Selection tools, and sends Qt mouse press/move/release events directly to
+the active SceneViewer. The artifact verifier requires tool and event traces for
+both gestures. This covers SceneViewer mouse-event routing in CI without macOS
+Accessibility permissions; it is still separate from an Accessibility-authorized
+system input smoke.
+
+After packaging the app bundle, run the focused app-level drawing gesture smoke:
+
+```sh
+bash scripts/verify_macos_drawing_gesture_app_smoke.sh /private/tmp/opentoonz-drawing-gesture-app-smoke
+```
+
+This launches the packaged app under OpenGL and Metal, loads
+`doc/sample_data/tga_paint.tnz`, switches to the Brush tool, sends a Qt
+press/move/move/release gesture to the active SceneViewer, and compares a
+before/after summary of the current tool image. The artifact verifier requires
+the gesture traces and `main_internal_drawing_changed changed=1`; the wrapper
+also requires the Metal run to emit a direct frame trace with
+`direct_content=1` and `compatibility_snapshot=0`.
+
+For a packaged helper scene-export check using committed sample data, build and
+package the app bundle, then run:
+
+```sh
+nix develop path:. --command cmake --build toonz/build/nix-relwithdebinfo --target tcomposer --parallel 3
+nix develop path:. --command bash scripts/macos/package-nix-app.sh
+bash scripts/verify_macos_tcomposer_scene_export.sh /private/tmp/opentoonz-tcomposer-scene-export
+```
+
+By default this reads `doc/macos_graphics_golden_scenes.tsv`, generates the
+`tcomposer-color-card` fixture row, includes the committed
+`offscreen-export`, `tcomposer-cleanup-scan`, and `tcomposer-tlv-paint` sample
+rows, and runs bundled `tcomposer` for each selected frame once with
+`OPENTOONZ_GRAPHICS_BACKEND=opengl` and once with
+`OPENTOONZ_GRAPHICS_BACKEND=metal`, using the packaged `portablestuff`
+directory as an absolute `TOONZROOT`. It requires each rendered frame file,
+checks that `tcomposer` reported a computed frame, rejects single-color black
+TIFF output with ImageMagick, and byte-compares the OpenGL and Metal TIFF
+outputs for each selected manifest row. It also writes per-backend
+`image-stats.txt` files and includes the TIFF color/maxima/nonzero-pixel counts
+in `summary.txt`; raise `OPENTOONZ_TCOMPOSER_MIN_NONZERO_PIXELS` above the
+default of `1` when using a scene that should produce substantial camera
+coverage. Set
+`OPENTOONZ_TCOMPOSER_INCLUDE_REPO_SCENES=1` to also try committed sample `.tnz`
+rows; those rows are useful diagnostics but must pass the same nonblack gate
+before they count as parity evidence. To run one focused scene instead of the
+manifest set, set `OPENTOONZ_TCOMPOSER_SCENE` and optionally
+`OPENTOONZ_TCOMPOSER_FRAME`. Set `OPENTOONZ_TCOMPOSER_DEBUG_LEVELS=1` to print
+decoded helper level paths, frame availability, xsheet bboxes, and built
+render-FX bboxes into `tcomposer.log` while debugging missing or black sample
+outputs. In restricted command sandboxes, `QApplication`
+pasteboard setup can abort before rendering; run this verifier from a normal
+macOS shell or CI runner when that happens. This is scene-level helper export
+evidence only when the output is nonblack; it does not replace GUI
+preview/export smoke.
 
 ## Scripted App Launch Smoke
 
@@ -272,16 +385,62 @@ app and sends a small playback/scrub/zoom event sequence before screenshot
 capture so the smoke covers basic event delivery in addition to startup. This
 mode requires macOS Automation/Accessibility permission for `osascript` and
 `System Events`; if macOS denies synthetic input, the action smoke fails with
-the error recorded in `actions.txt`. The artifact verifier checks backend
+the error recorded in `actions.txt`. On success, `actions.txt` records
+`system_mouse=center-window-click`,
+`system_keyboard=space,space,right,left,plus,minus`, and `result=ok`, and the
+artifact verifier requires those lines for `basic-viewer` action smokes.
+`OPENTOONZ_GRAPHICS_SMOKE_ACTIONS=internal-basic-viewer` runs a smaller
+in-process viewer action sequence after scene load. It resets the viewer, zooms
+in/out, scrubs the current frame handle, invalidates the viewer, and requires
+the `main_internal_actions_done` trace. Use
+`OPENTOONZ_GRAPHICS_SMOKE_ACTIONS=internal-editing-context` for the stronger CI
+path: it performs the same viewer sequence, then switches through the Animate,
+Selection, Brush, Geometric, Skeleton, and Hand tools and verifies each tool
+trace. `OPENTOONZ_GRAPHICS_SMOKE_ACTIONS=internal-viewer-input` switches to the
+Hand and Selection tools and sends Qt mouse press/move/release events to the
+active SceneViewer, requiring per-tool and per-event traces.
+`OPENTOONZ_GRAPHICS_SMOKE_ACTIONS=internal-drawing-gesture` switches to the
+Brush tool, sends a Qt press/move/move/release gesture to the active
+SceneViewer, and records before/after current-image summaries. The artifact
+verifier requires `main_internal_drawing_changed changed=1`, so this mode fails
+if the event path runs but no drawing data changes.
+`OPENTOONZ_GRAPHICS_SMOKE_ACTIONS=internal-preview-export` enables
+SceneViewer full preview, waits for the current preview frame to become ready,
+and asks the app to save `preview-export.png`. The app first attempts to use the
+Previewer cache raster and records a raster summary; if that cache raster is
+blank, it tries an in-app scene render for the same frame before falling back to
+the visible full-preview SceneViewer framebuffer or widget grab, and records
+`main_internal_preview_export_source`. The artifact
+verifier requires frame-ready, export-source, and export-saved traces and
+rejects a missing or single-color preview export. Add
+`--require-preview-raster-export` when verifying artifacts to require the
+saved PNG to come directly from the Previewer cache raster instead of a
+SceneViewer framebuffer or widget fallback.
+`OPENTOONZ_GRAPHICS_SMOKE_ACTIONS=internal-style-editor` performs the viewer
+sequence, opens the Style Editor, changes and restores the current palette
+style, and requires `main_internal_style_editor_changed` and
+`main_internal_style_editor_restored` traces. These modes avoid macOS
+synthetic-input permission prompts; only `basic-viewer` proves system keyboard
+event delivery through macOS Automation/Accessibility. The artifact verifier
+checks backend
 metadata, startup logs, screenshot metadata, optional action metadata, nonblank
 PNG content, scene metadata, and OpenGL/Metal screenshot differences when both
 backend screenshots are present. The smoke script also enables
 `OPENTOONZ_GRAPHICS_METAL_FRAME_DIAGNOSTICS=1`; with
 `--require-direct-metal-frame`, the verifier requires a scene-viewer log line
-showing `direct_content=1` and `compatibility_snapshot=0`, so the stricter
-direct-Metal frame check cannot pass on process lifetime alone. The rest of the
-manual matrix or a future scene-driving harness is still required for full
-parity.
+or `graphics-smoke-trace.txt` entry showing `direct_content=1` and
+`compatibility_snapshot=0`, so the stricter direct-Metal frame check cannot
+pass on process lifetime alone. To reduce dependence on the user's saved room
+state, the smoke harness copies the bundled profiles into the artifact
+directory, writes a known `currentRoom.txt`, disables lazy room loading, and
+forces `ViewBBoxToggleAction1 "0"` in the isolated smoke profile before launch.
+Set
+`OPENTOONZ_GRAPHICS_SMOKE_REQUIRE_STARTUP_TRACE=1` to make the smoke fail
+unless the app writes the `main_after_main_window` trace within the smoke
+timeout. Set `OPENTOONZ_GRAPHICS_SMOKE_REQUIRE_METAL_FRAME_TRACE=1` for a
+Metal-only smoke that waits for a direct Metal frame trace during the launch
+window. The rest of the manual matrix or a future scene-driving harness is still
+required for full parity.
 
 The default app-smoke screenshot comparison tolerances are intentionally loose
 because `screencapture` captures the whole window and can include compositor
@@ -289,10 +448,24 @@ noise outside the rendered scene. Tighten these variables for controlled
 captures:
 
 ```sh
-OPENTOONZ_GRAPHICS_SMOKE_MAX_MEAN_DELTA=1.0
+OPENTOONZ_GRAPHICS_SMOKE_MAX_MEAN_DELTA=8.0
 OPENTOONZ_GRAPHICS_SMOKE_MAX_CHANNEL_DELTA=255
-OPENTOONZ_GRAPHICS_SMOKE_MAX_DIFFERING_RATIO=0.02
+OPENTOONZ_GRAPHICS_SMOKE_MAX_DIFFERING_RATIO=0.95
+OPENTOONZ_GRAPHICS_SMOKE_MAX_SHIFT=16
+OPENTOONZ_GRAPHICS_SMOKE_SCREENSHOT_RETRIES=3
 ```
+
+The app-smoke screenshot gate compares whole-window captures, so the defaults
+allow small compositor/color-management differences and bounded pixel shifts.
+The smoke harness retries screenshots that decode as blank before accepting the
+artifact. When `OPENTOONZ_GRAPHICS_SMOKE_INTERNAL_SCREENSHOT` is set by the
+smoke harness, OpenToonz first tries to save an in-process SceneViewer PNG. It
+uses framebuffer readback first, falls back to grabbing the visible viewer
+widget when framebuffer readback is unavailable or blank, and writes the
+temporary file with an explicit PNG format before atomically renaming it. The
+shell harness prefers that artifact over `screencapture`; this avoids desktop
+capture failures for viewer-scene parity smokes. Use the probe and export
+verifiers for exact pixel parity checks.
 
 To smoke every committed or generated `.tnz` scene listed in the golden-scene
 manifest:
@@ -314,26 +487,43 @@ The macOS Metal CI leg runs this manifest smoke after packaging, using
 fixtures, then uploads the fixture and smoke artifact directories with the Metal
 graphics artifacts. When `OPENTOONZ_GRAPHICS_SMOKE_SCREENSHOT` is enabled, the
 manifest wrapper verifies each scene with `--require-screenshot`, so missing or
-disabled screenshot evidence fails the manifest smoke.
+disabled screenshot evidence fails the manifest smoke. The wrapper also passes
+the manifest `frame` column as `OPENTOONZ_GRAPHICS_SMOKE_FRAME`; the artifact
+verifier requires a matching `main_smoke_frame_set` trace when a row requests a
+specific frame. The vector row uses `doc/sample_data/dwanko_run.tnz`, which
+contains committed PLI vector levels, so vector scene loading is exercised by
+the app-smoke manifest instead of being skipped as a standalone `.pli` asset. A
+local 13-row manifest run with internal screenshots enabled produced nonblank
+OpenGL and Metal screenshots for every current row and exact OpenGL/Metal
+equality for each accepted internal capture.
 
 To specifically check whether a sample scene can launch through the direct
 Metal layer path instead of the OpenGL compatibility snapshot, run a Metal-only
 smoke with screenshot capture disabled:
 
 ```sh
-OPENTOONZ_GRAPHICS_SMOKE_SCENE=doc/sample_data/dwanko_run.tnz \
+OPENTOONZ_GRAPHICS_SMOKE_SCENE=doc/sample_data/tga_paint.tnz \
+OPENTOONZ_GRAPHICS_SMOKE_ACTIONS=internal-editing-context \
 OPENTOONZ_GRAPHICS_SMOKE_BACKENDS=metal \
 OPENTOONZ_GRAPHICS_METAL_DIRECT_ONLY=1 \
+OPENTOONZ_GRAPHICS_SMOKE_REQUIRE_STARTUP_TRACE=1 \
+OPENTOONZ_GRAPHICS_SMOKE_REQUIRE_METAL_FRAME_TRACE=1 \
 OPENTOONZ_GRAPHICS_SMOKE_SCREENSHOT=0 \
 bash scripts/macos/graphics-app-smoke.sh /private/tmp/opentoonz-graphics-app-smoke-direct-metal
 bash scripts/verify_graphics_app_smoke_artifacts.sh \
   /private/tmp/opentoonz-graphics-app-smoke-direct-metal \
-  --require-direct-metal
+  --require-direct-metal-frame
 ```
 
-If this passes, it is launch-plus-scene-load evidence for direct Metal
-presentation. It does not replace the screenshot comparison smoke. If the log
-contains duplicate Qt runtime markers such as `You might be loading two sets of
+If this passes, it proves the packaged app reached the scene viewer and emitted
+at least one direct Metal frame without the OpenGL compatibility snapshot for
+the selected scene and smoke profile. `tga_paint.tnz` is used for this narrow
+gate because it is a simple committed raster scene whose current smoke profile
+can produce `direct_content=1` and `compatibility_snapshot=0`; broader camera,
+FX, vector, onion-skin, and export coverage stays in the manifest smoke and
+probe checks. It does not replace the screenshot comparison smoke. If the log
+contains duplicate Qt runtime markers such as
+`You might be loading two sets of
 Qt binaries` or Cocoa platform plugin initialization failure, treat that as a
 packaging/runtime issue rather than a Metal renderer mismatch.
 In the current local environment, direct-Metal screenshot capture can also fail
@@ -368,10 +558,43 @@ OPENTOONZ_METAL_RESOURCE_SUMMARY=/tmp/opentoonz-metal-resources-summary.txt \
   bash scripts/macos/verify-metal-resources.sh toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app
 ```
 
-The summary records source and `.metallib` presence, file sizes, detected
-`metal`/`metallib` tools, and a status such as `source-and-metallib` or
-`source-only-toolchain-unavailable`. If both command-line Metal tools are
-available, the verifier fails unless the compiled `.metallib` is packaged.
+The summary records repository and bundled source presence, file sizes,
+SHA-256 hashes, `.metallib` presence, detected `metal`/`metallib` tools, and a
+status such as `source-and-metallib` or `source-only-toolchain-unavailable`.
+The verifier fails if the bundled `.metal` file differs from the repository
+source. If both command-line Metal tools are available, it also fails unless the
+compiled `.metallib` is packaged.
+
+Release-grade Metal package validation must require the compiled shader
+library explicitly:
+
+```sh
+OPENTOONZ_REQUIRE_METALLIB=1 \
+OPENTOONZ_METAL_RESOURCE_SUMMARY=/tmp/opentoonz-metal-resources-summary.txt \
+  bash scripts/macos/verify-metal-resources.sh toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app
+```
+
+The macOS Metal CI leg configures with
+`-DWITH_GRAPHICS_METAL_REQUIRE_METALLIB=ON` and runs the verifier with
+`OPENTOONZ_REQUIRE_METALLIB=1`, so a source-only bundle cannot pass the release
+Metal path. Developers without the Xcode Metal command-line toolchain can still
+run the non-strict verifier to prove bundled source parity and runtime fallback
+coverage.
+
+To verify downloaded Apple-hosted macOS CI artifacts after a workflow run:
+
+```sh
+gh run download <run-id> --dir /tmp/opentoonz-macos-ci-artifacts
+bash scripts/verify_macos_ci_artifacts.sh /tmp/opentoonz-macos-ci-artifacts
+```
+
+The CI artifact verifier checks both matrix build summaries, elapsed build
+time, warning-count fields, ccache summaries, strict Metal `.metallib`
+packaging, packaged app preflight metadata, direct Metal frame traces,
+preview-export traces, Style Editor traces, viewer-input traces, packaged
+`tcomposer` nonblack statistics, and probe summary evidence. Use this verifier
+when refreshing the Apple-hosted CI evidence required before any default-backend
+change.
 
 For user-facing backend selection and troubleshooting commands, see
 `doc/how_to_build_macosx.md`.

@@ -15,7 +15,6 @@ fi
 
 pattern='gl(RenderMode|SelectBuffer|InitNames|PushName|PopName|LoadName)[[:space:]]*\(|GL_SELECT'
 allowed_files=(
-  "$ROOT/toonz/sceneviewer.cpp"
   "$ROOT/tnztools/skeletontool.cpp"
 )
 
@@ -57,15 +56,19 @@ for allowed_file in "${allowed_files[@]}"; do
   fi
 done
 
-if ! rg -n -e 'TGraphics::requestedBackendType\(\) == TGraphics::BackendType::Metal' \
-  "$ROOT/toonz/sceneviewer.cpp" >/dev/null; then
-  echo "verify-opengl-selection-compatibility: SceneViewer Metal pick guard missing" >&2
+if rg -n -e "$pattern" "$ROOT/toonz/sceneviewer.cpp" >/dev/null; then
+  echo "verify-opengl-selection-compatibility: SceneViewer OpenGL selection markers must stay removed" >&2
   exit 1
 fi
 
-if ! rg -n -e 'TGraphics::requestedBackendType\(\) != TGraphics::BackendType::Metal' \
+if ! rg -n -e 'int SkeletonTool::pickCpu\(const TPointD& viewerPos\)' \
   "$ROOT/tnztools/skeletontool.cpp" >/dev/null; then
-  echo "verify-opengl-selection-compatibility: Skeleton Tool Metal selection block missing" >&2
+  echo "verify-opengl-selection-compatibility: Skeleton Tool CPU picker missing" >&2
+  exit 1
+fi
+
+if rg -n -e 'pick\(e\.m_pos\)' "$ROOT/tnztools/skeletontool.cpp" >/dev/null; then
+  echo "verify-opengl-selection-compatibility: Skeleton Tool still calls generic OpenGL selection pick" >&2
   exit 1
 fi
 

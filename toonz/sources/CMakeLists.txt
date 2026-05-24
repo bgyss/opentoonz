@@ -184,9 +184,14 @@ option(WITH_CANON "Build with Canon DSLR support - Requires Canon SDK" OFF)
 option(WITH_TRANSLATION "Generate translation projects as well" ON)
 option(WITH_WINTAB "(Windows only) Build with customized Qt with WinTab support. https://github.com/shun-iwasawa/qt5/releases/tag/v5.15.2_wintab" OFF)
 option(WITH_GRAPHICS_METAL "Build the experimental macOS Metal graphics backend" OFF)
+option(WITH_GRAPHICS_METAL_REQUIRE_METALLIB "Require a compiled Metal shader library when WITH_GRAPHICS_METAL is enabled" OFF)
 
 if(WITH_GRAPHICS_METAL AND NOT BUILD_TARGET_APPLE)
     message(FATAL_ERROR "WITH_GRAPHICS_METAL is only supported for macOS builds")
+endif()
+
+if(WITH_GRAPHICS_METAL_REQUIRE_METALLIB AND NOT WITH_GRAPHICS_METAL)
+    message(FATAL_ERROR "WITH_GRAPHICS_METAL_REQUIRE_METALLIB requires WITH_GRAPHICS_METAL")
 endif()
 
 # avoid using again

@@ -291,7 +291,8 @@ public:
 
   void flushRasterImages();
   bool appendDirectRasterTextureQuads(TGraphics::DrawList2D &drawList,
-                                      int targetHeight) const;
+                                      int targetHeight,
+                                      std::string *diagnostic = nullptr) const;
   void drawRasterImages(QPainter &p, QPolygon cameraRect);
 
   void enableSingleColumn(bool on) { m_singleColumnEnabled = on; }

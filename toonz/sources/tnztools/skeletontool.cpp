@@ -118,9 +118,8 @@ void drawCircleWithTGraphics(const TPointD& center, double radius,
   TGraphics::drawWithOpenGLBackend(drawList);
 }
 
-bool canUseOpenGLSelectionPicking(TToolViewer* viewer) {
-  return viewer && viewer->is3DView() &&
-         TGraphics::requestedBackendType() != TGraphics::BackendType::Metal;
+bool canUseCpuSkeletonPicking(TToolViewer* viewer) {
+  return viewer != nullptr;
 }
 
 }  // namespace
@@ -471,10 +470,8 @@ bool SkeletonTool::doesApply() const {
 
 void SkeletonTool::mouseMove(const TPointD&, const TMouseEvent& e) {
   TToolViewer* viewer       = getViewer();
-  const bool useCpuPicking  = viewer && !viewer->is3DView();
-  const bool useGlSelection = canUseOpenGLSelectionPicking(viewer);
+  const bool useCpuPicking  = canUseCpuSkeletonPicking(viewer);
   int selectedDevice       = useCpuPicking ? pickCpu(e.m_pos) : -1;
-  if (selectedDevice < 0 && useGlSelection) selectedDevice = pick(e.m_pos);
   if (selectedDevice != m_device) {
     m_device = selectedDevice;
     invalidate();
@@ -502,10 +499,8 @@ void SkeletonTool::leftButtonDown(const TPointD& ppos, const TMouseEvent& e) {
   TPointD pos             = ppos;
 
   TToolViewer* viewer       = getViewer();
-  const bool useCpuPicking  = viewer && !viewer->is3DView();
-  const bool useGlSelection = canUseOpenGLSelectionPicking(viewer);
+  const bool useCpuPicking  = canUseCpuSkeletonPicking(viewer);
   int selectedDevice       = useCpuPicking ? pickCpu(e.m_pos) : -1;
-  if (selectedDevice < 0 && useGlSelection) selectedDevice = pick(e.m_pos);
 
   // change drawing
   if (selectedDevice == TD_ChangeDrawing ||
@@ -652,10 +647,8 @@ void SkeletonTool::leftButtonUp(const TPointD& pos, const TMouseEvent& e) {
   if (m_device == TD_IncrementDrawing || m_device == TD_DecrementDrawing ||
       m_device == TD_ChangeDrawing) {
     TToolViewer* viewer       = getViewer();
-    const bool useCpuPicking  = viewer && !viewer->is3DView();
-    const bool useGlSelection = canUseOpenGLSelectionPicking(viewer);
+    const bool useCpuPicking  = canUseCpuSkeletonPicking(viewer);
     m_device                 = useCpuPicking ? pickCpu(e.m_pos) : -1;
-    if (m_device < 0 && useGlSelection) m_device = pick(e.m_pos);
   } else
     m_device = -1;
   invalidate();
@@ -1050,7 +1043,7 @@ void SkeletonTool::drawIKJoint(const Skeleton::Bone* bone) {
   TPointD pos     = bone->getCenter();
   const double r0 = 6 * getPixelSize(), r1 = r0 / 3;
   int code = TD_LockStageObject + bone->getColumnIndex();
-  glPushName(code);
+  if (isPicking()) glPushName(code);
   if (bone->getPinnedStatus() != Skeleton::Bone::FREE) {
     TGraphics::DrawList2D drawList;
     const TPixel32 outlineColor(51, 26, 13, 255);
@@ -1085,7 +1078,7 @@ void SkeletonTool::drawIKJoint(const Skeleton::Bone* bone) {
     const double r3 = 2 * getPixelSize();
     drawCircleWithTGraphics(pos, r3, TPixel32(51, 26, 13, 255), false);
   }
-  glPopName();
+  if (isPicking()) glPopName();
 }
 
 //-------------------------------------------------------------------
@@ -1094,7 +1087,7 @@ void SkeletonTool::drawJoint(const TPointD& pos, bool current) {
   const double alpha = 0.8, ialpha = 1 - alpha;
   double r0 = 4 * getPixelSize();
   if (current) {
-    glPushName(TD_Center);
+    if (isPicking()) glPushName(TD_Center);
     if (m_device == TD_Center) {
       r0 *= 1.5;
     }
@@ -1104,7 +1097,7 @@ void SkeletonTool::drawJoint(const TPointD& pos, bool current) {
                                 : TPixel32(255, 186, 0, tround(alpha * 255)),
                             true, alpha < 1.0);
     drawCircleWithTGraphics(pos, r0, TPixel32(51, 26, 13, 255), false);
-    glPopName();
+    if (isPicking()) glPopName();
   } else {
     drawCircleWithTGraphics(pos, r0,
                             m_mode.getValue() == BUILD_SKELETON
@@ -1255,7 +1248,7 @@ qDebug("
     int code    = TD_Hook + hook.m_hookId;
     TPointD pos = hook.m_pos;
     ToolUtils::drawHook(pos, ToolUtils::OtherLevelHook);
-    glPushName(code);
+    if (isPicking()) glPushName(code);
     TPixel32 color(200, 220, 205, 200);
     if (hook.m_isPivot)
       color = TPixel32(200, 200, 10, 200);
@@ -1263,7 +1256,7 @@ qDebug("
       color = TPixel32(185, 255, 255);
     ToolUtils::drawBalloon(pos, hook.m_name, color, TPoint(20, 20),
                            getPixelSize(), isPicking(), &balloons);
-    glPopName();
+    if (isPicking()) glPopName();
   }
 
   if (m_parentProbeEnabled) {
@@ -1390,12 +1383,12 @@ glPopMatrix();
            removeTrailingH(h1.getHandle());
 
     int code = TD_MagicLink + i;
-    glPushName(code);
+    if (isPicking()) glPushName(code);
     TPixel32 color(100, 255, 100, 100);
     if (code == m_device) color = TPixel32(185, 255, 255);
     ToolUtils::drawBalloon(magicLink.m_h0.m_pos, name, color, TPoint(20, -20),
                            getPixelSize(), isPicking(), &balloons);
-    glPopName();
+    if (isPicking()) glPopName();
   }
 }
 
@@ -1503,7 +1496,8 @@ void SkeletonTool::drawDrawingBrowser(const TXshCell& cell,
 
 int SkeletonTool::pickCpu(const TPointD& viewerPos) {
   TTool::Application* app = TTool::getApplication();
-  if (!app || !doesApply() || getViewer()->is3DView()) return TD_None;
+  TToolViewer* viewer     = getViewer();
+  if (!app || !viewer || !doesApply()) return TD_None;
 
   TXsheet* xsh = getXsheet();
   if (!xsh) return TD_None;
@@ -1515,7 +1509,7 @@ int SkeletonTool::pickCpu(const TPointD& viewerPos) {
   if (fabs(aff.det()) < 0.00001) return TD_None;
   const TAffine skeletonToWorld = aff.inv();
   auto toViewer                 = [&](const TPointD& p) {
-    return getViewer()->worldToPos(skeletonToWorld * p);
+    return viewer->worldToPos(skeletonToWorld * p);
   };
 
   const int col   = objId.getIndex();

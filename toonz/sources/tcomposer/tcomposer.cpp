@@ -31,6 +31,9 @@
 #include "toonz/txshsimplelevel.h"
 #include "toonz/levelproperties.h"
 #include "toonz/filepathproperties.h"
+#include "toonz/tcolumnfxset.h"
+#include "toonz/tcolumnfx.h"
+#include "toonz/fxdag.h"
 
 // TnzSound includes
 #include "tnzsound.h"
@@ -72,8 +75,12 @@
 
 // Qt includes
 #include <QApplication>
+#include <QDir>
 #include <QWaitCondition>
 #include <QMessageBox>
+
+#include <cstdlib>
+#include <set>
 
 #ifdef _WIN32
 #ifndef x64
@@ -254,6 +261,148 @@ void UnsetPremultiplyOptionsInPngLevels(ToonzScene *scene) {
       m_userLog->info(msg);
     }
   }
+}
+
+void DumpSceneLevelDiagnostics(ToonzScene *scene, const TFilePath &scenePath) {
+  if (!std::getenv("OPENTOONZ_TCOMPOSER_DEBUG_LEVELS") || !scene) return;
+
+  std::vector<TXshLevel *> levels;
+  scene->getLevelSet()->listLevels(levels);
+  std::cout << "tcomposer level diagnostics: scene=" << scenePath
+            << " level_count=" << levels.size() << std::endl;
+  for (TXshLevel *level : levels) {
+    if (!level) continue;
+    TXshSimpleLevel *simpleLevel = level->getSimpleLevel();
+    std::cout << "  level name="
+              << QString::fromStdWString(level->getName()).toStdString()
+              << " type=" << level->getType();
+    if (simpleLevel) {
+      const TFilePath rawPath     = simpleLevel->getPath();
+      const TFilePath decodedPath = scene->decodeFilePath(rawPath);
+      std::vector<TFrameId> fids;
+      simpleLevel->getFids(fids);
+      std::cout << " path=" << rawPath << " decoded=" << decodedPath
+                << " exists=" << (TSystem::doesExistFileOrLevel(decodedPath) ? 1 : 0)
+                << " frame_count=" << fids.size();
+      if (!fids.empty()) {
+        std::cout << " first_fid=" << fids.front()
+                  << " first_path=" << decodedPath.withFrame(fids.front())
+                  << " first_exists="
+                  << (TSystem::doesExistFileOrLevel(
+                          decodedPath.withFrame(fids.front()))
+                          ? 1
+                          : 0);
+      }
+    }
+    std::cout << std::endl;
+  }
+}
+
+void DumpFxTreeDiagnostics(TFx *fx, double frame,
+                           const TRenderSettings &settings,
+                           std::set<TFx *> &visited, int depth,
+                           const std::string &label) {
+  if (!fx) {
+    std::cout << " fx_tree depth=" << depth << " label=" << label
+              << " null=1";
+    return;
+  }
+
+  std::cout << " fx_tree depth=" << depth << " label=" << label
+            << " type=" << fx->getFxType()
+            << " name=" << QString::fromStdWString(fx->getName()).toStdString()
+            << " inputs=" << fx->getInputPortCount();
+
+  TRasterFxP rasterFx(fx);
+  TRectD bbox;
+  const bool hasBBox =
+      rasterFx && rasterFx->getBBox(frame, bbox, settings);
+  std::cout << " bbox_valid=" << (hasBBox ? 1 : 0) << " bbox=" << bbox.x0
+            << "," << bbox.y0 << "," << bbox.x1 << "," << bbox.y1;
+
+  if (visited.find(fx) != visited.end()) {
+    std::cout << " cycle=1";
+    return;
+  }
+  visited.insert(fx);
+  if (depth >= 12) {
+    std::cout << " depth_limit=1";
+    return;
+  }
+
+  for (int i = 0; i < fx->getInputPortCount(); ++i) {
+    TFxPort *port = fx->getInputPort(i);
+    std::cout << std::endl;
+    DumpFxTreeDiagnostics(port ? port->getFx() : 0, frame, settings, visited,
+                          depth + 1,
+                          fx->getInputPortName(i));
+  }
+}
+
+void DumpRenderDiagnostics(ToonzScene *scene, const TFxP &fx, double frame,
+                           int whichLevels, int shrink,
+                           const TRenderSettings &settings) {
+  if (!std::getenv("OPENTOONZ_TCOMPOSER_DEBUG_LEVELS") || !scene) return;
+
+  TRectD xsheetBBox;
+  if (scene->getXsheet()) xsheetBBox = scene->getXsheet()->getBBox((int)frame);
+
+  std::cout << "tcomposer render diagnostics: frame=" << frame
+            << " which_levels=" << whichLevels << " shrink=" << shrink
+            << " camera_res=" << scene->getCurrentCamera()->getRes().lx << "x"
+            << scene->getCurrentCamera()->getRes().ly << " xsheet_bbox="
+            << xsheetBBox.x0 << "," << xsheetBBox.y0 << "," << xsheetBBox.x1
+            << "," << xsheetBBox.y1;
+  if (scene->getXsheet() && scene->getXsheet()->getFxDag()) {
+    TFxSet *terminalFxs = scene->getXsheet()->getFxDag()->getTerminalFxs();
+    TFx *outputFx       = scene->getXsheet()->getFxDag()->getOutputFx(0);
+    std::cout << " terminal_fx_count="
+              << (terminalFxs ? terminalFxs->getFxCount() : 0)
+              << " output_fx_inputs="
+              << (outputFx ? outputFx->getInputPortCount() : 0)
+              << " output_fx_has_source="
+              << (outputFx && outputFx->getInputPortCount() > 0 &&
+                          outputFx->getInputPort(0)->getFx()
+                      ? 1
+                      : 0);
+    if (terminalFxs) {
+      for (int i = 0; i < terminalFxs->getFxCount(); ++i) {
+        TRasterFxP terminalRasterFx(terminalFxs->getFx(i));
+        TRectD terminalBBox;
+        const bool hasTerminalBBox =
+            terminalRasterFx &&
+            terminalRasterFx->getBBox(frame, terminalBBox, settings);
+        std::cout << " terminal" << i
+                  << "_bbox_valid=" << (hasTerminalBBox ? 1 : 0)
+                  << " terminal" << i << "_bbox=" << terminalBBox.x0 << ","
+                  << terminalBBox.y0 << "," << terminalBBox.x1 << ","
+                  << terminalBBox.y1;
+      }
+    }
+    if (outputFx && outputFx->getInputPortCount() > 0) {
+      std::set<TFx *> visited;
+      std::cout << std::endl;
+      DumpFxTreeDiagnostics(outputFx->getInputPort(0)->getFx(), frame,
+                            settings, visited, 0, "output_source");
+    }
+  }
+
+  TRasterFxP rasterFx(fx);
+  if (rasterFx) {
+    TRectD fxBBox;
+    const bool hasBBox = rasterFx->getBBox(frame, fxBBox, settings);
+    std::cout << " fx_bbox_valid=" << (hasBBox ? 1 : 0) << " fx_bbox="
+              << fxBBox.x0 << "," << fxBBox.y0 << "," << fxBBox.x1 << ","
+              << fxBBox.y1;
+    std::set<TFx *> visited;
+    std::cout << std::endl;
+    DumpFxTreeDiagnostics(rasterFx.getPointer(), frame, settings, visited, 0,
+                          "built_frame_fx");
+  } else {
+    std::cout << " fx_bbox_valid=0";
+  }
+
+  std::cout << std::endl;
 }
 
 }  // namespace
@@ -547,17 +696,20 @@ static std::pair<int, int> generateMovie(ToonzScene *scene, const TFilePath &fp,
       TFxPair fx;
       if (rs.m_stereoscopic) scene->shiftCameraX(-rs.m_stereoscopicShift / 2);
 
-      fx.m_frameA = (TRasterFxP)buildSceneFx(scene, scene->getXsheet(), r,
-                                             which, shrink, false);
+      fx.m_frameA =
+          (TRasterFxP)buildSceneFx(scene, r, scene->getXsheet(), TFxP(),
+                                   BSFX_DEFAULT_TR, false, which, shrink);
+      DumpRenderDiagnostics(scene, fx.m_frameA, r, which, shrink, rs);
 
       if (rs.m_fieldPrevalence != TRenderSettings::NoField)
-        fx.m_frameB = (TRasterFxP)buildSceneFx(scene, scene->getXsheet(),
-                                               r + 0.5 * timeStretchFactor,
-                                               which, shrink, false);
+        fx.m_frameB = (TRasterFxP)buildSceneFx(
+            scene, r + 0.5 * timeStretchFactor, scene->getXsheet(), TFxP(),
+            BSFX_DEFAULT_TR, false, which, shrink);
       else if (rs.m_stereoscopic) {
         scene->shiftCameraX(rs.m_stereoscopicShift);
-        fx.m_frameB = (TRasterFxP)buildSceneFx(scene, scene->getXsheet(), r,
-                                               which, shrink, false);
+        fx.m_frameB =
+            (TRasterFxP)buildSceneFx(scene, r, scene->getXsheet(), TFxP(),
+                                     BSFX_DEFAULT_TR, false, which, shrink);
         scene->shiftCameraX(-rs.m_stereoscopicShift / 2);
       } else
         fx.m_frameB = TRasterFxP();
@@ -748,6 +900,7 @@ int main(int argc, char *argv[]) {
   TFilePathSet::iterator fpIt;
   for (fpIt = fps.begin(); fpIt != fps.end(); ++fpIt)
     TProjectManager::instance()->addProjectsRoot(*fpIt);
+  TProjectManager::instance()->createSandboxIfNeeded();
 
   TFilePath libraryFolder = ToonzFolder::getLibraryFolder();
   TRasterImagePatternStrokeStyle::setRootDir(libraryFolder);
@@ -806,6 +959,9 @@ int main(int argc, char *argv[]) {
       srcFilePath = TSystem::toLocalPath(srcFilePath);
     } catch (...) {
     }
+    if (!srcFilePath.isAbsolute())
+      srcFilePath =
+          TFilePath(QDir::currentPath().toStdString()) + srcFilePath;
 
     //---------------------------------------------------------
     msg = "Loading " + srcFilePath.getName();
@@ -858,6 +1014,7 @@ int main(int argc, char *argv[]) {
     // Check if the scene saved with the previous version AND the premultiply
     // option is set to PNG level setting
     UnsetPremultiplyOptionsInPngLevels(scene);
+    DumpSceneLevelDiagnostics(scene, srcFilePath);
 
     msg = "scene loaded";
     cout << "scene loaded" << endl;

@@ -9,6 +9,7 @@
 #include "tvectorrenderdata.h"
 #include "tcolorfunctions.h"
 #include "tpalette.h"
+#include "trop.h"
 #include "tropcm.h"
 #include "trasterimage.h"
 #include "tvectorimage.h"
@@ -761,13 +762,28 @@ void RasterPainter::flushRasterImages() {
 //-----------------------------------------------------------------------------
 
 bool RasterPainter::appendDirectRasterTextureQuads(
-    TGraphics::DrawList2D &drawList, int targetHeight) const {
-  if (m_nodes.empty()) return true;
+    TGraphics::DrawList2D &drawList, int targetHeight,
+    std::string *diagnostic) const {
+  if (diagnostic) diagnostic->clear();
+  if (m_nodes.empty()) {
+    if (diagnostic) *diagnostic = "empty";
+    return true;
+  }
 
-  if (m_vs.m_colorMask != 0) return false;
-  if (m_vs.m_showBBox) return false;
-  if (m_checkFlags && ToonzCheck::instance()->getChecks() != 0) return false;
-  if (m_doRasterDarkenBlendedView) return false;
+  const bool requiresCompatibilityOverlay = m_vs.m_showBBox;
+  const int unsupportedChecks =
+      m_checkFlags ? ToonzCheck::instance()->getChecks() &
+                         ~ToonzCheck::eTransparency
+                   : 0;
+  if (unsupportedChecks != 0) {
+    if (diagnostic)
+      *diagnostic = "unsupported_checks=" + std::to_string(unsupportedChecks);
+    return false;
+  }
+  if (m_doRasterDarkenBlendedView) {
+    if (diagnostic) *diagnostic = "darken_blended_view";
+    return false;
+  }
 
   bool allNodesAppended = true;
 
@@ -776,14 +792,57 @@ bool RasterPainter::appendDirectRasterTextureQuads(
   };
 
   for (const Node &node : m_nodes) {
-    TRaster32P raster = node.m_raster;
-    if (!raster) {
-      allNodesAppended = false;
-      continue;
+    TRaster32P raster;
+
+    TPixel32 colorScale = TPixel32(255, 255, 255, node.m_alpha);
+    if (node.m_onionMode != Node::eOnionSkinNone) {
+      TPixel32 frontOnionColor, backOnionColor;
+      bool onionInksOnly;
+      Preferences::instance()->getOnionData(frontOnionColor, backOnionColor,
+                                            onionInksOnly);
+      const TPixel32 &onionColor =
+          node.m_onionMode == Node::eOnionSkinFront ? frontOnionColor
+                                                    : backOnionColor;
+      colorScale = TPixel32(onionColor.r, onionColor.g, onionColor.b,
+                            node.m_alpha);
+    } else if (node.m_filterColor != TPixel32::Black) {
+      colorScale   = node.m_filterColor;
+      colorScale.m = (typename TPixel32::Channel)(
+          (int)colorScale.m * (int)node.m_alpha /
+          TPixel32::maxChannelValue);
     }
-    if (node.m_onionMode != Node::eOnionSkinNone ||
-        node.m_doPremultiply || node.m_whiteTransp || node.m_isFirstColumn ||
-        node.m_filterColor != TPixel32::Black) {
+
+    if (TRaster32P src32 = node.m_raster) {
+      raster = TRaster32P(src32->getSize());
+      raster->clear();
+      TRop::quickPut(raster, src32, TAffine(), colorScale,
+                     node.m_doPremultiply, node.m_whiteTransp,
+                     node.m_isFirstColumn, m_doRasterDarkenBlendedView);
+    } else if (TRasterCM32P cmRaster = node.m_raster) {
+      if (node.m_palette) {
+        raster = TRaster32P(cmRaster->getSize());
+        raster->clear();
+
+        const int oldFrame = node.m_palette->getFrame();
+        node.m_palette->setFrame(node.m_frame);
+        TRop::quickPut(raster, cmRaster, node.m_palette, TAffine(),
+                       colorScale, false);
+        node.m_palette->setFrame(oldFrame);
+      }
+    } else if (TRasterGR8P gr8Raster = node.m_raster) {
+      raster = TRaster32P(gr8Raster->getSize());
+      raster->clear();
+      TRop::quickPut(raster, gr8Raster, TAffine(), colorScale);
+    } else if (node.m_raster) {
+      raster = TRaster32P(node.m_raster->getSize());
+      raster->clear();
+      TRop::convert(raster, node.m_raster);
+    }
+    if (!raster) {
+      if (diagnostic && diagnostic->empty())
+        *diagnostic =
+            std::string("unsupported_raster_type frame=") +
+            std::to_string(node.m_frame);
       allNodesAppended = false;
       continue;
     }
@@ -795,9 +854,17 @@ bool RasterPainter::appendDirectRasterTextureQuads(
 
     drawList.addTextureQuad(toTopLeftPixel(p00), toTopLeftPixel(p10),
                             toTopLeftPixel(p11), toTopLeftPixel(p01), raster,
-                            TPixel32(255, 255, 255, node.m_alpha), true);
+                            TPixel32::White, true);
   }
 
+  if (requiresCompatibilityOverlay) allNodesAppended = false;
+
+  if (diagnostic && diagnostic->empty()) {
+    if (requiresCompatibilityOverlay)
+      *diagnostic = "partial_show_bbox";
+    else
+      *diagnostic = allNodesAppended ? "ok" : "partial";
+  }
   return allNodesAppended;
 }
 

@@ -7,7 +7,9 @@ scripts/generate_graphics_fixture_scenes.sh "$out_dir" >/dev/null
 
 sub_xsheet_scene="$out_dir/sub_xsheet_basic.tnz"
 mesh_scene="$out_dir/mesh_skeleton_basic.tnz"
+tcomposer_scene="$out_dir/tcomposer_color_card.tnz"
 mesh_frame="$out_dir/mesh/basic_mesh.0001.mesh"
+tcomposer_frame="$out_dir/tcomposer/color_card.0001.tif"
 if [[ ! -s "$sub_xsheet_scene" ]]; then
   echo "verify-graphics-fixture-scenes: missing generated sub-xsheet scene" >&2
   exit 1
@@ -16,8 +18,16 @@ if [[ ! -s "$mesh_scene" ]]; then
   echo "verify-graphics-fixture-scenes: missing generated mesh scene" >&2
   exit 1
 fi
+if [[ ! -s "$tcomposer_scene" ]]; then
+  echo "verify-graphics-fixture-scenes: missing generated tcomposer color-card scene" >&2
+  exit 1
+fi
 if [[ ! -s "$mesh_frame" ]]; then
   echo "verify-graphics-fixture-scenes: missing generated mesh frame" >&2
+  exit 1
+fi
+if [[ ! -s "$tcomposer_frame" ]]; then
+  echo "verify-graphics-fixture-scenes: missing generated tcomposer frame" >&2
   exit 1
 fi
 
@@ -44,9 +54,27 @@ if ! grep -q '"\$scenefolder\\\\dwanko\\\\tga\\\\A_converted.tlv"' \
   echo "verify-graphics-fixture-scenes: sub-xsheet fixture is not backed by sample TLV data" >&2
   fail=1
 fi
+tlv_level_line="$(grep -n "<level id='2'>" "$sub_xsheet_scene" | head -n 1 | cut -d: -f1)"
+child_level_line="$(grep -n "<childLevel id='1'>" "$sub_xsheet_scene" | head -n 1 | cut -d: -f1)"
+if [[ -z "$tlv_level_line" || -z "$child_level_line" ||
+      "$tlv_level_line" -ge "$child_level_line" ]]; then
+  echo "verify-graphics-fixture-scenes: sub-xsheet fixture must declare TLV level before childLevel references it" >&2
+  fail=1
+fi
 
 if ! grep -q "<meshColumn id='2'>" "$mesh_scene"; then
   echo "verify-graphics-fixture-scenes: mesh fixture has no meshColumn" >&2
+  fail=1
+fi
+
+if ! grep -q '"\$scenefolder/tcomposer/color_card..tif"' \
+    "$tcomposer_scene"; then
+  echo "verify-graphics-fixture-scenes: tcomposer fixture is not backed by generated TIFF data" >&2
+  fail=1
+fi
+
+if ! grep -q "<level id='1'/>0001 0" "$tcomposer_scene"; then
+  echo "verify-graphics-fixture-scenes: tcomposer fixture does not expose the generated frame" >&2
   fail=1
 fi
 

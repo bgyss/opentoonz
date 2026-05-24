@@ -17,7 +17,6 @@ if [[ -x scripts/generate_graphics_fixture_scenes.sh ]]; then
   bash scripts/generate_graphics_fixture_scenes.sh "$fixture_dir" >/dev/null
 fi
 
-declare -A seen_paths=()
 scene_count=0
 while IFS=$'\t' read -r id category status path frame validation notes; do
   if [[ "$id" == "id" ]]; then
@@ -40,16 +39,13 @@ while IFS=$'\t' read -r id category status path frame validation notes; do
     echo "graphics-app-smoke-manifest: missing scene: $path" >&2
     exit 1
   fi
-  if [[ -n "${seen_paths[$path]:-}" ]]; then
-    continue
-  fi
-  seen_paths["$path"]=1
   scene_count=$((scene_count + 1))
 
   safe_id="$(printf '%s' "$id" | tr -c 'A-Za-z0-9_.-' '_')"
   scene_artifacts="$artifact_root/$safe_id"
   echo "graphics-app-smoke-manifest: scene=$path artifacts=$scene_artifacts"
   OPENTOONZ_GRAPHICS_SMOKE_SCENE="$path" \
+  OPENTOONZ_GRAPHICS_SMOKE_FRAME="$frame" \
     bash scripts/macos/graphics-app-smoke.sh "$scene_artifacts"
   verify_args=()
   if [[ "${OPENTOONZ_GRAPHICS_SMOKE_SCREENSHOT:-1}" != "0" ]]; then

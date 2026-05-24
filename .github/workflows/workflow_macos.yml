@@ -34,7 +34,7 @@ jobs:
             cmake_extra_args: -DWITH_GRAPHICS_METAL=OFF
             run_metal_smoke: '0'
           - graphics: metal
-            cmake_extra_args: -DWITH_GRAPHICS_METAL=ON
+            cmake_extra_args: -DWITH_GRAPHICS_METAL=ON -DWITH_GRAPHICS_METAL_REQUIRE_METALLIB=ON
             run_metal_smoke: '1'
     env:
       OPENTOONZ_APP: toonz/build/nix-relwithdebinfo/toonz/OpenToonz.app
@@ -85,6 +85,7 @@ jobs:
           bash scripts/verify_opengl_selection_compatibility.sh
           bash scripts/verify_graphics_fixture_scenes.sh "$RUNNER_TEMP/opentoonz-graphics-fixtures"
           bash scripts/verify_golden_scene_manifest.sh --require-complete
+          bash scripts/verify_macos_default_backend_decision.sh
 
       - name: Restore ccache
         uses: actions/cache@v5
@@ -125,10 +126,54 @@ jobs:
         if: ${{ matrix.run_metal_smoke == '1' }}
         run: |
           bash scripts/macos/verify-bundled-qt-runtime.sh "$OPENTOONZ_APP"
+          OPENTOONZ_REQUIRE_METALLIB=1 \
           OPENTOONZ_METAL_RESOURCE_SUMMARY="$RUNNER_TEMP/opentoonz-metal-resources/summary.txt" \
             bash scripts/macos/verify-metal-resources.sh "$OPENTOONZ_APP"
           test -x toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
           test -x toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe
+
+      - name: Run packaged tcomposer scene export
+        if: ${{ matrix.run_metal_smoke == '1' }}
+        run: |
+          bash scripts/verify_macos_tcomposer_scene_export.sh \
+            "$RUNNER_TEMP/opentoonz-tcomposer-scene-export"
+
+      - name: Run packaged preview export app smoke
+        if: ${{ matrix.run_metal_smoke == '1' }}
+        run: |
+          OPENTOONZ_GRAPHICS_FIXTURE_DIR="$RUNNER_TEMP/opentoonz-graphics-fixtures" \
+          OPENTOONZ_GRAPHICS_SMOKE_BACKENDS="opengl metal" \
+          OPENTOONZ_GRAPHICS_SMOKE_SECONDS=5 \
+          OPENTOONZ_GRAPHICS_SMOKE_COOLDOWN_SECONDS=2 \
+          bash scripts/verify_macos_preview_export_app_smoke.sh \
+            "$RUNNER_TEMP/opentoonz-preview-export-app-smoke"
+
+      - name: Run packaged style editor app smoke
+        if: ${{ matrix.run_metal_smoke == '1' }}
+        run: |
+          OPENTOONZ_GRAPHICS_SMOKE_BACKENDS="opengl metal" \
+          OPENTOONZ_GRAPHICS_SMOKE_SECONDS=5 \
+          OPENTOONZ_GRAPHICS_SMOKE_COOLDOWN_SECONDS=2 \
+          bash scripts/verify_macos_style_editor_app_smoke.sh \
+            "$RUNNER_TEMP/opentoonz-style-editor-app-smoke"
+
+      - name: Run packaged viewer input app smoke
+        if: ${{ matrix.run_metal_smoke == '1' }}
+        run: |
+          OPENTOONZ_GRAPHICS_SMOKE_BACKENDS="opengl metal" \
+          OPENTOONZ_GRAPHICS_SMOKE_SECONDS=5 \
+          OPENTOONZ_GRAPHICS_SMOKE_COOLDOWN_SECONDS=2 \
+          bash scripts/verify_macos_viewer_input_app_smoke.sh \
+            "$RUNNER_TEMP/opentoonz-viewer-input-app-smoke"
+
+      - name: Run packaged drawing gesture app smoke
+        if: ${{ matrix.run_metal_smoke == '1' }}
+        run: |
+          OPENTOONZ_GRAPHICS_SMOKE_BACKENDS="opengl metal" \
+          OPENTOONZ_GRAPHICS_SMOKE_SECONDS=25 \
+          OPENTOONZ_GRAPHICS_SMOKE_COOLDOWN_SECONDS=2 \
+          bash scripts/verify_macos_drawing_gesture_app_smoke.sh \
+            "$RUNNER_TEMP/opentoonz-drawing-gesture-app-smoke"
 
       - name: Run packaged manifest graphics smoke
         if: ${{ matrix.run_metal_smoke == '1' }}
@@ -146,9 +191,12 @@ jobs:
       - name: Run packaged direct Metal scene smoke
         if: ${{ matrix.run_metal_smoke == '1' }}
         run: |
-          OPENTOONZ_GRAPHICS_SMOKE_SCENE=doc/sample_data/dwanko_run.tnz \
+          OPENTOONZ_GRAPHICS_SMOKE_SCENE=doc/sample_data/tga_paint.tnz \
+          OPENTOONZ_GRAPHICS_SMOKE_ACTIONS=internal-editing-context \
           OPENTOONZ_GRAPHICS_SMOKE_BACKENDS=metal \
           OPENTOONZ_GRAPHICS_METAL_DIRECT_ONLY=1 \
+          OPENTOONZ_GRAPHICS_SMOKE_REQUIRE_STARTUP_TRACE=1 \
+          OPENTOONZ_GRAPHICS_SMOKE_REQUIRE_METAL_FRAME_TRACE=1 \
           OPENTOONZ_GRAPHICS_SMOKE_SECONDS=5 \
           OPENTOONZ_GRAPHICS_SMOKE_COOLDOWN_SECONDS=2 \
           OPENTOONZ_GRAPHICS_SMOKE_SCREENSHOT=0 \
@@ -156,7 +204,7 @@ jobs:
             "$RUNNER_TEMP/opentoonz-graphics-app-smoke-direct-metal"
           bash scripts/verify_graphics_app_smoke_artifacts.sh \
             "$RUNNER_TEMP/opentoonz-graphics-app-smoke-direct-metal" \
-            --require-direct-metal
+            --require-direct-metal-frame
 
       - name: Import Apple signing certificate
         if: ${{ github.event_name == 'release' && matrix.graphics == 'opengl-fallback' && env.MACOS_CERTIFICATE_P12_BASE64 != '' && env.MACOS_CERTIFICATE_PASSWORD != '' }}
@@ -212,6 +260,11 @@ jobs:
             ${{ runner.temp }}/opentoonz-preview-export-probe/*
             ${{ runner.temp }}/opentoonz-shaderfx-compare/*
             ${{ runner.temp }}/opentoonz-graphics-fixtures/*
+            ${{ runner.temp }}/opentoonz-tcomposer-scene-export/*
+            ${{ runner.temp }}/opentoonz-preview-export-app-smoke/*
+            ${{ runner.temp }}/opentoonz-style-editor-app-smoke/*
+            ${{ runner.temp }}/opentoonz-viewer-input-app-smoke/*
+            ${{ runner.temp }}/opentoonz-drawing-gesture-app-smoke/*
             ${{ runner.temp }}/opentoonz-graphics-app-smoke-manifest/*
             ${{ runner.temp }}/opentoonz-graphics-app-smoke-direct-metal/*
           if-no-files-found: error

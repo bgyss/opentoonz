@@ -61,7 +61,8 @@ for scene in cleanup.tnz dwanko_run.tnz tga_paint.tnz; do
 done
 
 while IFS= read -r scene_ref; do
-  ref="${scene_ref#\"\$scenefolder\\\\}"
+  ref="${scene_ref#\"\$scenefolder/}"
+  ref="${ref#\"\$scenefolder\\\\}"
   ref="${ref%\"}"
   ref="${ref//\\\\//}"
   path="$ROOT/$ref"
@@ -76,7 +77,7 @@ while IFS= read -r scene_ref; do
     echo "verify-sample-data: unresolved scene dependency: $scene_ref" >&2
     fail=1
   fi
-done < <(grep -hEo '"\$scenefolder\\\\[^"]+"' \
+done < <(grep -hEo '"\$scenefolder(\\\\|/)[^"]+"' \
   "$ROOT/cleanup.tnz" "$ROOT/dwanko_run.tnz" "$ROOT/tga_paint.tnz" | sort -u)
 
 if (( fail != 0 )); then

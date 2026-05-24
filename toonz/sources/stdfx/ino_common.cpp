@@ -4,6 +4,10 @@
 #include "ino_common.h"
 #include "tfxparam.h"
 
+#include <cmath>
+#include <cstdlib>
+#include <iostream>
+#include <limits>
 #include <sstream> /* std::ostringstream */
 
 /* copy and paste from
@@ -376,6 +380,15 @@ const T& clamp(const T& v, const T& lo, const T& hi) {
   assert(!(hi < lo));
   return (v < lo) ? lo : (hi < v) ? hi : v;
 }
+
+bool isBoundedBlendBBox(const TRectD& bbox) {
+  const double maxBounded = std::numeric_limits<double>::max() * 0.25;
+  return std::isfinite(bbox.x0) && std::isfinite(bbox.y0) &&
+         std::isfinite(bbox.x1) && std::isfinite(bbox.y1) &&
+         std::abs(bbox.x0) < maxBounded && std::abs(bbox.y0) < maxBounded &&
+         std::abs(bbox.x1) < maxBounded && std::abs(bbox.y1) < maxBounded &&
+         bbox.getLx() > 0.5 && bbox.getLy() > 0.5;
+}
 }  // namespace
 //------------------------------------------------------------
 
@@ -452,11 +465,28 @@ void TBlendForeBackRasterFx::onObsoleteParamLoaded(
 bool TBlendForeBackRasterFx::doGetBBox(double frame, TRectD& bBox,
                                        const TRenderSettings& rs) {
   TRectD up_bx;
-  const bool up_sw =
-      (m_up.isConnected() ? m_up->doGetBBox(frame, up_bx, rs) : false);
+  const bool up_connected = m_up.isConnected();
+  const bool up_ret =
+      up_connected ? m_up->doGetBBox(frame, up_bx, rs) : false;
+  const bool up_sw = up_ret && isBoundedBlendBBox(up_bx);
   TRectD dn_bx;
-  const bool dn_sw =
-      (m_down.isConnected() ? m_down->doGetBBox(frame, dn_bx, rs) : false);
+  const bool dn_connected = m_down.isConnected();
+  const bool dn_ret =
+      dn_connected ? m_down->doGetBBox(frame, dn_bx, rs) : false;
+  const bool dn_sw = dn_ret && isBoundedBlendBBox(dn_bx);
+  if (std::getenv("OPENTOONZ_TCOMPOSER_DEBUG_LEVELS")) {
+    std::cout << "ino_blend_bbox fx=" << getFxType() << " frame=" << frame
+              << " up_connected=" << (up_connected ? 1 : 0)
+              << " up_ret=" << (up_ret ? 1 : 0) << " up_bbox=" << up_bx.x0
+              << "," << up_bx.y0 << "," << up_bx.x1 << "," << up_bx.y1
+              << " up_size=" << up_bx.getLx() << "x" << up_bx.getLy()
+              << " up_active=" << (up_sw ? 1 : 0)
+              << " dn_connected=" << (dn_connected ? 1 : 0)
+              << " dn_ret=" << (dn_ret ? 1 : 0) << " dn_bbox=" << dn_bx.x0
+              << "," << dn_bx.y0 << "," << dn_bx.x1 << "," << dn_bx.y1
+              << " dn_size=" << dn_bx.getLx() << "x" << dn_bx.getLy()
+              << " dn_active=" << (dn_sw ? 1 : 0) << std::endl;
+  }
   if (up_sw && dn_sw) {
     bBox = up_bx + dn_bx;
     return !bBox.isEmpty();

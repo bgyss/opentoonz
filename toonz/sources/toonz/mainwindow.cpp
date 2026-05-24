@@ -47,11 +47,13 @@
 #include "tsystem.h"
 #include "timagecache.h"
 #include "tthread.h"
+#include "tgraphics.h"
 
 // Qt includes
 #include <QStackedWidget>
 #include <QSettings>
 #include <QApplication>
+#include <QOpenGLContext>
 #include <QOpenGLFramebufferObject>
 #include <QDebug>
 #include <QDesktopServices>
@@ -63,6 +65,10 @@
 #include <QtPlatformHeaders/QWindowsWindowFunctions>
 #endif
 #include <docklayout.h>
+
+#include <cstdlib>
+#include <fstream>
+#include <iostream>
 
 TEnv::IntVar ViewCameraToggleAction("ViewCameraToggleAction", 1);
 TEnv::IntVar ViewTableToggleAction("ViewTableToggleAction", 1);
@@ -99,6 +105,37 @@ namespace {
 std::string layoutsFileName           = "layouts.txt";
 const std::string currentRoomFileName = "currentRoom.txt";
 bool scrambledRooms                   = false;
+
+void logGraphicsSmokeMainWindowEvent(const std::string &event) {
+  if (!std::getenv("OPENTOONZ_GRAPHICS_METAL_FRAME_DIAGNOSTICS"))
+    return;
+
+  const std::string message =
+      std::string("OpenToonz graphics smoke: mainwindow_") + event;
+  std::cerr << message << std::endl;
+
+  const char *tracePath = std::getenv("OPENTOONZ_GRAPHICS_SMOKE_TRACE_FILE");
+  if (tracePath && *tracePath) {
+    std::ofstream trace(tracePath, std::ios::app);
+    trace << message << '\n';
+  }
+}
+
+bool canUseOpenGLFramebufferObjects() {
+  if (TGraphics::requestedBackendType() == TGraphics::BackendType::Metal) {
+    logGraphicsSmokeMainWindowEvent("fbo_probe_skip backend=metal");
+    return false;
+  }
+  if (!QOpenGLContext::currentContext()) {
+    logGraphicsSmokeMainWindowEvent("fbo_probe_skip reason=no_current_context");
+    return false;
+  }
+  logGraphicsSmokeMainWindowEvent("fbo_probe_start");
+  const bool supported = QOpenGLFramebufferObject::hasOpenGLFramebufferObjects();
+  logGraphicsSmokeMainWindowEvent(std::string("fbo_probe_done supported=") +
+                                  (supported ? "1" : "0"));
+  return supported;
+}
 
 //=============================================================================
 
@@ -439,29 +476,40 @@ MainWindow::MainWindow(const QString &argumentLayoutFileName, QWidget *parent,
     , m_saveSettingsOnQuit(true)
     , m_oldRoomIndex(0)
     , m_layoutName("") {
+  logGraphicsSmokeMainWindowEvent("ctor_start");
   // store a main window pointer in advance of making its contents
   TApp::instance()->setMainWindow(this);
+  logGraphicsSmokeMainWindowEvent("after_set_main_window");
 
   m_toolsActionGroup = new QActionGroup(this);
   m_toolsActionGroup->setExclusive(true);
   m_currentRoomsChoice = Preferences::instance()->getCurrentRoomChoice();
+  logGraphicsSmokeMainWindowEvent("before_define_actions");
   defineActions();
+  logGraphicsSmokeMainWindowEvent("after_define_actions");
   // user defined shortcuts will be loaded here
   CommandManager::instance()->loadShortcuts();
+  logGraphicsSmokeMainWindowEvent("after_load_shortcuts");
 
   // initialize tool options shortcuts
   ToolOptionsShortcutInvoker::instance()->initialize();
+  logGraphicsSmokeMainWindowEvent("after_tool_options_shortcuts");
 
   TApp::instance()->getCurrentScene()->setDirtyFlag(false);
+  logGraphicsSmokeMainWindowEvent("after_clear_dirty_flag");
 
   // La menuBar altro non è che una toolbar
   // in cui posso inserire quanti custom widget voglio.
+  logGraphicsSmokeMainWindowEvent("before_top_bar");
   m_topBar = new TopBar(this);
+  logGraphicsSmokeMainWindowEvent("after_top_bar");
 
   addToolBar(m_topBar);
   addToolBarBreak(Qt::TopToolBarArea);
+  logGraphicsSmokeMainWindowEvent("after_top_bar_layout");
 
   m_stackedWidget = new QStackedWidget(this);
+  logGraphicsSmokeMainWindowEvent("after_stacked_widget");
 
   // For the style sheet
   m_stackedWidget->setObjectName("MainStackedWidget");
@@ -477,9 +525,12 @@ centralWidgetLayout->addWidget(m_stackedWidget);
 centralWidget->setLayout(centralWidgetLayout);*/
 
   setCentralWidget(m_stackedWidget);
+  logGraphicsSmokeMainWindowEvent("after_set_central_widget");
 
   // Leggo i settings
+  logGraphicsSmokeMainWindowEvent("before_read_settings");
   readSettings(argumentLayoutFileName);
+  logGraphicsSmokeMainWindowEvent("after_read_settings");
 
   // Setto le stanze
   QTabBar *roomTabWidget = m_topBar->getRoomTabWidget();
@@ -495,7 +546,9 @@ centralWidget->setLayout(centralWidgetLayout);*/
   /*-- タイトルバーにScene名を表示する --*/
   connect(TApp::instance()->getCurrentScene(), SIGNAL(nameSceneChanged()), this,
           SLOT(changeWindowTitle()));
+  logGraphicsSmokeMainWindowEvent("before_change_window_title");
   changeWindowTitle();
+  logGraphicsSmokeMainWindowEvent("after_change_window_title");
 
   // Connetto i comandi che sono in RoomTabWidget
   connect(roomTabWidget, SIGNAL(indexSwapped(int, int)),
@@ -537,11 +590,14 @@ centralWidget->setLayout(centralWidgetLayout);*/
   QString ffmpegCachePath =
       ToonzFolder::getCacheRootFolder().getQString() + "//ffmpeg";
   if (TSystem::doesExistFileOrLevel(TFilePath(ffmpegCachePath))) {
+    logGraphicsSmokeMainWindowEvent("before_remove_ffmpeg_cache");
     TSystem::rmDirTree(TFilePath(ffmpegCachePath));
+    logGraphicsSmokeMainWindowEvent("after_remove_ffmpeg_cache");
   }
 
   connect(TApp::instance(), SIGNAL(activeViewerChanged()), this,
           SLOT(onActiveViewerChanged()));
+  logGraphicsSmokeMainWindowEvent("ctor_done");
 }
 
 //-----------------------------------------------------------------------------
@@ -630,6 +686,7 @@ void MainWindow::refreshWriteSettings() { writeSettings(); }
 //-----------------------------------------------------------------------------
 
 void MainWindow::readSettings(const QString &argumentLayoutFileName) {
+  logGraphicsSmokeMainWindowEvent("read_settings_start");
   QTabBar *roomTabWidget = m_topBar->getRoomTabWidget();
 
   /*-- Pageを追加すると同時にMenubarを追加する --*/
@@ -640,6 +697,7 @@ void MainWindow::readSettings(const QString &argumentLayoutFileName) {
   // leggo l'elenco dei layout
   std::vector<TFilePath> roomPaths;
 
+  logGraphicsSmokeMainWindowEvent("before_read_room_list");
   if (readRoomList(roomPaths, argumentLayoutFileName)) {
     if (!argumentLayoutFileName.isEmpty()) {
       /*--
@@ -651,12 +709,16 @@ void MainWindow::readSettings(const QString &argumentLayoutFileName) {
       m_layoutName = argumentLayoutFileName.left(pos);
     }
   }
+  logGraphicsSmokeMainWindowEvent("after_read_room_list count=" +
+                                  std::to_string(roomPaths.size()));
 
   // Get Current Room
   TFilePath fp = ToonzFolder::getRoomsFile(currentRoomFileName);
+  logGraphicsSmokeMainWindowEvent("before_current_room_file");
   Tifstream is(fp);
   std::string name;
   is >> name;
+  logGraphicsSmokeMainWindowEvent("after_current_room_file");
 
   QString currentRoomName = QString::fromUtf8(name.c_str());
   Room::RoomLoadParams params;
@@ -666,19 +728,33 @@ void MainWindow::readSettings(const QString &argumentLayoutFileName) {
   // === CRITICAL FIX: Register dynamic commands BEFORE loading rooms ===
   // Custom Panels in rooms will try to link to these commands during load.
   // If commands don't exist yet, buttons become "empty shells".
+  logGraphicsSmokeMainWindowEvent("before_custom_panel_entries");
   CustomPanelManager::instance()->loadCustomPanelEntries();
+  logGraphicsSmokeMainWindowEvent("after_custom_panel_entries");
 
   for (int i = 0; i < (int)roomPaths.size(); i++) {
     TFilePath roomPath = roomPaths[i];
     if (TFileStatus(roomPath).doesExist()) {
+      logGraphicsSmokeMainWindowEvent("before_room_load index=" +
+                                      std::to_string(i) + " name=" +
+                                      roomPath.getName());
       Room *room = new Room(this);
       room->load(roomPath, params);
+      logGraphicsSmokeMainWindowEvent("after_room_load index=" +
+                                      std::to_string(i) + " name=" +
+                                      roomPath.getName());
       m_stackedWidget->addWidget(room);
       roomTabWidget->addTab(room->getName());
 
       /*- ここでMenuBarファイルをロードする -*/
       std::string mbFileName = roomPath.getName() + "_menubar.xml";
+      logGraphicsSmokeMainWindowEvent("before_menubar_load index=" +
+                                      std::to_string(i) + " name=" +
+                                      mbFileName);
       stackedMenuBar->loadAndAddMenubar(ToonzFolder::getRoomsFile(mbFileName));
+      logGraphicsSmokeMainWindowEvent("after_menubar_load index=" +
+                                      std::to_string(i) + " name=" +
+                                      mbFileName);
 
       // room->setDockOptions(QMainWindow::DockOptions(
       //  (QMainWindow::AnimatedDocks | QMainWindow::AllowNestedDocks) &
@@ -688,8 +764,10 @@ void MainWindow::readSettings(const QString &argumentLayoutFileName) {
   }
 
   // Read the flipbook history
+  logGraphicsSmokeMainWindowEvent("before_flipbook_history");
   FlipBookPool::instance()->load(ToonzFolder::getMyModuleDir() +
                                  TFilePath("fliphistory.ini"));
+  logGraphicsSmokeMainWindowEvent("after_flipbook_history");
 
   /*- レイアウト設定ファイルが見つからなかった場合、初期Roomの生成 -*/
   // Se leggendo i settings non ho inizializzato le stanze lo faccio ora.
@@ -735,7 +813,9 @@ void MainWindow::readSettings(const QString &argumentLayoutFileName) {
   /*- If the layout files were loaded from template, then save them as private
    * ones -*/
   makePrivate(rooms);
+  logGraphicsSmokeMainWindowEvent("after_make_private");
   writeRoomList(rooms);
+  logGraphicsSmokeMainWindowEvent("after_write_room_list");
 
   // Set Current Room
   if (currentRoomName != "") {
@@ -747,12 +827,17 @@ void MainWindow::readSettings(const QString &argumentLayoutFileName) {
       m_oldRoomIndex = index;
       roomTabWidget->setCurrentIndex(index);
       m_stackedWidget->setCurrentIndex(index);
+      logGraphicsSmokeMainWindowEvent("after_set_current_room index=" +
+                                      std::to_string(index));
     }
   }
 
+  logGraphicsSmokeMainWindowEvent("before_recent_files");
   RecentFiles::instance()->loadRecentFiles();
+  logGraphicsSmokeMainWindowEvent("after_recent_files");
   // Note: loadCustomPanelEntries() now called BEFORE loading rooms
   // to ensure dynamic commands exist when Custom Panels initialize
+  logGraphicsSmokeMainWindowEvent("read_settings_done");
 }
 
 //-----------------------------------------------------------------------------
@@ -1485,7 +1570,7 @@ void MainWindow::onMenuCheckboxChanged() {
   else if (cm->getAction(MI_FieldGuide) == action)
     FieldGuideToggleAction = isChecked;
   else if (cm->getAction(MI_RasterizePli) == action) {
-    if (!QOpenGLFramebufferObject::hasOpenGLFramebufferObjects()) isChecked = 0;
+    if (!canUseOpenGLFramebufferObjects()) isChecked = 0;
     RasterizePliToggleAction = isChecked;
   } else if (cm->getAction(MI_SafeArea) == action)
     SafeAreaToggleAction = isChecked;
@@ -2462,7 +2547,7 @@ void MainWindow::defineActions() {
   createToggle(MI_VectorGuidedDrawing, QT_TR_NOOP("Vector Guided Drawing"), "",
                Preferences::instance()->isGuidedDrawingEnabled(),
                MenuViewCommandType, "view_guided_drawing");
-  if (QOpenGLFramebufferObject::hasOpenGLFramebufferObjects())
+  if (canUseOpenGLFramebufferObjects())
     createToggle(MI_RasterizePli, QT_TR_NOOP("&Visualize Vector As Raster"), "",
                  RasterizePliToggleAction ? 1 : 0, MenuViewCommandType,
                  "view_vector_as_raster");

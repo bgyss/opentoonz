@@ -50,6 +50,27 @@ python3 "$repo_root/scripts/verify_png_match.py" \
   --max-channel-delta 0 \
   --max-differing-ratio 0 \
   "$artifact_dir/opengl/preview_export_legacy_opengl.png" \
+  "$artifact_dir/opengl/preview_export_opengl.png"
+
+python3 "$repo_root/scripts/verify_png_match.py" \
+  --max-mean-delta 0 \
+  --max-channel-delta 0 \
+  --max-differing-ratio 0 \
+  "$artifact_dir/opengl/preview_export_legacy_opengl.png" \
   "$artifact_dir/metal/preview_export_metal.png"
+
+python3 "$repo_root/scripts/verify_png_match.py" \
+  --max-mean-delta 0 \
+  --max-channel-delta 0 \
+  --max-differing-ratio 0 \
+  "$artifact_dir/metal/preview_export_legacy_opengl.png" \
+  "$artifact_dir/metal/preview_export_metal.png"
+
+python3 "$repo_root/scripts/verify_png_match.py" \
+  --max-mean-delta 0 \
+  --max-channel-delta 0 \
+  --max-differing-ratio 0 \
+  "$artifact_dir/opengl/preview_export_legacy_opengl.png" \
+  "$artifact_dir/metal/preview_export_legacy_opengl.png"
 
 echo "verify-macos-preview-export-probe: ok artifacts=$artifact_dir"

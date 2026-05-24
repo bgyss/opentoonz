@@ -346,7 +346,7 @@
         A_converted 
         <info dpiType="image"/>
         <path>
-          "$scenefolder\\dwanko\\tga\\A_converted.tlv"
+          "$scenefolder/dwanko/tga/A_converted.tlv"
         </path>
         
       </level>

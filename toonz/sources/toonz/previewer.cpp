@@ -59,10 +59,76 @@
 #include "previewer.h"
 
 // C++ includes
+#include <cstdlib>
+#include <fstream>
+#include <iostream>
 #include <memory>
+#include <string>
 #include <utility>
 
 //------------------------------------------------
+
+namespace {
+
+std::string previewerRasterSummary(const TRasterP& raster) {
+  if (!raster) return "raster=null";
+
+  TRaster32P raster32 = raster;
+  if (!raster32)
+    return "raster_type=unsupported width=" + std::to_string(raster->getLx()) +
+           " height=" + std::to_string(raster->getLy());
+
+  const int width  = raster32->getLx();
+  const int height = raster32->getLy();
+  if (width <= 0 || height <= 0)
+    return "raster_type=rgba width=" + std::to_string(width) +
+           " height=" + std::to_string(height) + " samples=0";
+
+  const TPixel32 first = raster32->pixels(0)[0];
+  bool colorVaries     = false;
+  bool alphaVaries     = false;
+  bool hasAlpha        = first.m > 0;
+  int sampleCount      = 0;
+  const int stepX      = std::max(1, width / 32);
+  const int stepY      = std::max(1, height / 32);
+  for (int y = 0; y < height; y += stepY) {
+    const TPixel32* line = raster32->pixels(y);
+    for (int x = 0; x < width; x += stepX) {
+      const TPixel32 pixel = line[x];
+      ++sampleCount;
+      if (pixel.r != first.r || pixel.g != first.g || pixel.b != first.b)
+        colorVaries = true;
+      if (pixel.m != first.m) alphaVaries = true;
+      if (pixel.m > 0) hasAlpha = true;
+    }
+  }
+
+  return "raster_type=rgba width=" + std::to_string(width) +
+         " height=" + std::to_string(height) +
+         " samples=" + std::to_string(sampleCount) +
+         " first_rgba=" + std::to_string(first.r) + "," +
+         std::to_string(first.g) + "," + std::to_string(first.b) + "," +
+         std::to_string(first.m) +
+         " color_varies=" + std::to_string(colorVaries ? 1 : 0) +
+         " alpha_varies=" + std::to_string(alphaVaries ? 1 : 0) +
+         " has_alpha=" + std::to_string(hasAlpha ? 1 : 0);
+}
+
+void logPreviewerSmokeEvent(const std::string& event) {
+  if (!std::getenv("OPENTOONZ_GRAPHICS_METAL_FRAME_DIAGNOSTICS")) return;
+
+  const std::string message =
+      std::string("OpenToonz graphics smoke: previewer_") + event;
+  std::cerr << message << std::endl;
+
+  const char* tracePath = std::getenv("OPENTOONZ_GRAPHICS_SMOKE_TRACE_FILE");
+  if (tracePath && *tracePath) {
+    std::ofstream trace(tracePath, std::ios::app);
+    trace << message << '\n';
+  }
+}
+
+}  // namespace
 
 /*! \class Previewer
 The Previewer class is a singleton which deals with Preview renders of isolated
@@ -101,8 +167,8 @@ so that the following getRaster() will forcibly recalculate the requested frame.
 
 namespace {
 bool suspendedRendering        = false;
-Previewer *previewerInstance   = nullptr;
-Previewer *previewerInstanceSC = nullptr;
+Previewer* previewerInstance   = nullptr;
+Previewer* previewerInstanceSC = nullptr;
 
 QTimer levelChangedTimer, fxChangedTimer, xsheetChangedTimer,
     objectChangedTimer;
@@ -110,12 +176,12 @@ const int notificationDelay = 300;
 
 //-------------------------------------------------------------------------
 
-void buildNodeTreeDescription(std::string &desc, const TFxP &root);
+void buildNodeTreeDescription(std::string& desc, const TFxP& root);
 
 //-------------------------------------------------------------------------
 
 // Qt's contains actually returns QRegion::intersected... I wonder why...
-inline bool contains(const QRegion &region, const TRect &rect) {
+inline bool contains(const QRegion& region, const TRect& rect) {
   const QRect qrect = toQRect(rect);
 
   // Fast path: check if region's bounding rect contains the rect
@@ -148,10 +214,10 @@ public:
   };
 
 public:
-  Previewer *m_owner;
+  Previewer* m_owner;
   TThread::Mutex m_mutex;
 
-  std::set<Previewer::Listener *> m_listeners;
+  std::set<Previewer::Listener*> m_listeners;
   std::map<int, FrameInfo> m_frames;
   std::vector<UCHAR> m_pbStatus;
   int m_computingFrameCount;
@@ -174,7 +240,7 @@ public:
   int m_currentFrameToSave;
 
 public:
-  Imp(Previewer *owner);
+  Imp(Previewer* owner);
   ~Imp();
 
   void notifyStarted(int frame);
@@ -190,7 +256,7 @@ public:
   // necessary.
   void updateRenderSettings();
   void updateAliases();
-  void updateAliasKeyword(const std::string &keyword);
+  void updateAliasKeyword(const std::string& keyword);
   // There are dependencies among the following updaters. Invoke them in the
   // specified order.
   void updateFrameRange();
@@ -202,26 +268,26 @@ public:
   // update* methods are assumed correct.
   void refreshFrame(int frame);
 
-  void addRenderData(std::vector<TRenderer::RenderData> &datas, int frame);
-  void addFramesToRenderQueue(const std::vector<int> &frames);
+  void addRenderData(std::vector<TRenderer::RenderData>& datas, int frame);
+  void addFramesToRenderQueue(const std::vector<int>& frames);
 
   // TRenderPort methods
-  void onRenderRasterStarted(const RenderData &renderData) override;
-  void onRenderRasterCompleted(const RenderData &renderData) override;
-  void onRenderFailure(const RenderData &renderData, TException &e) override;
+  void onRenderRasterStarted(const RenderData& renderData) override;
+  void onRenderRasterCompleted(const RenderData& renderData) override;
+  void onRenderFailure(const RenderData& renderData, TException& e) override;
 
   // Main-thread executed code related to TRenderPort. Used to update
   // thread-vulnerable infos.
-  void doOnRenderRasterStarted(const RenderData &renderData);
-  void doOnRenderRasterCompleted(const RenderData &renderData);
-  void doOnRenderRasterFailed(const RenderData &renderData);
+  void doOnRenderRasterStarted(const RenderData& renderData);
+  void doOnRenderRasterCompleted(const RenderData& renderData);
+  void doOnRenderRasterFailed(const RenderData& renderData);
 
   void remove(int frame);
   void remove();
 
 public:
   void saveFrame();
-  bool doSaveRenderedFrames(const TFilePath &fp);
+  bool doSaveRenderedFrames(const TFilePath& fp);
 
 private:
   Q_DISABLE_COPY_MOVE(Imp);
@@ -245,7 +311,7 @@ void Previewer::Listener::requestTimedRefresh() { m_refreshTimer.start(1000); }
 //    Previewer::Imp
 //-----------------------
 
-Previewer::Imp::Imp(Previewer *owner)
+Previewer::Imp::Imp(Previewer* owner)
     : m_owner(owner)
     , m_cameraRes(0, 0)
     , m_renderer(TSystem::getProcessorCount())
@@ -281,9 +347,9 @@ Previewer::Imp::~Imp() {
 TFxPair Previewer::Imp::buildSceneFx(int frame) {
   TFxPair fxPair;
 
-  TApp *app         = TApp::instance();
-  ToonzScene *scene = app->getCurrentScene()->getScene();
-  TXsheet *xsh      = scene->getXsheet();
+  TApp* app         = TApp::instance();
+  ToonzScene* scene = app->getCurrentScene()->getScene();
+  TXsheet* xsh      = scene->getXsheet();
   if (m_renderSettings.m_stereoscopic) {
     scene->shiftCameraX(-m_renderSettings.m_stereoscopicShift / 2.0);
     fxPair.m_frameA = ::buildSceneFx(
@@ -311,7 +377,7 @@ TFxPair Previewer::Imp::buildSceneFx(int frame) {
 
 void Previewer::Imp::updateCamera() {
   // Retrieve current camera
-  TCamera *currCamera =
+  TCamera* currCamera =
       TApp::instance()->getCurrentScene()->getScene()->getCurrentCamera();
   TRect subCameraRect = currCamera->getInterestRect();
   TPointD cameraPos(-0.5 * currCamera->getRes().lx,
@@ -342,7 +408,7 @@ void Previewer::Imp::updateCamera() {
     m_cameraPos  = cameraPos;
 
     // All previously rendered frames must be erased
-    for (auto &[frame, info] : m_frames)
+    for (auto& [frame, info] : m_frames)
       TImageCache::instance()->remove(m_cachePrefix + std::to_string(frame));
 
     m_frames.clear();
@@ -352,7 +418,7 @@ void Previewer::Imp::updateCamera() {
 //-----------------------------------------------------------------------------
 
 void Previewer::Imp::updateRenderSettings() {
-  ToonzScene *scene = TApp::instance()->getCurrentScene()->getScene();
+  ToonzScene* scene = TApp::instance()->getCurrentScene()->getScene();
   TRenderSettings renderSettings =
       scene->getProperties()->getPreviewProperties()->getRenderSettings();
 
@@ -365,7 +431,7 @@ void Previewer::Imp::updateRenderSettings() {
   if (renderSettings != m_renderSettings) {
     m_renderSettings = renderSettings;
 
-    for (auto &[frame, info] : m_frames)
+    for (auto& [frame, info] : m_frames)
       TImageCache::instance()->remove(m_cachePrefix + std::to_string(frame));
 
     m_frames.clear();
@@ -420,7 +486,7 @@ void Previewer::Imp::updatePreviewRect() {
     previewRectD = m_renderArea;
   } else {
     // Use range‑based for loop for clarity
-    for (auto *listener : m_listeners) {
+    for (auto* listener : m_listeners) {
       previewRectD += listener->getPreviewRect();
     }
   }
@@ -470,7 +536,7 @@ void Previewer::Imp::updatePreviewRect() {
 //-----------------------------------------------------------------------------
 
 void Previewer::Imp::updateAliases() {
-  for (auto &[frame, info] : m_frames) {
+  for (auto& [frame, info] : m_frames) {
     TFxPair fxPair = buildSceneFx(frame);
 
     std::string newAlias =
@@ -489,8 +555,8 @@ void Previewer::Imp::updateAliases() {
 
 //-----------------------------------------------------------------------------
 
-void Previewer::Imp::updateAliasKeyword(const std::string &keyword) {
-  for (auto &[frame, info] : m_frames) {
+void Previewer::Imp::updateAliasKeyword(const std::string& keyword) {
+  for (auto& [frame, info] : m_frames) {
     if (info.m_alias.find(keyword) != std::string::npos) {
       TFxPair fxPair = buildSceneFx(frame);
       info.m_alias   = fxPair.m_frameA
@@ -584,7 +650,7 @@ void Previewer::Imp::remove() {
   m_renderer.stopRendering(false);
 
   // Remove all cached images
-  for (const auto &[frame, info] : m_frames)
+  for (const auto& [frame, info] : m_frames)
     TImageCache::instance()->remove(m_cachePrefix + std::to_string(frame));
 
   m_frames.clear();
@@ -593,38 +659,38 @@ void Previewer::Imp::remove() {
 //-----------------------------------------------------------------------------
 
 inline void Previewer::Imp::notifyStarted(int frame) {
-  for (auto *listener : m_listeners) listener->onRenderStarted(frame);
+  for (auto* listener : m_listeners) listener->onRenderStarted(frame);
 }
 
 //-----------------------------------------------------------------------------
 
 inline void Previewer::Imp::notifyCompleted(int frame) {
-  for (auto *listener : m_listeners) listener->onRenderCompleted(frame);
+  for (auto* listener : m_listeners) listener->onRenderCompleted(frame);
 }
 
 //-----------------------------------------------------------------------------
 
 inline void Previewer::Imp::notifyFailed(int frame) {
-  for (auto *listener : m_listeners) listener->onRenderFailed(frame);
+  for (auto* listener : m_listeners) listener->onRenderFailed(frame);
 }
 
 //-----------------------------------------------------------------------------
 
 inline void Previewer::Imp::notifyUpdate() {
-  for (auto *listener : m_listeners) listener->onPreviewUpdate();
+  for (auto* listener : m_listeners) listener->onPreviewUpdate();
 }
 
 //-----------------------------------------------------------------------------
 
 //! Adds the renderized image to TImageCache; listeners are advised too.
-void Previewer::Imp::onRenderRasterStarted(const RenderData &renderData) {
+void Previewer::Imp::onRenderRasterStarted(const RenderData& renderData) {
   // Emit the started signal to execute code in the main thread
   m_owner->emitStartedFrame(renderData);
 }
 
 //-----------------------------------------------------------------------------
 
-void Previewer::Imp::doOnRenderRasterStarted(const RenderData &renderData) {
+void Previewer::Imp::doOnRenderRasterStarted(const RenderData& renderData) {
   int frame = renderData.m_frames[0];
 
   m_computingFrameCount++;
@@ -640,7 +706,7 @@ void Previewer::Imp::doOnRenderRasterStarted(const RenderData &renderData) {
 //-----------------------------------------------------------------------------
 
 //! Adds the renderized image to TImageCache; listeners are advised too.
-void Previewer::Imp::onRenderRasterCompleted(const RenderData &renderData) {
+void Previewer::Imp::onRenderRasterCompleted(const RenderData& renderData) {
   if (renderData.m_rasB) {
     RenderData _renderData = renderData;
     assert(m_renderSettings.m_stereoscopic);
@@ -663,7 +729,7 @@ void Previewer::Imp::onRenderRasterCompleted(const RenderData &renderData) {
 
 //-----------------------------------------------------------------------------
 
-void Previewer::Imp::doOnRenderRasterCompleted(const RenderData &renderData) {
+void Previewer::Imp::doOnRenderRasterCompleted(const RenderData& renderData) {
   int renderId = renderData.m_renderId;
   int frame    = renderData.m_frames[0];
 
@@ -673,10 +739,15 @@ void Previewer::Imp::doOnRenderRasterCompleted(const RenderData &renderData) {
   }
 
   TRasterP ras(renderData.m_rasA);
+  logPreviewerSmokeEvent("render_completed frame=" + std::to_string(frame + 1) +
+                         " render_id=" + std::to_string(renderId) + " " +
+                         previewerRasterSummary(ras));
 
   // Linear Color Space -> sRGB
   if (ras->isLinear()) {
     TRop::tosRGB(ras, m_renderSettings.m_colorSpaceGamma);
+    logPreviewerSmokeEvent("render_srgb frame=" + std::to_string(frame + 1) +
+                           " " + previewerRasterSummary(ras));
   }
 
   m_computingFrameCount--;
@@ -709,10 +780,20 @@ void Previewer::Imp::doOnRenderRasterCompleted(const RenderData &renderData) {
   TRect rectUnderRender(
       it->second
           .m_rectUnderRender);  // Extract may MODIFY IT! E.g. with shrinks..!
+  logPreviewerSmokeEvent("cache_copy frame=" + std::to_string(frame + 1) +
+                         " rect=" + std::to_string(rectUnderRender.x0) + "," +
+                         std::to_string(rectUnderRender.y0) + "," +
+                         std::to_string(rectUnderRender.x1) + "," +
+                         std::to_string(rectUnderRender.y1) +
+                         " camera_res=" + std::to_string(m_cameraRes.lx) + "x" +
+                         std::to_string(m_cameraRes.ly));
   cachedRas = cachedRas->extract(rectUnderRender);
 
   if (cachedRas) {
     cachedRas->copy(ras);
+    logPreviewerSmokeEvent(
+        "cache_after_copy frame=" + std::to_string(frame + 1) + " " +
+        previewerRasterSummary(cachedRas));
   }
 
   // Submit the image to the cache, for all cluster's frames
@@ -741,15 +822,15 @@ void Previewer::Imp::doOnRenderRasterCompleted(const RenderData &renderData) {
 
 //! Removes the associated raster from TImageCache, and listeners are made
 //! aware.
-void Previewer::Imp::onRenderFailure(const RenderData &renderData,
-                                     TException &e) {
+void Previewer::Imp::onRenderFailure(const RenderData& renderData,
+                                     TException& e) {
   m_owner->emitFailedFrame(renderData);
 }
 
 //-----------------------------------------------------------------------------
 
 //! Adds the renderized image to TImageCache; listeners are advised too.
-void Previewer::Imp::doOnRenderRasterFailed(const RenderData &renderData) {
+void Previewer::Imp::doOnRenderRasterFailed(const RenderData& renderData) {
   m_computingFrameCount--;
 
   int frame = renderData.m_frames[0];
@@ -774,7 +855,7 @@ void Previewer::Imp::doOnRenderRasterFailed(const RenderData &renderData) {
 namespace {
 enum { eBegin, eIncrement, eEnd };
 
-static DVGui::ProgressDialog *Pd = nullptr;
+static DVGui::ProgressDialog* Pd = nullptr;
 
 //-----------------------------------------------------------------------------
 
@@ -784,7 +865,7 @@ public:
   int m_val;
   QString m_str;
 
-  ProgressBarMessager(int choice, int val, const QString &str = {})
+  ProgressBarMessager(int choice, int val, const QString& str = {})
       : m_choice(choice), m_val(val), m_str(str) {}
 
   void onDeliver() override {
@@ -816,7 +897,7 @@ public:
     }
   }
 
-  TThread::Message *clone() const override {
+  TThread::Message* clone() const override {
     return new ProgressBarMessager(m_choice, m_val, m_str);
   }
 
@@ -829,7 +910,7 @@ private:
 //-----------------------------------------------------------------------------
 
 class SavePreviewedPopup final : public FileBrowserPopup {
-  Previewer *m_p = nullptr;
+  Previewer* m_p = nullptr;
 
 public:
   SavePreviewedPopup()
@@ -837,7 +918,7 @@ public:
     setOkText(QObject::tr("Save"));
   }
 
-  void setPreview(Previewer *p) { m_p = p; }
+  void setPreview(Previewer* p) { m_p = p; }
 
   bool execute() override {
     if (m_selectedPaths.empty()) return false;
@@ -858,9 +939,9 @@ bool Previewer::doSaveRenderedFrames(TFilePath fp) {
 
 using namespace DVGui;
 
-bool Previewer::Imp::doSaveRenderedFrames(const TFilePath &fp) {
-  ToonzScene *scene = TApp::instance()->getCurrentScene()->getScene();
-  TOutputProperties *outputSettings =
+bool Previewer::Imp::doSaveRenderedFrames(const TFilePath& fp) {
+  ToonzScene* scene = TApp::instance()->getCurrentScene()->getScene();
+  TOutputProperties* outputSettings =
       scene->getProperties()->getOutputProperties();
 
   QStringList formats;
@@ -898,7 +979,7 @@ bool Previewer::Imp::doSaveRenderedFrames(const TFilePath &fp) {
       TFilePath parent = decodedFp.getParentDir();
       TSystem::mkDir(parent);
       DvDirModel::instance()->refreshFolder(parent.getParentDir());
-    } catch (TException &e) {
+    } catch (TException& e) {
       error(QObject::tr("Cannot create %1 : %2",
                         "Previewer warning %1:path %2:message")
                 .arg(toQString(decodedFp.getParentDir()))
@@ -923,7 +1004,7 @@ bool Previewer::Imp::doSaveRenderedFrames(const TFilePath &fp) {
   try {
     m_lw =
         TLevelWriterP(decodedFp, outputSettings->getFileFormatProperties(ext));
-  } catch (TImageException &e) {
+  } catch (TImageException& e) {
     error(QString::fromStdString(::to_string(e.getMessage())));
     return false;
   }
@@ -998,7 +1079,7 @@ void Previewer::Imp::saveFrame() {
 
 //-----------------------------------------------------------------------------
 
-void Previewer::Imp::addRenderData(std::vector<TRenderer::RenderData> &datas,
+void Previewer::Imp::addRenderData(std::vector<TRenderer::RenderData>& datas,
                                    int frame) {
   // Build the TFxPair to be passed to TRenderer
   TFxPair fxPair = buildSceneFx(frame);
@@ -1023,7 +1104,7 @@ void Previewer::Imp::addRenderData(std::vector<TRenderer::RenderData> &datas,
 
 //-----------------------------------------------------------------------------
 
-void Previewer::Imp::addFramesToRenderQueue(const std::vector<int> &frames) {
+void Previewer::Imp::addFramesToRenderQueue(const std::vector<int>& frames) {
   if (suspendedRendering) return;
   // Build the region to render
   updatePreviewRect();
@@ -1070,7 +1151,7 @@ Previewer::Previewer(bool subcamera) : m_imp(std::make_unique<Imp>(this)) {
   m_imp->m_subcamera   = subcamera;
   m_imp->m_cachePrefix = CACHEID + std::string(subcamera ? "SC" : "");
 
-  TApp *app = TApp::instance();
+  TApp* app = TApp::instance();
 
   connect(app->getPaletteController()->getCurrentLevelPalette(),
           &TPaletteHandle::colorStyleChangedOnMouseRelease, this,
@@ -1128,7 +1209,7 @@ Previewer::~Previewer() = default;  // unique_ptr handles deletion
 //-----------------------------------------------------------------------------
 
 //! Returns the \b Previewer instance
-Previewer *Previewer::instance(bool subcameraPreview) {
+Previewer* Previewer::instance(bool subcameraPreview) {
   static Previewer _instance(false);
   static Previewer _instanceSC(true);
 
@@ -1137,13 +1218,13 @@ Previewer *Previewer::instance(bool subcameraPreview) {
 
 //-----------------------------------------------------------------------------
 
-std::vector<UCHAR> &Previewer::getProgressBarStatus() const {
+std::vector<UCHAR>& Previewer::getProgressBarStatus() const {
   return m_imp->m_pbStatus;
 }
 
 //-----------------------------------------------------------------------------
 
-void Previewer::addListener(Listener *listener) {
+void Previewer::addListener(Listener* listener) {
   m_imp->m_listeners.insert(listener);
   connect(&listener->m_refreshTimer, &QTimer::timeout, this,
           &Previewer::updateView);
@@ -1151,7 +1232,7 @@ void Previewer::addListener(Listener *listener) {
 
 //-----------------------------------------------------------------------------
 
-void Previewer::removeListener(Listener *listener) {
+void Previewer::removeListener(Listener* listener) {
   m_imp->m_listeners.erase(listener);
   disconnect(&listener->m_refreshTimer, &QTimer::timeout, this,
              &Previewer::updateView);
@@ -1182,7 +1263,7 @@ void Previewer::saveRenderedFrames() {
     return;
   }
 
-  static SavePreviewedPopup *savePopup = nullptr;
+  static SavePreviewedPopup* savePopup = nullptr;
   if (!savePopup) savePopup = new SavePreviewedPopup;
 
   savePopup->setPreview(this);
@@ -1255,7 +1336,7 @@ TRasterP Previewer::getRaster(int frame, bool renderIfNeeded) const {
 
 //-----------------------------------------------------------------------------
 
-void Previewer::addFramesToRenderQueue(const std::vector<int> &frames) const {
+void Previewer::addFramesToRenderQueue(const std::vector<int>& frames) const {
   if (suspendedRendering) return;
   m_imp->addFramesToRenderQueue(frames);
 }
@@ -1292,7 +1373,7 @@ bool Previewer::isBusy() const {
 //-----------------------------------------------------------------------------
 
 //! Calls IMP::invalidateFrames(string aliasKeyframe) to update frame \b fid.
-void Previewer::onImageChange(TXshLevel *xl, const TFrameId &fid) {
+void Previewer::onImageChange(TXshLevel* xl, const TFrameId& fid) {
   TFilePath fp             = xl->getPath().withFrame(fid);
   std::string levelKeyword = ::to_string(fp);
 
@@ -1362,7 +1443,7 @@ void Previewer::updateView() {
 
 //-----------------------------------------------------------------------------
 
-void Previewer::onLevelChange(TXshLevel *xl) {
+void Previewer::onLevelChange(TXshLevel* xl) {
   TFilePath fp             = xl->getPath();
   std::string levelKeyword = ::to_string(fp);
 
@@ -1379,7 +1460,7 @@ void Previewer::onLevelChange(TXshLevel *xl) {
 //-----------------------------------------------------------------------------
 
 void Previewer::onLevelChanged() {
-  TXshLevel *xl = TApp::instance()->getCurrentLevel()->getLevel();
+  TXshLevel* xl = TApp::instance()->getCurrentLevel()->getLevel();
   if (!xl) return;
 
   std::string levelKeyword;
@@ -1429,23 +1510,23 @@ void Previewer::onObjectChanged() {
 
 //-----------------------------------------------------------------------------
 
-void Previewer::onChange(const TFxChange &change) { onObjectChanged(); }
+void Previewer::onChange(const TFxChange& change) { onObjectChanged(); }
 
 //-----------------------------------------------------------------------------
 
-void Previewer::emitStartedFrame(const TRenderPort::RenderData &renderData) {
+void Previewer::emitStartedFrame(const TRenderPort::RenderData& renderData) {
   emit startedFrame(renderData);
 }
 
 //-----------------------------------------------------------------------------
 
-void Previewer::emitRenderedFrame(const TRenderPort::RenderData &renderData) {
+void Previewer::emitRenderedFrame(const TRenderPort::RenderData& renderData) {
   emit renderedFrame(renderData);
 }
 
 //-----------------------------------------------------------------------------
 
-void Previewer::emitFailedFrame(const TRenderPort::RenderData &renderData) {
+void Previewer::emitFailedFrame(const TRenderPort::RenderData& renderData) {
   emit failedFrame(renderData);
 }
 
