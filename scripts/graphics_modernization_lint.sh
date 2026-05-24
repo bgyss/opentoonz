@@ -390,7 +390,9 @@ if [[ -f scripts/verify_macos_tcomposer_scene_export.sh ]]; then
     'cmp -s "\$opengl_output" "\$metal_output"' \
     scripts/verify_macos_tcomposer_scene_export.sh
   require_present "tcomposer export verifier rejects blank black output" \
-    'blank black output frame' scripts/verify_macos_tcomposer_scene_export.sh
+    'verify_tga_nonblank\.py' scripts/verify_macos_tcomposer_scene_export.sh
+  require_present "tcomposer export verifier avoids ImageMagick dependency" \
+    'verify_tga_nonblank\.py' scripts/verify_macos_tcomposer_scene_export.sh
   require_present "tcomposer export verifier documents helper debug diagnostics" \
     'OPENTOONZ_TCOMPOSER_DEBUG_LEVELS' "$ROOT/tcomposer/tcomposer.cpp"
 fi

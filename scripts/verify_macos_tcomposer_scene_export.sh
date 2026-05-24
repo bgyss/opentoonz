@@ -39,8 +39,9 @@ if [[ ! -d "$toonzroot" ]]; then
   echo "verify-macos-tcomposer-scene-export: missing bundled TOONZROOT: $toonzroot" >&2
   exit 1
 fi
-if ! command -v magick >/dev/null 2>&1; then
-  echo "verify-macos-tcomposer-scene-export: ImageMagick 'magick' is required for nonblank export validation" >&2
+nonblank_verifier="$repo_root/scripts/verify_tga_nonblank.py"
+if [[ ! -x "$nonblank_verifier" ]]; then
+  echo "verify-macos-tcomposer-scene-export: missing TGA nonblank verifier: $nonblank_verifier" >&2
   exit 1
 fi
 rm -rf "$artifact_dir"
@@ -100,9 +101,9 @@ run_backend() {
   local frame="$3"
   local backend="$4"
   local backend_dir="$artifact_dir/$scene_id/$backend"
-  local output_template="$backend_dir/$scene_id.tif"
+  local output_template="$backend_dir/$scene_id.tga"
   local output_frame
-  printf -v output_frame '%s/%s.%04d.tif' "$backend_dir" "$scene_id" "$frame"
+  printf -v output_frame '%s/%s.%04d.tga' "$backend_dir" "$scene_id" "$frame"
   mkdir -p "$backend_dir"
 
   (
@@ -122,26 +123,26 @@ run_backend() {
     echo "verify-macos-tcomposer-scene-export: log: $backend_dir/tcomposer.log" >&2
     exit 1
   fi
-  local image_stats colors maxima nonzero_pixels
-  image_stats="$(magick identify -quiet -format '%k %[fx:maxima]' "$output_frame")"
-  colors="${image_stats%% *}"
-  maxima="${image_stats##* }"
-  nonzero_pixels="$(magick "$output_frame" -alpha off -threshold 0 \
-    -format '%[fx:round(mean*w*h)]' info:)"
-  nonzero_pixels="$(awk -v value="$nonzero_pixels" 'BEGIN { printf "%.0f", value }')"
-  if [[ "$colors" == "1" && "$maxima" == "0" ]]; then
-    echo "verify-macos-tcomposer-scene-export: blank black output frame for $backend: $output_frame" >&2
-    echo "verify-macos-tcomposer-scene-export: log: $backend_dir/tcomposer.log" >&2
-    exit 1
-  fi
+  local image_stats nonzero_pixels
+  image_stats="$("$nonblank_verifier" --min-nonzero "$min_nonzero_pixels" \
+    "$output_frame")"
+  nonzero_pixels="$(awk '
+    {
+      for (i = 1; i <= NF; ++i) {
+        if ($i ~ /^nonzero=/) {
+          sub(/^nonzero=/, "", $i)
+          print $i
+          exit
+        }
+      }
+    }' <<<"$image_stats")"
   if (( nonzero_pixels < min_nonzero_pixels )); then
     echo "verify-macos-tcomposer-scene-export: insufficient nonzero pixels for $backend: $output_frame nonzero_pixels=$nonzero_pixels min=$min_nonzero_pixels" >&2
     echo "verify-macos-tcomposer-scene-export: log: $backend_dir/tcomposer.log" >&2
     exit 1
   fi
   {
-    echo "colors=$colors"
-    echo "maxima=$maxima"
+    echo "$image_stats"
     echo "nonzero_pixels=$nonzero_pixels"
     echo "min_nonzero_pixels=$min_nonzero_pixels"
   } >"$backend_dir/image-stats.txt"
@@ -160,9 +161,9 @@ for spec in "${scene_specs[@]}"; do
   run_backend "$scene_id" "$scene_path" "$frame" opengl
   run_backend "$scene_id" "$scene_path" "$frame" metal
 
-  printf -v opengl_output '%s/%s/opengl/%s.%04d.tif' \
+  printf -v opengl_output '%s/%s/opengl/%s.%04d.tga' \
     "$artifact_dir" "$scene_id" "$scene_id" "$frame"
-  printf -v metal_output '%s/%s/metal/%s.%04d.tif' \
+  printf -v metal_output '%s/%s/metal/%s.%04d.tga' \
     "$artifact_dir" "$scene_id" "$scene_id" "$frame"
   if ! cmp -s "$opengl_output" "$metal_output"; then
     echo "verify-macos-tcomposer-scene-export: OpenGL and Metal tcomposer exports differ for $scene_id" >&2
