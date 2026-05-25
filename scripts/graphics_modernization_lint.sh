@@ -436,6 +436,18 @@ if [[ -f scripts/verify_macos_release_readiness_prereqs.sh ]]; then
     '-f system_gui_smoke=true' scripts/verify_macos_release_readiness_prereqs.sh
 fi
 
+if [[ -f scripts/verify_macos_manual_walkthrough_checklist.sh ]]; then
+  bash scripts/verify_macos_manual_walkthrough_checklist.sh
+  require_present "manual walkthrough checklist exists" \
+    'macOS Graphics Manual Walkthrough Checklist' \
+    doc/macos_graphics_manual_walkthrough_checklist.md
+  require_present "manual walkthrough keeps Metal opt-in decision" \
+    'Metal remains opt-in' doc/macos_graphics_manual_walkthrough_checklist.md
+  require_present "manual walkthrough requires release preflight" \
+    'verify_macos_release_readiness_prereqs\.sh' \
+    doc/macos_graphics_manual_walkthrough_checklist.md
+fi
+
 if [[ -f .github/workflows/workflow_macos.yml ]]; then
   require_present "macOS CI runs packaged preview export app smoke" \
     'verify_macos_preview_export_app_smoke\.sh' \

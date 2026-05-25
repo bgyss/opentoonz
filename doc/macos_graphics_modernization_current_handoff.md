@@ -716,6 +716,12 @@ pixel differences over the shared extent.
   signing/notarization credentials, GitHub CLI authentication, and System
   Events reachability, then prints the dispatch commands for
   `strict_metallib=true` and `system_gui_smoke=true`.
+- `doc/macos_graphics_manual_walkthrough_checklist.md` is the structured
+  human-driven release/default-readiness checklist. It mirrors the golden-scene
+  manifest categories and records OpenGL result, Metal result, evidence path,
+  and reviewer notes for each workflow. The companion
+  `scripts/verify_macos_manual_walkthrough_checklist.sh` keeps the checklist
+  aligned with the manifest and release/default gate requirements.
 
 ## Final Acceptance Audit
 
@@ -744,4 +750,5 @@ the same golden-scene set. Start with:
 
 ```sh
 bash scripts/verify_macos_release_readiness_prereqs.sh codex/complete-macos-graphics-modernize
+bash scripts/verify_macos_manual_walkthrough_checklist.sh
 ```

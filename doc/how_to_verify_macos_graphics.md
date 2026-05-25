@@ -637,6 +637,15 @@ is still an interactive macOS permission; if that approval is missing, the
 dispatch `system_gui_smoke=true` run is expected to fail with System Events
 metadata in the smoke artifacts.
 
+Use `doc/macos_graphics_manual_walkthrough_checklist.md` for the final
+human-driven release/default-readiness pass. The checklist mirrors the
+golden-scene manifest categories and records OpenGL result, Metal result,
+evidence path, and reviewer notes for each workflow. Keep it verified with:
+
+```sh
+bash scripts/verify_macos_manual_walkthrough_checklist.sh
+```
+
 To verify downloaded Apple-hosted macOS CI artifacts after a workflow run:
 
 ```sh
