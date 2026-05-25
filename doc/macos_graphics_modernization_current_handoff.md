@@ -652,8 +652,8 @@ proven.
 
 ## Current Completion Audit
 
-Fresh Apple-hosted macOS CI run `26379595473` on
-`db46c36b83176a9c45933201ff81f0b6b77d99a2` passed both matrix legs. The Metal
+Fresh Apple-hosted macOS CI run `26382047874` on
+`7901f3221cace247225f84cd7342141d45a9b8f4` passed both matrix legs. The Metal
 job passed build, package, arm64 bundle validation, Metal resource validation,
 packaged `tcomposer` scene export, packaged preview-export app smoke, packaged
 Style Editor smoke, packaged viewer-input smoke, packaged drawing-gesture
@@ -661,19 +661,22 @@ smoke, packaged manifest graphics smoke, packaged direct Metal scene smoke,
 DMG creation, CI summary upload, Metal probe artifact upload, and artifact
 upload. The OpenGL-fallback job passed build, package, arm64 bundle validation,
 DMG creation, and summary/artifact upload.
+This run also proves the manifest smoke's per-scene timeout and workflow
+step-level timeout wiring did not regress the packaged scene-smoke gate; the
+previous long-running manifest step no longer reproduces on this commit.
 
 The downloaded artifacts at
-`/private/tmp/opentoonz-ci-artifacts-26379595473` passed:
+`/private/tmp/opentoonz-ci-artifacts-26382047874` passed:
 
 ```sh
-bash scripts/verify_macos_ci_artifacts.sh /private/tmp/opentoonz-ci-artifacts-26379595473
+bash scripts/verify_macos_ci_artifacts.sh /private/tmp/opentoonz-ci-artifacts-26382047874
 ```
 
 The CI summaries report:
 
 ```text
-macos-arm64-opengl-fallback: status=0 elapsed_seconds=119 WITH_GRAPHICS_METAL=OFF total_warnings=144 apple_opengl_deprecation_warnings=0 qt_qgl_warning_lines=0 qt_qopengl_deprecation_warning_lines=0
-macos-arm64-metal: status=0 elapsed_seconds=95 WITH_GRAPHICS_METAL=ON total_warnings=144 apple_opengl_deprecation_warnings=0 qt_qgl_warning_lines=0 qt_qopengl_deprecation_warning_lines=0
+macos-arm64-opengl-fallback: status=0 elapsed_seconds=71 WITH_GRAPHICS_METAL=OFF total_warnings=144 apple_opengl_deprecation_warnings=0 qt_qgl_warning_lines=0 qt_qopengl_deprecation_warning_lines=0
+macos-arm64-metal: status=0 elapsed_seconds=94 WITH_GRAPHICS_METAL=ON total_warnings=144 apple_opengl_deprecation_warnings=0 qt_qgl_warning_lines=0 qt_qopengl_deprecation_warning_lines=0
 ```
 
 Automated coverage now proves the committed and generated golden-scene set can
@@ -719,9 +722,9 @@ though the automated macOS Metal CI gate is green.
 | macOS OpenToonz can run normal viewer, editing, preview, and render workflows through Metal | CI covers direct Metal scene frames, internal viewer input, drawing gestures, Style Editor updates, preview/export, packaged `tcomposer`, manifest screenshots, shader-effect probes, and offscreen/style probes. A dispatch-only `system_gui_smoke` gate now exists for Accessibility-authorized system mouse/keyboard evidence, but broader human-driven GUI workflow evidence still remains a release/default gate until that gate is run and reviewed. | Partially proven |
 | OpenGL fallback remains available until explicitly retired | OpenGL remains the default backend, `WITH_GRAPHICS_METAL=OFF` builds in CI, and explicit `OPENTOONZ_GRAPHICS_BACKEND=opengl` smoke coverage remains available. | Proven |
 | Golden scene output from Metal matches OpenGL baseline within documented tolerance | Generated and committed sample rows cover raster, TLV, FX/vector, cleanup, sub-xsheet, mesh/skeleton, camera/overlay, and shader-effect cases through exact export checks, nonblank checks, and bounded screenshot comparison. | Proven for automated fixture set |
-| Metal backend is covered by macOS arm64 CI build and package validation | Apple-hosted macOS CI run `26379595473` passed the Metal and OpenGL-fallback matrix legs, and `scripts/verify_macos_ci_artifacts.sh /private/tmp/opentoonz-ci-artifacts-26379595473` passed on downloaded artifacts. | Proven |
+| Metal backend is covered by macOS arm64 CI build and package validation | Apple-hosted macOS CI run `26382047874` passed the Metal and OpenGL-fallback matrix legs, and `scripts/verify_macos_ci_artifacts.sh /private/tmp/opentoonz-ci-artifacts-26382047874` passed on downloaded artifacts. | Proven |
 | Metal shaders and resources are included in the app bundle | CI verifies bundled `.metal` source parity and records Metal resource summary status. A dispatch-only `strict_metallib=true` gate now forces configure-time and package-time compiled `.metallib` validation, but strict evidence still requires running that gate on a runner or machine with both `metal` and `metallib`. | Source proven; strict `.metallib` gate added but pending run |
-| macOS warning counts no longer include routine Qt `QGL*` or Apple OpenGL deprecation noise in the default backend | CI summaries for run `26379595473` report `apple_opengl_deprecation_warnings=0`, `qt_qgl_warning_lines=0`, and `qt_qopengl_deprecation_warning_lines=0` for both matrix legs. | Proven |
+| macOS warning counts no longer include routine Qt `QGL*` or Apple OpenGL deprecation noise in the default backend | CI summaries for run `26382047874` report `apple_opengl_deprecation_warnings=0`, `qt_qgl_warning_lines=0`, and `qt_qopengl_deprecation_warning_lines=0` for both matrix legs. | Proven |
 | Build-time impact is measured and documented | CI summaries record elapsed seconds, warning counts, and ccache summaries for both matrix legs. | Proven |
 | User-facing backend selection and troubleshooting are documented | `doc/how_to_verify_macos_graphics.md`, `doc/how_to_build_macosx.md`, and `doc/macos_graphics_default_backend_decision.md` document backend selection, direct-Metal smoke mode, verification commands, and the OpenGL-default decision. | Proven |
 
