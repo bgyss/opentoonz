@@ -72,6 +72,7 @@ max_mean_delta="${OPENTOONZ_GRAPHICS_SMOKE_MAX_MEAN_DELTA:-8.0}"
 max_channel_delta="${OPENTOONZ_GRAPHICS_SMOKE_MAX_CHANNEL_DELTA:-255}"
 max_differing_ratio="${OPENTOONZ_GRAPHICS_SMOKE_MAX_DIFFERING_RATIO:-0.95}"
 max_shift="${OPENTOONZ_GRAPHICS_SMOKE_MAX_SHIFT:-16}"
+max_screenshot_dimension_delta="${OPENTOONZ_GRAPHICS_SMOKE_MAX_SCREENSHOT_DIMENSION_DELTA:-8}"
 fail=0
 scene_path=""
 smoke_frame=""
@@ -351,6 +352,7 @@ if [[ -n "$screenshot_opengl" && -n "$screenshot_metal" &&
       --max-channel-delta "$max_channel_delta" \
       --max-differing-ratio "$max_differing_ratio" \
       --max-shift "$max_shift" \
+      --max-dimension-delta "$max_screenshot_dimension_delta" \
       "$screenshot_metal" "$screenshot_opengl"; then
     echo "verify-graphics-app-smoke-artifacts: OpenGL/Metal screenshot comparison exceeded tolerance" >&2
     fail=1

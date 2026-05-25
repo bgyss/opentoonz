@@ -161,6 +161,16 @@ def shifted_expected_crop(width, height, bpp, pixels, dx, dy):
     return bytes(cropped)
 
 
+def crop_to_size(width, height, bpp, pixels, crop_width, crop_height):
+    cropped = bytearray()
+    row_bytes = crop_width * bpp
+    stride = width * bpp
+    for y in range(crop_height):
+        start = y * stride
+        cropped.extend(pixels[start : start + row_bytes])
+    return bytes(cropped)
+
+
 def sampled_shift_score(width, height, bpp, actual_pixels, expected_pixels, dx, dy):
     x0_actual = max(0, dx)
     y0_actual = max(0, dy)
@@ -189,18 +199,48 @@ def sampled_shift_score(width, height, bpp, actual_pixels, expected_pixels, dx, 
     return total_delta / samples
 
 
-def compare_pngs(actual_path, expected_path, max_shift):
+def compare_pngs(actual_path, expected_path, max_shift, max_dimension_delta):
     actual = parse_png(actual_path)
     expected = parse_png(expected_path)
-    if actual[:4] != expected[:4]:
+    if actual[2:4] != expected[2:4]:
         raise ValueError(
             "PNG metadata differs: "
             f"{actual_path}={actual[:4]} {expected_path}={expected[:4]}"
         )
 
     width, height, _color_type, bpp, actual_pixels = actual
+    expected_width, expected_height, _expected_color_type, _expected_bpp = expected[:4]
     expected_pixels = expected[4]
+    dimension_delta = max(abs(width - expected_width), abs(height - expected_height))
+    if dimension_delta > max_dimension_delta:
+        raise ValueError(
+            "PNG dimensions differ beyond tolerance: "
+            f"{actual_path}={actual[:4]} {expected_path}={expected[:4]} "
+            f"max_dimension_delta={max_dimension_delta}"
+        )
+    if dimension_delta != 0:
+        compare_width = min(width, expected_width)
+        compare_height = min(height, expected_height)
+        actual_pixels = crop_to_size(
+            width, height, bpp, actual_pixels, compare_width, compare_height
+        )
+        expected_pixels = crop_to_size(
+            expected_width,
+            expected_height,
+            bpp,
+            expected_pixels,
+            compare_width,
+            compare_height,
+        )
+        width = compare_width
+        height = compare_height
+
     best = compare_pixels(width, height, bpp, actual_pixels, expected_pixels)
+    best["actual_width"] = actual[0]
+    best["actual_height"] = actual[1]
+    best["expected_width"] = expected[0]
+    best["expected_height"] = expected[1]
+    best["dimension_delta"] = dimension_delta
 
     best_shift = (0, 0)
     best_score = sampled_shift_score(
@@ -230,6 +270,11 @@ def compare_pngs(actual_path, expected_path, max_shift):
         )
         best["shift_x"] = dx
         best["shift_y"] = dy
+        best["actual_width"] = actual[0]
+        best["actual_height"] = actual[1]
+        best["expected_width"] = expected[0]
+        best["expected_height"] = expected[1]
+        best["dimension_delta"] = dimension_delta
 
     return best
 
@@ -247,11 +292,19 @@ def main(argv):
         default=0,
         help="try bounded x/y pixel translations and compare the best overlap",
     )
+    parser.add_argument(
+        "--max-dimension-delta",
+        type=int,
+        default=0,
+        help="allow small width/height differences and compare the shared top-left extent",
+    )
     parser.add_argument("actual")
     parser.add_argument("expected")
     args = parser.parse_args(argv[1:])
 
-    stats = compare_pngs(args.actual, args.expected, args.max_shift)
+    stats = compare_pngs(
+        args.actual, args.expected, args.max_shift, args.max_dimension_delta
+    )
     failed = (
         stats["mean_abs_channel_delta"] > args.max_mean_delta
         or stats["max_channel_delta"] > args.max_channel_delta
@@ -261,6 +314,9 @@ def main(argv):
     message = (
         "verify-png-match: "
         f"width={stats['width']} height={stats['height']} "
+        f"actual_width={stats['actual_width']} actual_height={stats['actual_height']} "
+        f"expected_width={stats['expected_width']} expected_height={stats['expected_height']} "
+        f"dimension_delta={stats['dimension_delta']} "
         f"channels={stats['channels']} pixels={stats['pixels']} "
         f"differing_pixels={stats['differing_pixels']} "
         f"differing_ratio={stats['differing_ratio']:.8f} "
