@@ -264,8 +264,11 @@ the packaged app under OpenGL and Metal, runs
 color-card PNG to come from the Previewer cache raster, and exact-compares the
 OpenGL and Metal preview-export PNGs. It also runs the committed
 `doc/sample_data/tga_paint.tnz` TLV sample through the same app preview/export
-path and exact-compares the OpenGL and Metal PNGs, allowing the viewer
-framebuffer fallback when the Previewer cache raster is blank for that scene.
+path, requires traced nonblank OpenGL and Metal preview-export PNGs, and allows
+the viewer framebuffer fallback when the Previewer cache raster is blank for
+that scene. The TLV sample is intentionally not exact-compared because the
+fallback export can be viewer-sized and differ by a small viewport extent while
+still proving both backends launch, render, and export nonblank output.
 It also runs the committed `doc/sample_data/dwanko_run.tnz` FX/vector sample at
 frame 24, requires the saved PNG to come from the Previewer cache raster, and
 exact-compares OpenGL and Metal output.

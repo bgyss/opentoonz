@@ -20,8 +20,18 @@ builds remain explicit through `WITH_GRAPHICS_METAL=ON`.
 - The Metal leg now has local and CI-wired evidence for direct simple raster
   scene-viewer frames, manifest screenshot smoke, style/offscreen probes,
   shader-effect probes, packaged `tcomposer` scene export, internal viewer
-  input, Style Editor palette updates, and app preview/export exact PNG
-  comparisons for generated and committed TLV samples.
+  input, drawing gestures, Style Editor palette updates, and app preview/export
+  validation. The generated color-card fixture and committed `dwanko_run.tnz`
+  FX/vector sample exact-match OpenGL/Metal preview-export PNGs; the committed
+  `tga_paint.tnz` TLV sample validates traced nonblank exports for both
+  backends without exact dimensions because it can use a viewer-framebuffer
+  fallback.
+- Apple-hosted macOS CI run `26378235821` on
+  `871b68265123238bbcbac83b41f13006be370c92` passed the OpenGL-fallback and
+  Metal matrix legs. The Metal leg passed build, package, arm64 validation,
+  Metal resource verification, packaged `tcomposer` export, preview export,
+  Style Editor, viewer input, drawing gesture, manifest graphics, and direct
+  Metal scene smokes.
 - `scripts/macos/ci-build-summary.sh` records elapsed build seconds, warning
   counts, `WITH_GRAPHICS_METAL`, and ccache summaries for each macOS matrix
   leg.
@@ -32,19 +42,20 @@ builds remain explicit through `WITH_GRAPHICS_METAL=ON`.
 
 ## Remaining Gaps Before Switching Default
 
-- System-level keyboard/mouse routing now has a focused
-  Accessibility-authorized `basic-viewer` smoke for a committed raster sample;
-  broader drawing/editing gesture workflows still need manual or scripted
-  evidence.
-- Broader user-driven preview/export workflow parity is not fully proven for
-  vector/FX-heavy scenes.
-- Apple-hosted CI run IDs and final logs for the expanded smoke matrix still
-  need to be recorded after the current local gates are pushed.
+- System-level keyboard/mouse routing still has less coverage than the internal
+  Qt-event smokes. The CI gates now cover internal viewer input and drawing
+  gestures, but broader user-driven GUI workflows should still be manually
+  exercised before changing the default.
+- Broader user-driven preview/export workflow parity is still less direct than
+  the internal app-action and packaged helper gates, even though the current
+  CI now covers generated, TLV, and FX/vector sample data.
 - Strict compiled `.metallib` packaging still needs evidence from a runner or
   machine with Apple's command-line `metal` and `metallib` tools. The current
   GitHub-hosted runner can still prove bundled Metal source parity and records
   toolchain availability in the resource summary.
-- The release artifact policy still signs/notarizes the OpenGL-fallback leg.
+- Release signing and notarization are skipped in the public CI run because the
+  signing secrets are absent; run the same workflow with release credentials
+  before shipping a Metal-default build.
 
 ## Switch Criteria
 

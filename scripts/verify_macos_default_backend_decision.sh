@@ -38,11 +38,13 @@ require_pattern "Metal opt-in decision" \
   "$decision_doc"
 require_pattern "switch criteria" '^## Switch Criteria$' "$decision_doc"
 require_pattern "system-level input evidence" \
-  'System-level keyboard/mouse routing now has a focused' "$decision_doc"
+  'System-level keyboard/mouse routing still has less coverage' "$decision_doc"
 require_pattern "broader gesture workflow gap" \
-  'broader drawing/editing gesture workflows still need' "$decision_doc"
-require_pattern "Apple-hosted CI gap" \
-  'Apple-hosted CI run IDs and final logs' "$decision_doc"
+  'broader user-driven GUI workflows should still be manually' "$decision_doc"
+require_pattern "Apple-hosted CI evidence" \
+  'Apple-hosted macOS CI run `[0-9]+`' "$decision_doc"
+require_pattern "release signing gap" \
+  'Release signing and notarization are skipped' "$decision_doc"
 
 require_pattern "CMake Metal option defaults OFF" \
   'option\(WITH_GRAPHICS_METAL "Build the experimental macOS Metal graphics backend" OFF\)' \

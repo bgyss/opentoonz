@@ -628,86 +628,62 @@ Full manual workflow parity, system-level input routing, broader sample
 preview/export, and locally produced release `.metallib` packaging are not yet
 proven.
 
-## Remaining Acceptance Gaps
+## Current Completion Audit
 
-- Metal is not ready to become the default macOS backend.
-- Full GUI smoke still needs broader representative scene files and
-  user-driven drawing/editing workflows under `OPENTOONZ_GRAPHICS_BACKEND=metal`.
-  The focused `basic-viewer` system input smoke now proves macOS System Events
-  can deliver a window mouse click and playback/scrub/zoom keystrokes to the
-  packaged app under both OpenGL and Metal. The internal direct-Metal
-  editing-context smoke proves viewer reset/zoom/frame scrub plus tool switching
-  without System Events, the internal viewer-input smoke proves Qt mouse
-  press/move/release delivery through SceneViewer for Hand and Selection tools,
-  the internal drawing-gesture smoke proves a Brush gesture changes the current
-  Toonz raster under both OpenGL and direct Metal,
-  the internal style-editor smoke proves palette/style listener updates without
-  System Events, and the internal preview-export smoke proves a Previewer-raster
-  export path with exact OpenGL/Metal PNG equality.
-- Packaged `tcomposer` helper startup now finds portable app resources, and the
-  generated TIFF-backed helper fixture, committed `cleanup.tnz` TIFF sequence,
-  committed `tga_paint.tnz` TLV sample, and committed `dwanko_run.tnz`
-  FX/vector sample pass nonblack OpenGL/Metal export verification with exact
-  backend TIFF equality.
-- Focused preview/export probe evidence now exists for the reduced
-  `TOfflineGL` raster-placement path and exact Metal/OpenGL parity. Generated
-  shader-effect scene rows are covered by shaderfx/probe and app-smoke scripts
-  rather than packaged `tcomposer`. The internal app preview-export smoke now
-  has a generated TIFF-backed scene run that writes nonblank OpenGL and Metal
-  artifacts directly from `preview_raster` with exact PNG equality, plus a
-  committed TLV sample run that exact-matches OpenGL/Metal PNGs through the
-  viewer-framebuffer fallback. The committed `dwanko_run.tnz` FX/vector sample
-  now also proves Previewer-raster app export with exact OpenGL/Metal PNG
-  equality at frame 24. Broader user-driven GUI preview/export workflow parity
-  remains incomplete.
-- The bounded app launch smoke now passes locally for OpenGL and Metal after
-  packaging with screenshot artifacts captured for both backends.
-- The manifest smoke now propagates requested frames into app launches and the
-  artifact verifier rejects frame metadata without a matching
-  `main_smoke_frame_set` trace. The packaged GUI smoke now reaches
-  `main_after_main_window`, sets the requested frame, and completes internal
-  actions for both OpenGL and direct Metal sample runs. The startup crash was
-  traced to the legacy `QOpenGLFramebufferObject::hasOpenGLFramebufferObjects()`
-  probe being called before a current OpenGL context exists; `MainWindow` now
-  skips that probe under Metal and when no context is current.
-- The Metal/OpenGL manifest smoke now loads all 13 current golden rows with
-  screenshot capture enabled, including vector coverage through
-  `dwanko_run.tnz`, sub-xsheet coverage through the repaired generated fixture,
-  and generated shader-effect scene fixtures. The artifact verifier accepted
-  nonblank screenshots for every row and reported exact OpenGL/Metal equality
-  for each accepted internal capture.
-- Golden-scene image comparison is still incomplete for full manual application
-  workflows. Command-line Metal/OpenGL probes, exact preview/export probes, the
-  full manifest screenshot smoke, and packaged helper scene-export validation
-  now cover the generated helper fixture plus committed cleanup, TLV paint, and
-  `dwanko_run.tnz` FX/vector samples.
-- The legacy SceneViewer `GL_SELECT` implementation has been removed, and
-  Skeleton Tool no longer calls the generic OpenGL selection picker. Skeleton
-  Tool still contains guarded OpenGL name-stack markers in drawing code, but
-  normal selection now routes through CPU picking.
-- Apple-hosted CI evidence should be refreshed after any further parity changes.
-- `.metallib` packaging was not proven in this local environment because the
-  installed Xcode lacks the Metal command-line toolchain. The GitHub-hosted
-  macOS runner currently has the same limitation, so CI validates bundled
-  `.metal` source parity and records `status=source-only-toolchain-unavailable`
-  in the resource summary when `metal` and `metallib` are missing. Release-grade
-  strict validation still requires `OPENTOONZ_REQUIRE_METALLIB=1` on a runner or
-  machine where Apple's command-line Metal tools are available.
-- Full packaging succeeded in this run with `OPENTOONZ_ADHOC_SIGN=0`. A normal
-  signing-enabled packaging run should still be used before release handoff.
-- Backend selection and troubleshooting are now documented, but Metal remains
-  explicitly experimental.
-- A follow-up attempt to rerun `scripts/macos/package-nix-app.sh` for
-  scene-load smoke validation exposed a long-running post-`macdeployqt`
-  packaging step. `scripts/macos/package-nix-app.sh` now has a bounded
-  dependency-copy pass guard and progress logging. With that guard in place,
-  packaging completed with `OPENTOONZ_ADHOC_SIGN=0`, and the committed sample
-  scene loaded under both OpenGL and Metal in the bounded app smoke with
-  screenshots disabled.
+Fresh Apple-hosted macOS CI run `26378235821` on
+`871b68265123238bbcbac83b41f13006be370c92` passed both matrix legs. The Metal
+job passed build, package, arm64 bundle validation, Metal resource validation,
+packaged `tcomposer` scene export, packaged preview-export app smoke, packaged
+Style Editor smoke, packaged viewer-input smoke, packaged drawing-gesture
+smoke, packaged manifest graphics smoke, packaged direct Metal scene smoke,
+DMG creation, CI summary upload, Metal probe artifact upload, and artifact
+upload. The OpenGL-fallback job passed build, package, arm64 bundle validation,
+DMG creation, and summary/artifact upload.
+
+The downloaded artifacts at
+`/private/tmp/opentoonz-ci-artifacts-26378235821` passed:
+
+```sh
+bash scripts/verify_macos_ci_artifacts.sh /private/tmp/opentoonz-ci-artifacts-26378235821
+```
+
+The CI summaries report:
+
+```text
+macos-arm64-opengl-fallback: status=0 elapsed_seconds=71 WITH_GRAPHICS_METAL=OFF total_warnings=144 apple_opengl_deprecation_warnings=0 qt_qgl_warning_lines=0 qt_qopengl_deprecation_warning_lines=0
+macos-arm64-metal: status=0 elapsed_seconds=74 WITH_GRAPHICS_METAL=ON total_warnings=144 apple_opengl_deprecation_warnings=0 qt_qgl_warning_lines=0 qt_qopengl_deprecation_warning_lines=0
+```
+
+Automated coverage now proves the committed and generated golden-scene set can
+exercise Metal build/package/runtime paths for normal viewer loading,
+direct-Metal scene frames, internal viewer input, drawing gestures, Style
+Editor palette updates, preview/export, shader-effect probes, offscreen/style
+probes, and packaged helper rendering while keeping OpenGL fallback available.
+The generated color-card and committed `dwanko_run.tnz` preview exports
+exact-match OpenGL and Metal PNG output. The committed `tga_paint.tnz` TLV
+preview-export smoke validates traced nonblank OpenGL and Metal output without
+exact PNG comparison because that case can use a viewer-framebuffer fallback
+with slightly different viewport dimensions.
+
+## Remaining Release/Default-Gate Notes
+
+- Metal remains opt-in and OpenGL remains the default macOS backend. This is an
+  explicit product decision, not a build failure.
+- Strict compiled `.metallib` validation is still conditional on a machine or
+  runner with Apple's `metal` and `metallib` tools. Current CI validates
+  bundled `.metal` source parity and accepts `source-only-toolchain-unavailable`
+  when those tools are absent.
+- Release signing and notarization are skipped in public CI because signing
+  secrets are absent. Run the same workflow with release credentials before
+  shipping release artifacts.
+- Broader human-driven GUI workflows should still be exercised before changing
+  the default backend, even though the internal Qt-event app smokes now cover
+  viewer input, drawing, style editing, preview/export, direct Metal frames,
+  and the manifest scene set.
 
 ## Next Recommendation
 
-Continue with the next smallest user-visible parity gap: extend the app-action
-smoke into real drawing/editing input gestures and broader representative scene
-preview/export flows with comparable screenshots, then refresh Apple-hosted CI
-evidence for the expanded Metal gates.
+Keep Metal opt-in for now. The next useful step is a release/default readiness
+pass on a signing-capable macOS machine with the Metal command-line tools
+installed: run strict `.metallib` verification, signing/notarization, and a
+short manual GUI walkthrough over the same golden-scene set.
