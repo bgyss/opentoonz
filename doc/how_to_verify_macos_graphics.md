@@ -621,6 +621,22 @@ This dispatch run is expected to fail on runners that cannot provide both
 `xcrun --find metal` and `xcrun --find metallib`; that failure is the intended
 release-readiness signal, not a normal push-CI regression.
 
+Before a release/default-readiness run, use the preflight script to check the
+local or runner prerequisites and print the exact dispatch commands for the
+strict `.metallib` and system GUI smoke gates:
+
+```sh
+bash scripts/verify_macos_release_readiness_prereqs.sh <branch-or-sha>
+```
+
+The preflight requires macOS, `gh`, `xcrun`, `codesign`, `security`,
+`osascript`, `metal`, `metallib`, `notarytool`, `stapler`, an authenticated
+GitHub CLI session, a Developer ID signing identity, notary credentials, and
+System Events reachability. Accessibility/Automation approval for System Events
+is still an interactive macOS permission; if that approval is missing, the
+dispatch `system_gui_smoke=true` run is expected to fail with System Events
+metadata in the smoke artifacts.
+
 To verify downloaded Apple-hosted macOS CI artifacts after a workflow run:
 
 ```sh

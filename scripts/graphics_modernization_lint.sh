@@ -423,6 +423,19 @@ if [[ -f scripts/graphics_app_smoke_manifest.sh ]]; then
     'run_with_timeout\.py' scripts/graphics_app_smoke_manifest.sh
 fi
 
+if [[ -f scripts/verify_macos_release_readiness_prereqs.sh ]]; then
+  require_present "release readiness preflight checks strict metallib tools" \
+    'require_xcrun_tool metallib' scripts/verify_macos_release_readiness_prereqs.sh
+  require_present "release readiness preflight checks signing identity" \
+    'MACOS_DEVELOPER_ID_APPLICATION' scripts/verify_macos_release_readiness_prereqs.sh
+  require_present "release readiness preflight checks notarization credentials" \
+    'MACOS_NOTARY_KEYCHAIN_PROFILE' scripts/verify_macos_release_readiness_prereqs.sh
+  require_present "release readiness preflight prints strict metallib dispatch" \
+    '-f strict_metallib=true' scripts/verify_macos_release_readiness_prereqs.sh
+  require_present "release readiness preflight prints system GUI dispatch" \
+    '-f system_gui_smoke=true' scripts/verify_macos_release_readiness_prereqs.sh
+fi
+
 if [[ -f .github/workflows/workflow_macos.yml ]]; then
   require_present "macOS CI runs packaged preview export app smoke" \
     'verify_macos_preview_export_app_smoke\.sh' \

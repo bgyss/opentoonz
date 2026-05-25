@@ -711,6 +711,11 @@ pixel differences over the shared extent.
   Accessibility/Automation-authorized runners, and the internal Qt-event app
   smokes cover viewer input, drawing, style editing, preview/export, direct
   Metal frames, and the manifest scene set in ordinary CI.
+- `scripts/verify_macos_release_readiness_prereqs.sh` is the preflight for the
+  remaining external gates. It checks the macOS Metal command-line tools,
+  signing/notarization credentials, GitHub CLI authentication, and System
+  Events reachability, then prints the dispatch commands for
+  `strict_metallib=true` and `system_gui_smoke=true`.
 
 ## Final Acceptance Audit
 
@@ -735,4 +740,8 @@ pass on a signing-capable macOS machine with the Metal command-line tools and
 Accessibility/Automation permissions available: run strict `.metallib`
 verification with dispatch `strict_metallib=true`, signing/notarization, the
 dispatch `system_gui_smoke=true` gate, and a short manual GUI walkthrough over
-the same golden-scene set.
+the same golden-scene set. Start with:
+
+```sh
+bash scripts/verify_macos_release_readiness_prereqs.sh codex/complete-macos-graphics-modernize
+```
