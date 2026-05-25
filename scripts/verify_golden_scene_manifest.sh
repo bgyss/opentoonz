@@ -38,7 +38,7 @@ required_categories=(
   offscreen-render
 )
 
-declare -A seen=()
+seen_categories=""
 required_rows=0
 line_number=0
 while IFS=$'\t' read -r id category status path frame validation notes; do
@@ -94,12 +94,12 @@ while IFS=$'\t' read -r id category status path frame validation notes; do
     fi
   fi
 
-  seen["$category"]=1
+  seen_categories="${seen_categories}${category}"$'\n'
 done <"$manifest"
 
 missing=0
 for category in "${required_categories[@]}"; do
-  if [[ -z "${seen[$category]:-}" ]]; then
+  if ! grep -qx "$category" <<<"$seen_categories"; then
     echo "verify-golden-scene-manifest: missing category: $category" >&2
     missing=1
   fi

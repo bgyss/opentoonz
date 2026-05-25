@@ -75,7 +75,8 @@ max_shift="${OPENTOONZ_GRAPHICS_SMOKE_MAX_SHIFT:-16}"
 fail=0
 scene_path=""
 smoke_frame=""
-declare -A screenshots=()
+screenshot_opengl=""
+screenshot_metal=""
 for backend in "${backends[@]}"; do
   backend_dir="$artifact_dir/$backend"
   env_file="$backend_dir/environment.txt"
@@ -294,7 +295,14 @@ for backend in "${backends[@]}"; do
         echo "verify-graphics-app-smoke-artifacts: screenshot appears blank: $screenshot_file" >&2
         fail=1
       else
-        screenshots["$backend"]="$screenshot_file"
+        case "$backend" in
+          opengl)
+            screenshot_opengl="$screenshot_file"
+            ;;
+          metal)
+            screenshot_metal="$screenshot_file"
+            ;;
+        esac
       fi
     fi
   fi
@@ -336,14 +344,14 @@ for backend in "${backends[@]}"; do
   fi
 done
 
-if [[ -n "${screenshots[opengl]:-}" && -n "${screenshots[metal]:-}" &&
+if [[ -n "$screenshot_opengl" && -n "$screenshot_metal" &&
       -x "$png_matcher" ]]; then
   if ! "$png_matcher" \
       --max-mean-delta "$max_mean_delta" \
       --max-channel-delta "$max_channel_delta" \
       --max-differing-ratio "$max_differing_ratio" \
       --max-shift "$max_shift" \
-      "${screenshots[metal]}" "${screenshots[opengl]}"; then
+      "$screenshot_metal" "$screenshot_opengl"; then
     echo "verify-graphics-app-smoke-artifacts: OpenGL/Metal screenshot comparison exceeded tolerance" >&2
     fail=1
   fi
