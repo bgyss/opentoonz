@@ -360,6 +360,17 @@ if [[ -f scripts/verify_macos_viewer_input_app_smoke.sh ]]; then
     scripts/verify_macos_viewer_input_app_smoke.sh
 fi
 
+if [[ -f scripts/verify_macos_system_viewer_app_smoke.sh ]]; then
+  require_present "system viewer app smoke uses System Events action mode" \
+    'OPENTOONZ_GRAPHICS_SMOKE_ACTIONS=basic-viewer' \
+    scripts/verify_macos_system_viewer_app_smoke.sh
+  require_present "system viewer app smoke requires screenshot evidence" \
+    '--require-screenshot' scripts/verify_macos_system_viewer_app_smoke.sh
+  require_present "system viewer app smoke verifies artifact traces" \
+    'verify_graphics_app_smoke_artifacts\.sh' \
+    scripts/verify_macos_system_viewer_app_smoke.sh
+fi
+
 if [[ -f scripts/verify_macos_drawing_gesture_app_smoke.sh ]]; then
   require_present "drawing gesture app smoke uses internal drawing action" \
     'internal-drawing-gesture' scripts/verify_macos_drawing_gesture_app_smoke.sh
@@ -417,6 +428,11 @@ if [[ -f .github/workflows/workflow_macos.yml ]]; then
   require_present "macOS CI runs packaged viewer input app smoke" \
     'verify_macos_viewer_input_app_smoke\.sh' \
     .github/workflows/workflow_macos.yml
+  require_present "macOS CI exposes packaged system viewer app smoke" \
+    'verify_macos_system_viewer_app_smoke\.sh' \
+    .github/workflows/workflow_macos.yml
+  require_present "macOS CI gates system viewer smoke behind dispatch input" \
+    'system_gui_smoke' .github/workflows/workflow_macos.yml
   require_present "macOS CI runs packaged drawing gesture app smoke" \
     'verify_macos_drawing_gesture_app_smoke\.sh' \
     .github/workflows/workflow_macos.yml
@@ -426,6 +442,8 @@ if [[ -f .github/workflows/workflow_macos.yml ]]; then
     'opentoonz-style-editor-app-smoke' .github/workflows/workflow_macos.yml
   require_present "macOS CI uploads viewer input app smoke artifacts" \
     'opentoonz-viewer-input-app-smoke' .github/workflows/workflow_macos.yml
+  require_present "macOS CI uploads system viewer app smoke artifacts" \
+    'opentoonz-system-viewer-app-smoke' .github/workflows/workflow_macos.yml
   require_present "macOS CI uploads drawing gesture app smoke artifacts" \
     'opentoonz-drawing-gesture-app-smoke' .github/workflows/workflow_macos.yml
 fi

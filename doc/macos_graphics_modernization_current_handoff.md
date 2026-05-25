@@ -181,6 +181,14 @@ milestone reports through the CI checkpoint.
   Metal frame traces, internal preview-export, Style Editor, viewer-input, and
   drawing-gesture traces, packaged `tcomposer` nonblack statistics, and probe
   summary evidence.
+- `scripts/verify_macos_system_viewer_app_smoke.sh` wraps the app smoke's
+  `basic-viewer` action mode for Accessibility/Automation-authorized macOS
+  runners. It drives a center-window click plus playback/scrub/zoom keyboard
+  events through System Events under both OpenGL and Metal, requires screenshot
+  evidence, and verifies the action metadata. The macOS workflow exposes this
+  as a `workflow_dispatch` input named `system_gui_smoke` so release/default
+  readiness can collect system-level input evidence without destabilizing
+  ordinary push CI on runners that lack those permissions.
 - `scripts/verify_sample_data.sh` validates the committed `doc/sample_data`
   pack used by the golden scene manifest: license, key scene files,
   representative raster/vector/material assets, and `$scenefolder`
@@ -683,9 +691,10 @@ pixel differences over the shared extent.
   secrets are absent. Run the same workflow with release credentials before
   shipping release artifacts.
 - Broader human-driven GUI workflows should still be exercised before changing
-  the default backend, even though the internal Qt-event app smokes now cover
-  viewer input, drawing, style editing, preview/export, direct Metal frames,
-  and the manifest scene set.
+  the default backend. A dispatch-only system viewer smoke is now available for
+  Accessibility/Automation-authorized runners, and the internal Qt-event app
+  smokes cover viewer input, drawing, style editing, preview/export, direct
+  Metal frames, and the manifest scene set in ordinary CI.
 
 ## Final Acceptance Audit
 
@@ -694,7 +703,7 @@ though the automated macOS Metal CI gate is green.
 
 | Criterion | Current evidence | Status |
 | --- | --- | --- |
-| macOS OpenToonz can run normal viewer, editing, preview, and render workflows through Metal | CI covers direct Metal scene frames, internal viewer input, drawing gestures, Style Editor updates, preview/export, packaged `tcomposer`, manifest screenshots, shader-effect probes, and offscreen/style probes. Broader human-driven GUI workflows and system-level input coverage remain release/default gates. | Partially proven |
+| macOS OpenToonz can run normal viewer, editing, preview, and render workflows through Metal | CI covers direct Metal scene frames, internal viewer input, drawing gestures, Style Editor updates, preview/export, packaged `tcomposer`, manifest screenshots, shader-effect probes, and offscreen/style probes. A dispatch-only `system_gui_smoke` gate now exists for Accessibility-authorized system mouse/keyboard evidence, but broader human-driven GUI workflow evidence still remains a release/default gate until that gate is run and reviewed. | Partially proven |
 | OpenGL fallback remains available until explicitly retired | OpenGL remains the default backend, `WITH_GRAPHICS_METAL=OFF` builds in CI, and explicit `OPENTOONZ_GRAPHICS_BACKEND=opengl` smoke coverage remains available. | Proven |
 | Golden scene output from Metal matches OpenGL baseline within documented tolerance | Generated and committed sample rows cover raster, TLV, FX/vector, cleanup, sub-xsheet, mesh/skeleton, camera/overlay, and shader-effect cases through exact export checks, nonblank checks, and bounded screenshot comparison. | Proven for automated fixture set |
 | Metal backend is covered by macOS arm64 CI build and package validation | Apple-hosted macOS CI run `26379595473` passed the Metal and OpenGL-fallback matrix legs, and `scripts/verify_macos_ci_artifacts.sh /private/tmp/opentoonz-ci-artifacts-26379595473` passed on downloaded artifacts. | Proven |
@@ -706,6 +715,7 @@ though the automated macOS Metal CI gate is green.
 ## Next Recommendation
 
 Keep Metal opt-in for now. The next useful step is a release/default readiness
-pass on a signing-capable macOS machine with the Metal command-line tools
-installed: run strict `.metallib` verification, signing/notarization, and a
-short manual GUI walkthrough over the same golden-scene set.
+pass on a signing-capable macOS machine with the Metal command-line tools and
+Accessibility/Automation permissions available: run strict `.metallib`
+verification, signing/notarization, the dispatch `system_gui_smoke=true` gate,
+and a short manual GUI walkthrough over the same golden-scene set.

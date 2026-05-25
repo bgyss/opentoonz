@@ -299,6 +299,22 @@ both gestures. This covers SceneViewer mouse-event routing in CI without macOS
 Accessibility permissions; it is still separate from an Accessibility-authorized
 system input smoke.
 
+On an interactive or CI macOS runner where `osascript` has
+Automation/Accessibility permission to drive `System Events`, run the
+system-level viewer smoke:
+
+```sh
+bash scripts/verify_macos_system_viewer_app_smoke.sh /private/tmp/opentoonz-system-viewer-app-smoke
+```
+
+This launches the packaged app under OpenGL and Metal, runs
+`OPENTOONZ_GRAPHICS_SMOKE_ACTIONS=basic-viewer`, sends a center-window mouse
+click plus playback/scrub/zoom keyboard events through macOS System Events, and
+requires nonblank screenshot evidence for both backends. The macOS workflow can
+run this gate through `workflow_dispatch` with `system_gui_smoke=true`; it is
+off by default because default GitHub-hosted runners may not grant the required
+Accessibility/Automation permissions.
+
 After packaging the app bundle, run the focused app-level drawing gesture smoke:
 
 ```sh

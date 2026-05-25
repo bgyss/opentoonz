@@ -20,6 +20,15 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      system_gui_smoke:
+        description: 'Run System Events mouse/keyboard viewer smoke on the Metal matrix leg'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 jobs:
   macOS:
@@ -167,6 +176,16 @@ jobs:
           bash scripts/verify_macos_viewer_input_app_smoke.sh \
             "$RUNNER_TEMP/opentoonz-viewer-input-app-smoke"
 
+      - name: Run packaged system viewer app smoke
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.system_gui_smoke == 'true' && matrix.run_metal_smoke == '1' }}
+        run: |
+          OPENTOONZ_GRAPHICS_SMOKE_BACKENDS="opengl metal" \
+          OPENTOONZ_GRAPHICS_SMOKE_SECONDS=25 \
+          OPENTOONZ_GRAPHICS_SMOKE_COOLDOWN_SECONDS=2 \
+          OPENTOONZ_GRAPHICS_SMOKE_SCREENSHOT=1 \
+          bash scripts/verify_macos_system_viewer_app_smoke.sh \
+            "$RUNNER_TEMP/opentoonz-system-viewer-app-smoke"
+
       - name: Run packaged drawing gesture app smoke
         if: ${{ matrix.run_metal_smoke == '1' }}
         run: |
@@ -265,6 +284,7 @@ jobs:
             ${{ runner.temp }}/opentoonz-preview-export-app-smoke/*
             ${{ runner.temp }}/opentoonz-style-editor-app-smoke/*
             ${{ runner.temp }}/opentoonz-viewer-input-app-smoke/*
+            ${{ runner.temp }}/opentoonz-system-viewer-app-smoke/*
             ${{ runner.temp }}/opentoonz-drawing-gesture-app-smoke/*
             ${{ runner.temp }}/opentoonz-graphics-app-smoke-manifest/*
             ${{ runner.temp }}/opentoonz-graphics-app-smoke-direct-metal/*
