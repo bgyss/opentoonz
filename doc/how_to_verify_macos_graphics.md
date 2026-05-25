@@ -494,6 +494,7 @@ OPENTOONZ_GRAPHICS_FIXTURE_DIR=/private/tmp/opentoonz-graphics-fixtures \
 OPENTOONZ_SHADERFX_COMPARE_DIR=/private/tmp/opentoonz-shaderfx-compare \
 OPENTOONZ_GRAPHICS_SMOKE_BACKENDS="opengl metal" \
 OPENTOONZ_GRAPHICS_SMOKE_SECONDS=5 \
+OPENTOONZ_GRAPHICS_SMOKE_MANIFEST_SCENE_TIMEOUT_SECONDS=90 \
 OPENTOONZ_GRAPHICS_SMOKE_SCREENSHOT=1 \
 bash scripts/graphics_app_smoke_manifest.sh \
   doc/macos_graphics_golden_scenes.tsv \
@@ -512,7 +513,12 @@ verifier requires a matching `main_smoke_frame_set` trace when a row requests a
 specific frame. The vector row uses `doc/sample_data/dwanko_run.tnz`, which
 contains committed PLI vector levels, so vector scene loading is exercised by
 the app-smoke manifest instead of being skipped as a standalone `.pli` asset. A
-local 13-row manifest run with internal screenshots enabled produced nonblank
+per-scene timeout, controlled by
+`OPENTOONZ_GRAPHICS_SMOKE_MANIFEST_SCENE_TIMEOUT_SECONDS`, bounds each manifest
+row so a launch hang or unexpected crash reports the active scene and artifact
+directory instead of consuming the whole macOS CI job timeout. The CI workflow
+also applies a step-level timeout to the manifest smoke. A local 13-row
+manifest run with internal screenshots enabled produced nonblank
 OpenGL and Metal screenshots for every current row and exact OpenGL/Metal
 equality for each accepted internal capture.
 

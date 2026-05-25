@@ -416,6 +416,11 @@ if [[ -f scripts/graphics_app_smoke_manifest.sh ]]; then
     scripts/graphics_app_smoke_manifest.sh
   require_absent_file "manifest smoke path-only dedupe" \
     'seen_paths' scripts/graphics_app_smoke_manifest.sh
+  require_present "manifest smoke has per-scene timeout" \
+    'OPENTOONZ_GRAPHICS_SMOKE_MANIFEST_SCENE_TIMEOUT_SECONDS' \
+    scripts/graphics_app_smoke_manifest.sh
+  require_present "manifest smoke uses timeout runner" \
+    'run_with_timeout\.py' scripts/graphics_app_smoke_manifest.sh
 fi
 
 if [[ -f .github/workflows/workflow_macos.yml ]]; then
@@ -427,6 +432,11 @@ if [[ -f .github/workflows/workflow_macos.yml ]]; then
     .github/workflows/workflow_macos.yml
   require_present "macOS CI runs packaged viewer input app smoke" \
     'verify_macos_viewer_input_app_smoke\.sh' \
+    .github/workflows/workflow_macos.yml
+  require_present "macOS CI bounds manifest smoke step" \
+    'timeout-minutes: 45' .github/workflows/workflow_macos.yml
+  require_present "macOS CI sets manifest scene timeout" \
+    'OPENTOONZ_GRAPHICS_SMOKE_MANIFEST_SCENE_TIMEOUT_SECONDS=90' \
     .github/workflows/workflow_macos.yml
   require_present "macOS CI exposes packaged system viewer app smoke" \
     'verify_macos_system_viewer_app_smoke\.sh' \

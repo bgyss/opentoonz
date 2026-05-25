@@ -5,6 +5,8 @@ manifest="${1:-doc/macos_graphics_golden_scenes.tsv}"
 artifact_root="${2:-${OPENTOONZ_GRAPHICS_SMOKE_MANIFEST_DIR:-/private/tmp/opentoonz-graphics-app-smoke-manifest}}"
 fixture_dir="${OPENTOONZ_GRAPHICS_FIXTURE_DIR:-/tmp/opentoonz-graphics-fixtures}"
 shaderfx_dir="${OPENTOONZ_SHADERFX_COMPARE_DIR:-/tmp/opentoonz-shaderfx-compare}"
+scene_timeout_seconds="${OPENTOONZ_GRAPHICS_SMOKE_MANIFEST_SCENE_TIMEOUT_SECONDS:-90}"
+timeout_runner="scripts/run_with_timeout.py"
 
 if [[ ! -f "$manifest" ]]; then
   echo "graphics-app-smoke-manifest: missing manifest: $manifest" >&2
@@ -12,6 +14,22 @@ if [[ ! -f "$manifest" ]]; then
 fi
 
 mkdir -p "$artifact_root"
+
+case "$scene_timeout_seconds" in
+  ''|*[!0-9]*)
+    echo "graphics-app-smoke-manifest: scene timeout must be a positive integer: $scene_timeout_seconds" >&2
+    exit 1
+    ;;
+  0)
+    echo "graphics-app-smoke-manifest: scene timeout must be greater than zero" >&2
+    exit 1
+    ;;
+esac
+
+if [[ ! -x "$timeout_runner" ]]; then
+  echo "graphics-app-smoke-manifest: missing timeout runner: $timeout_runner" >&2
+  exit 1
+fi
 
 if [[ -x scripts/generate_graphics_fixture_scenes.sh ]]; then
   bash scripts/generate_graphics_fixture_scenes.sh "$fixture_dir" >/dev/null
@@ -43,10 +61,11 @@ while IFS=$'\t' read -r id category status path frame validation notes; do
 
   safe_id="$(printf '%s' "$id" | tr -c 'A-Za-z0-9_.-' '_')"
   scene_artifacts="$artifact_root/$safe_id"
-  echo "graphics-app-smoke-manifest: scene=$path artifacts=$scene_artifacts"
+  echo "graphics-app-smoke-manifest: scene=$path artifacts=$scene_artifacts timeout=${scene_timeout_seconds}s"
   OPENTOONZ_GRAPHICS_SMOKE_SCENE="$path" \
   OPENTOONZ_GRAPHICS_SMOKE_FRAME="$frame" \
-    bash scripts/macos/graphics-app-smoke.sh "$scene_artifacts"
+    "$timeout_runner" "$scene_timeout_seconds" \
+      bash scripts/macos/graphics-app-smoke.sh "$scene_artifacts"
   if [[ "${OPENTOONZ_GRAPHICS_SMOKE_SCREENSHOT:-1}" != "0" ]]; then
     bash scripts/verify_graphics_app_smoke_artifacts.sh \
       "$scene_artifacts" --require-screenshot

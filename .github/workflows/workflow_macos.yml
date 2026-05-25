@@ -207,12 +207,14 @@ jobs:
 
       - name: Run packaged manifest graphics smoke
         if: ${{ matrix.run_metal_smoke == '1' }}
+        timeout-minutes: 45
         run: |
           OPENTOONZ_GRAPHICS_FIXTURE_DIR="$RUNNER_TEMP/opentoonz-graphics-fixtures" \
           OPENTOONZ_SHADERFX_COMPARE_DIR="$RUNNER_TEMP/opentoonz-shaderfx-compare" \
           OPENTOONZ_GRAPHICS_SMOKE_BACKENDS="opengl metal" \
           OPENTOONZ_GRAPHICS_SMOKE_SECONDS=5 \
           OPENTOONZ_GRAPHICS_SMOKE_COOLDOWN_SECONDS=2 \
+          OPENTOONZ_GRAPHICS_SMOKE_MANIFEST_SCENE_TIMEOUT_SECONDS=90 \
           OPENTOONZ_GRAPHICS_SMOKE_SCREENSHOT=1 \
           bash scripts/graphics_app_smoke_manifest.sh \
             doc/macos_graphics_golden_scenes.tsv \

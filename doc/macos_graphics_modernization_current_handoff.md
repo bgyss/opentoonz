@@ -131,7 +131,12 @@ milestone reports through the CI checkpoint.
   row's `frame` column as `OPENTOONZ_GRAPHICS_SMOKE_FRAME`, and the artifact
   verifier requires the corresponding app trace when a frame is specified. The
   manifest no longer deduplicates by scene path, so repeated sample scenes still
-  run when they cover different categories or frames.
+  run when they cover different categories or frames. Each row is wrapped with
+  `scripts/run_with_timeout.py`; set
+  `OPENTOONZ_GRAPHICS_SMOKE_MANIFEST_SCENE_TIMEOUT_SECONDS` to adjust the
+  per-scene bound. The macOS CI manifest-smoke step also has a step-level
+  timeout, so a hung launch now fails on a named scene with its artifact
+  directory instead of consuming the full workflow timeout.
 - The app smoke now asks OpenToonz to write an internal SceneViewer framebuffer
   PNG via `OPENTOONZ_GRAPHICS_SMOKE_INTERNAL_SCREENSHOT` and uses that artifact
   before falling back to `screencapture`. The app writes through a temporary
