@@ -47,12 +47,13 @@ while IFS=$'\t' read -r id category status path frame validation notes; do
   OPENTOONZ_GRAPHICS_SMOKE_SCENE="$path" \
   OPENTOONZ_GRAPHICS_SMOKE_FRAME="$frame" \
     bash scripts/macos/graphics-app-smoke.sh "$scene_artifacts"
-  verify_args=()
   if [[ "${OPENTOONZ_GRAPHICS_SMOKE_SCREENSHOT:-1}" != "0" ]]; then
-    verify_args+=(--require-screenshot)
+    bash scripts/verify_graphics_app_smoke_artifacts.sh \
+      "$scene_artifacts" --require-screenshot
+  else
+    bash scripts/verify_graphics_app_smoke_artifacts.sh \
+      "$scene_artifacts"
   fi
-  bash scripts/verify_graphics_app_smoke_artifacts.sh \
-    "$scene_artifacts" "${verify_args[@]}"
 done <"$manifest"
 
 if (( scene_count == 0 )); then

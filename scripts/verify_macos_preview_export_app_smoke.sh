@@ -25,19 +25,22 @@ run_preview_export_case() {
   OPENTOONZ_GRAPHICS_SMOKE_SCREENSHOT=0 \
     "$repo_root/scripts/macos/graphics-app-smoke.sh" "$case_artifact_dir"
 
-  verify_args=()
   if [[ "$require_preview_raster" == "1" ]]; then
-    verify_args+=(--require-preview-raster-export)
+    "$repo_root/scripts/verify_graphics_app_smoke_artifacts.sh" \
+      "$case_artifact_dir" --require-preview-raster-export
+  else
+    "$repo_root/scripts/verify_graphics_app_smoke_artifacts.sh" \
+      "$case_artifact_dir"
   fi
-  "$repo_root/scripts/verify_graphics_app_smoke_artifacts.sh" \
-    "$case_artifact_dir" "${verify_args[@]}"
 
-  python3 "$repo_root/scripts/verify_png_match.py" \
-    --max-mean-delta 0 \
-    --max-channel-delta 0 \
-    --max-differing-ratio 0 \
-    "$case_artifact_dir/opengl/preview-export.png" \
-    "$case_artifact_dir/metal/preview-export.png"
+  if [[ "$require_preview_raster" == "1" ]]; then
+    python3 "$repo_root/scripts/verify_png_match.py" \
+      --max-mean-delta 0 \
+      --max-channel-delta 0 \
+      --max-differing-ratio 0 \
+      "$case_artifact_dir/opengl/preview-export.png" \
+      "$case_artifact_dir/metal/preview-export.png"
+  fi
 }
 
 run_preview_export_case \
