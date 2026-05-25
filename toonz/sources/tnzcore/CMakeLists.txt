@@ -287,7 +287,7 @@ elseif(BUILD_TARGET_APPLE)
         set(TGRAPHICS_METAL_TOOLCHAIN_RESULT 1)
         if(TGRAPHICS_METAL_COMPILER_RESULT EQUAL 0)
             execute_process(
-                COMMAND "${TGRAPHICS_METAL_COMPILER}" -v
+                COMMAND xcrun metal -v
                 OUTPUT_QUIET
                 ERROR_QUIET
                 RESULT_VARIABLE TGRAPHICS_METAL_TOOLCHAIN_RESULT
@@ -300,8 +300,8 @@ elseif(BUILD_TARGET_APPLE)
             set(TGRAPHICS_METAL_LIBRARY "${CMAKE_CURRENT_BINARY_DIR}/tgraphics_metal_shaders.metallib")
             add_custom_command(
                 OUTPUT "${TGRAPHICS_METAL_LIBRARY}"
-                COMMAND "${TGRAPHICS_METAL_COMPILER}" -c "${TGRAPHICS_METAL_SHADER_SOURCE}" -o "${TGRAPHICS_METAL_AIR}"
-                COMMAND "${TGRAPHICS_METALLIB_COMPILER}" "${TGRAPHICS_METAL_AIR}" -o "${TGRAPHICS_METAL_LIBRARY}"
+                COMMAND xcrun metal -c "${TGRAPHICS_METAL_SHADER_SOURCE}" -o "${TGRAPHICS_METAL_AIR}"
+                COMMAND xcrun metallib "${TGRAPHICS_METAL_AIR}" -o "${TGRAPHICS_METAL_LIBRARY}"
                 DEPENDS "${TGRAPHICS_METAL_SHADER_SOURCE}"
                 COMMENT "Compiling tgraphics Metal shader library"
                 VERBATIM
