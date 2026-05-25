@@ -214,6 +214,12 @@ milestone reports through the CI checkpoint.
   `status=source-only-toolchain-unavailable`; release-grade strict `.metallib`
   evidence still requires running with `OPENTOONZ_REQUIRE_METALLIB=1` on a
   machine where `metal` and `metallib` are available.
+- The macOS workflow exposes a `workflow_dispatch` input named
+  `strict_metallib`. When set to `true` for the Metal matrix leg, configure uses
+  `-DWITH_GRAPHICS_METAL_REQUIRE_METALLIB=ON` and the package resource verifier
+  uses `OPENTOONZ_REQUIRE_METALLIB=1`. This turns missing command-line Metal
+  library tooling or a missing packaged `.metallib` into an intentional
+  release-readiness failure instead of source-only evidence.
 - The macOS Metal CI leg now also runs the manifest-driven packaged app smoke
   with generated graphics fixtures, screenshot capture enabled, and
   comparison-aware artifact verification for every available manifest `.tnz`
@@ -684,9 +690,11 @@ pixel differences over the shared extent.
 - Metal remains opt-in and OpenGL remains the default macOS backend. This is an
   explicit product decision, not a build failure.
 - Strict compiled `.metallib` validation is still conditional on a machine or
-  runner with Apple's `metal` and `metallib` tools. Current CI validates
+  runner with Apple's `metal` and `metallib` tools. Current push CI validates
   bundled `.metal` source parity and accepts `source-only-toolchain-unavailable`
-  when those tools are absent.
+  when those tools are absent; the dispatch `strict_metallib=true` gate now
+  forces configure-time and package-time `.metallib` validation for
+  release/default readiness.
 - Release signing and notarization are skipped in public CI because signing
   secrets are absent. Run the same workflow with release credentials before
   shipping release artifacts.
@@ -707,7 +715,7 @@ though the automated macOS Metal CI gate is green.
 | OpenGL fallback remains available until explicitly retired | OpenGL remains the default backend, `WITH_GRAPHICS_METAL=OFF` builds in CI, and explicit `OPENTOONZ_GRAPHICS_BACKEND=opengl` smoke coverage remains available. | Proven |
 | Golden scene output from Metal matches OpenGL baseline within documented tolerance | Generated and committed sample rows cover raster, TLV, FX/vector, cleanup, sub-xsheet, mesh/skeleton, camera/overlay, and shader-effect cases through exact export checks, nonblank checks, and bounded screenshot comparison. | Proven for automated fixture set |
 | Metal backend is covered by macOS arm64 CI build and package validation | Apple-hosted macOS CI run `26379595473` passed the Metal and OpenGL-fallback matrix legs, and `scripts/verify_macos_ci_artifacts.sh /private/tmp/opentoonz-ci-artifacts-26379595473` passed on downloaded artifacts. | Proven |
-| Metal shaders and resources are included in the app bundle | CI verifies bundled `.metal` source parity and records Metal resource summary status. Strict compiled `.metallib` evidence still requires a runner or machine with both `metal` and `metallib`. | Source proven; strict `.metallib` pending |
+| Metal shaders and resources are included in the app bundle | CI verifies bundled `.metal` source parity and records Metal resource summary status. A dispatch-only `strict_metallib=true` gate now forces configure-time and package-time compiled `.metallib` validation, but strict evidence still requires running that gate on a runner or machine with both `metal` and `metallib`. | Source proven; strict `.metallib` gate added but pending run |
 | macOS warning counts no longer include routine Qt `QGL*` or Apple OpenGL deprecation noise in the default backend | CI summaries for run `26379595473` report `apple_opengl_deprecation_warnings=0`, `qt_qgl_warning_lines=0`, and `qt_qopengl_deprecation_warning_lines=0` for both matrix legs. | Proven |
 | Build-time impact is measured and documented | CI summaries record elapsed seconds, warning counts, and ccache summaries for both matrix legs. | Proven |
 | User-facing backend selection and troubleshooting are documented | `doc/how_to_verify_macos_graphics.md`, `doc/how_to_build_macosx.md`, and `doc/macos_graphics_default_backend_decision.md` document backend selection, direct-Metal smoke mode, verification commands, and the OpenGL-default decision. | Proven |
@@ -717,5 +725,6 @@ though the automated macOS Metal CI gate is green.
 Keep Metal opt-in for now. The next useful step is a release/default readiness
 pass on a signing-capable macOS machine with the Metal command-line tools and
 Accessibility/Automation permissions available: run strict `.metallib`
-verification, signing/notarization, the dispatch `system_gui_smoke=true` gate,
-and a short manual GUI walkthrough over the same golden-scene set.
+verification with dispatch `strict_metallib=true`, signing/notarization, the
+dispatch `system_gui_smoke=true` gate, and a short manual GUI walkthrough over
+the same golden-scene set.

@@ -29,6 +29,14 @@ on:
         options:
           - 'false'
           - 'true'
+      strict_metallib:
+        description: 'Require compiled Metal .metallib at configure and package verification time'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 jobs:
   macOS:
@@ -51,7 +59,8 @@ jobs:
       OPENTOONZ_REQUIRED_ARCH: arm64
       OPENTOONZ_ALLOW_UNIVERSAL: '0'
       OPENTOONZ_CI_BUILD_LABEL: macos-arm64-${{ matrix.graphics }}
-      OPENTOONZ_CMAKE_EXTRA_ARGS: ${{ matrix.cmake_extra_args }}
+      OPENTOONZ_CMAKE_EXTRA_ARGS: ${{ matrix.cmake_extra_args }} ${{ github.event_name == 'workflow_dispatch' && inputs.strict_metallib == 'true' && matrix.graphics == 'metal' && '-DWITH_GRAPHICS_METAL_REQUIRE_METALLIB=ON' || '' }}
+      OPENTOONZ_REQUIRE_METALLIB: ${{ github.event_name == 'workflow_dispatch' && inputs.strict_metallib == 'true' && matrix.graphics == 'metal' && '1' || '0' }}
       CCACHE_DIR: ${{ github.workspace }}/.ccache
       CCACHE_MAXSIZE: 1G
       MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
@@ -138,6 +147,7 @@ jobs:
         run: |
           bash scripts/macos/verify-bundled-qt-runtime.sh "$OPENTOONZ_APP"
           OPENTOONZ_METAL_RESOURCE_SUMMARY="$RUNNER_TEMP/opentoonz-metal-resources/summary.txt" \
+          OPENTOONZ_REQUIRE_METALLIB="$OPENTOONZ_REQUIRE_METALLIB" \
             bash scripts/macos/verify-metal-resources.sh "$OPENTOONZ_APP"
           test -x toonz/build/nix-relwithdebinfo/tnzcore/tgraphics_metal_probe
           test -x toonz/build/nix-relwithdebinfo/stdfx/shaderfx_metal_probe

@@ -599,6 +599,22 @@ command-line Metal tools are unavailable. Release-grade Metal package
 validation still requires running the strict form above on a runner or machine
 where `xcrun --find metal` and `xcrun --find metallib` succeed.
 
+The macOS workflow also exposes a dispatch-time strict resource gate. Run the
+workflow with `strict_metallib=true` to configure the Metal matrix leg with
+`-DWITH_GRAPHICS_METAL_REQUIRE_METALLIB=ON` and verify the packaged bundle with
+`OPENTOONZ_REQUIRE_METALLIB=1`:
+
+```sh
+gh workflow run "MacOS Build" \
+  --ref <branch-or-sha> \
+  -f strict_metallib=true \
+  -f system_gui_smoke=false
+```
+
+This dispatch run is expected to fail on runners that cannot provide both
+`xcrun --find metal` and `xcrun --find metallib`; that failure is the intended
+release-readiness signal, not a normal push-CI regression.
+
 To verify downloaded Apple-hosted macOS CI artifacts after a workflow run:
 
 ```sh

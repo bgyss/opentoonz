@@ -433,6 +433,13 @@ if [[ -f .github/workflows/workflow_macos.yml ]]; then
     .github/workflows/workflow_macos.yml
   require_present "macOS CI gates system viewer smoke behind dispatch input" \
     'system_gui_smoke' .github/workflows/workflow_macos.yml
+  require_present "macOS CI exposes strict metallib dispatch input" \
+    'strict_metallib' .github/workflows/workflow_macos.yml
+  require_present "macOS CI strict metallib configure gate" \
+    'WITH_GRAPHICS_METAL_REQUIRE_METALLIB=ON' \
+    .github/workflows/workflow_macos.yml
+  require_present "macOS CI strict metallib package verifier gate" \
+    'OPENTOONZ_REQUIRE_METALLIB' .github/workflows/workflow_macos.yml
   require_present "macOS CI runs packaged drawing gesture app smoke" \
     'verify_macos_drawing_gesture_app_smoke\.sh' \
     .github/workflows/workflow_macos.yml
