@@ -358,8 +358,15 @@ run_backend_actions() {
   osascript >>"$action_file" 2>&1 <<APPLESCRIPT &
 tell application "System Events"
   set targetProcesses to every process whose unix id is $pid
-  if (count of targetProcesses) is 0 then error "OpenToonz process not found for pid $pid"
+  if (count of targetProcesses) is 0 then
+    set targetProcesses to every process whose bundle identifier is "$bundle_id"
+  end if
+  if (count of targetProcesses) is 0 then
+    set targetProcesses to every process whose name is "OpenToonz"
+  end if
+  if (count of targetProcesses) is 0 then error "OpenToonz process not found for pid $pid bundle $bundle_id"
   set targetProcess to item 1 of targetProcesses
+  set resolvedUnixId to unix id of targetProcess
   set frontmost of targetProcess to true
   delay 1
   if (count of windows of targetProcess) is 0 then error "OpenToonz window not found for pid $pid"
@@ -379,16 +386,21 @@ tell application "System Events"
   keystroke "+"
   delay 0.2
   keystroke "-"
+  return "resolved_unix_id=" & resolvedUnixId
 end tell
 APPLESCRIPT
   local action_pid="$!"
   for _ in 1 2 3 4 5; do
     if ! process_is_running "$action_pid"; then
-      if wait "$action_pid"; then
+      local action_status=0
+      set +e
+      wait "$action_pid"
+      action_status="$?"
+      set -e
+      if [[ "$action_status" == "0" ]]; then
         echo "result=ok" >>"$action_file"
         return 0
       fi
-      local action_status="$?"
       echo "result=failed status=$action_status" >>"$action_file"
       return "$action_status"
     fi
