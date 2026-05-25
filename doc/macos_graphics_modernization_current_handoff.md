@@ -1,6 +1,7 @@
 # macOS Graphics Modernization Current Handoff
 
-Status: refreshed local evidence from the Codex worktree on 2026-05-23.
+Status: refreshed local and Apple-hosted CI evidence from the Codex worktree on
+2026-05-25.
 
 This handoff summarizes the current state against
 `doc/macos_graphics_modernization_goal_prompt.md`. The repository already
@@ -22,9 +23,11 @@ milestone reports through the CI checkpoint.
 - Remaining OpenGL selection usage is isolated to the legacy SceneViewer picking
   path and Skeleton Tool 3D fallback markers.
 - Metal shader source is copied into the app bundle. A compiled `.metallib` is
-  packaged when the local Metal toolchain provides `metal` and `metallib`.
-  Release/CI Metal builds require that toolchain and fail configuration or
-  package verification if the compiled library is missing.
+  packaged when the local Metal toolchain provides both `metal` and `metallib`.
+  Release-grade strict validation can require that compiled library with
+  `WITH_GRAPHICS_METAL_REQUIRE_METALLIB=ON` at configure time and
+  `OPENTOONZ_REQUIRE_METALLIB=1` during package verification. Public CI still
+  records source-only evidence when the runner has no `metallib` tool.
 - `scripts/macos/graphics-app-smoke.sh` provides a bounded app-bundle launch
   smoke for `OPENTOONZ_GRAPHICS_BACKEND=opengl` and `metal`, with logs and
   optional screenshots saved outside the repository. The script treats early
@@ -683,6 +686,22 @@ pixel differences over the shared extent.
   the default backend, even though the internal Qt-event app smokes now cover
   viewer input, drawing, style editing, preview/export, direct Metal frames,
   and the manifest scene set.
+
+## Final Acceptance Audit
+
+The goal prompt's final acceptance criteria are not yet fully complete, even
+though the automated macOS Metal CI gate is green.
+
+| Criterion | Current evidence | Status |
+| --- | --- | --- |
+| macOS OpenToonz can run normal viewer, editing, preview, and render workflows through Metal | CI covers direct Metal scene frames, internal viewer input, drawing gestures, Style Editor updates, preview/export, packaged `tcomposer`, manifest screenshots, shader-effect probes, and offscreen/style probes. Broader human-driven GUI workflows and system-level input coverage remain release/default gates. | Partially proven |
+| OpenGL fallback remains available until explicitly retired | OpenGL remains the default backend, `WITH_GRAPHICS_METAL=OFF` builds in CI, and explicit `OPENTOONZ_GRAPHICS_BACKEND=opengl` smoke coverage remains available. | Proven |
+| Golden scene output from Metal matches OpenGL baseline within documented tolerance | Generated and committed sample rows cover raster, TLV, FX/vector, cleanup, sub-xsheet, mesh/skeleton, camera/overlay, and shader-effect cases through exact export checks, nonblank checks, and bounded screenshot comparison. | Proven for automated fixture set |
+| Metal backend is covered by macOS arm64 CI build and package validation | Apple-hosted macOS CI run `26379595473` passed the Metal and OpenGL-fallback matrix legs, and `scripts/verify_macos_ci_artifacts.sh /private/tmp/opentoonz-ci-artifacts-26379595473` passed on downloaded artifacts. | Proven |
+| Metal shaders and resources are included in the app bundle | CI verifies bundled `.metal` source parity and records Metal resource summary status. Strict compiled `.metallib` evidence still requires a runner or machine with both `metal` and `metallib`. | Source proven; strict `.metallib` pending |
+| macOS warning counts no longer include routine Qt `QGL*` or Apple OpenGL deprecation noise in the default backend | CI summaries for run `26379595473` report `apple_opengl_deprecation_warnings=0`, `qt_qgl_warning_lines=0`, and `qt_qopengl_deprecation_warning_lines=0` for both matrix legs. | Proven |
+| Build-time impact is measured and documented | CI summaries record elapsed seconds, warning counts, and ccache summaries for both matrix legs. | Proven |
+| User-facing backend selection and troubleshooting are documented | `doc/how_to_verify_macos_graphics.md`, `doc/how_to_build_macosx.md`, and `doc/macos_graphics_default_backend_decision.md` document backend selection, direct-Metal smoke mode, verification commands, and the OpenGL-default decision. | Proven |
 
 ## Next Recommendation
 
