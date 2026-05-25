@@ -270,28 +270,34 @@ elseif(BUILD_TARGET_APPLE)
             PROPERTIES HEADER_FILE_ONLY TRUE
         )
 
-        execute_process(
-            COMMAND xcrun --find metal
-            OUTPUT_VARIABLE TGRAPHICS_METAL_COMPILER
-            OUTPUT_STRIP_TRAILING_WHITESPACE
-            ERROR_QUIET
-            RESULT_VARIABLE TGRAPHICS_METAL_COMPILER_RESULT
-        )
-        execute_process(
-            COMMAND xcrun --find metallib
-            OUTPUT_VARIABLE TGRAPHICS_METALLIB_COMPILER
-            OUTPUT_STRIP_TRAILING_WHITESPACE
-            ERROR_QUIET
-            RESULT_VARIABLE TGRAPHICS_METALLIB_COMPILER_RESULT
-        )
-        if(TGRAPHICS_METAL_COMPILER_RESULT EQUAL 0 AND TGRAPHICS_METALLIB_COMPILER_RESULT EQUAL 0)
+        set(TGRAPHICS_METAL_COMPILER "$ENV{OPENTOONZ_METAL_COMPILER}")
+        set(TGRAPHICS_METALLIB_COMPILER "$ENV{OPENTOONZ_METALLIB_COMPILER}")
+        if(NOT TGRAPHICS_METAL_COMPILER)
+            execute_process(
+                COMMAND xcrun --find metal
+                OUTPUT_VARIABLE TGRAPHICS_METAL_COMPILER
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_QUIET
+                RESULT_VARIABLE TGRAPHICS_METAL_COMPILER_RESULT
+            )
+        endif()
+        if(NOT TGRAPHICS_METALLIB_COMPILER)
+            execute_process(
+                COMMAND xcrun --find metallib
+                OUTPUT_VARIABLE TGRAPHICS_METALLIB_COMPILER
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_QUIET
+                RESULT_VARIABLE TGRAPHICS_METALLIB_COMPILER_RESULT
+            )
+        endif()
+        if(TGRAPHICS_METAL_COMPILER AND TGRAPHICS_METALLIB_COMPILER)
             set(TGRAPHICS_METAL_SHADER_SOURCE "${CMAKE_SOURCE_DIR}/common/tgraphics/tgraphics_metal_shaders.metal")
             set(TGRAPHICS_METAL_AIR "${CMAKE_CURRENT_BINARY_DIR}/tgraphics_metal_shaders.air")
             set(TGRAPHICS_METAL_LIBRARY "${CMAKE_CURRENT_BINARY_DIR}/tgraphics_metal_shaders.metallib")
             add_custom_command(
                 OUTPUT "${TGRAPHICS_METAL_LIBRARY}"
-                COMMAND xcrun metal -c "${TGRAPHICS_METAL_SHADER_SOURCE}" -o "${TGRAPHICS_METAL_AIR}"
-                COMMAND xcrun metallib "${TGRAPHICS_METAL_AIR}" -o "${TGRAPHICS_METAL_LIBRARY}"
+                COMMAND "${TGRAPHICS_METAL_COMPILER}" -c "${TGRAPHICS_METAL_SHADER_SOURCE}" -o "${TGRAPHICS_METAL_AIR}"
+                COMMAND "${TGRAPHICS_METALLIB_COMPILER}" "${TGRAPHICS_METAL_AIR}" -o "${TGRAPHICS_METAL_LIBRARY}"
                 DEPENDS "${TGRAPHICS_METAL_SHADER_SOURCE}"
                 COMMENT "Compiling tgraphics Metal shader library"
                 VERBATIM

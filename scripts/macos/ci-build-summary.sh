@@ -16,6 +16,17 @@ cd "$repo_root"
 
 read -r -a cmake_extra_args <<<"${OPENTOONZ_CMAKE_EXTRA_ARGS:-}"
 
+if [[ "${OPENTOONZ_REQUIRE_METALLIB:-0}" == "1" ]]; then
+  if [[ -z "${OPENTOONZ_METAL_COMPILER:-}" ]]; then
+    OPENTOONZ_METAL_COMPILER="$(xcrun --find metal 2>/dev/null || true)"
+    export OPENTOONZ_METAL_COMPILER
+  fi
+  if [[ -z "${OPENTOONZ_METALLIB_COMPILER:-}" ]]; then
+    OPENTOONZ_METALLIB_COMPILER="$(xcrun --find metallib 2>/dev/null || true)"
+    export OPENTOONZ_METALLIB_COMPILER
+  fi
+fi
+
 run_logged() {
   local title="$1"
   shift
