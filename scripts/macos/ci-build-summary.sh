@@ -40,7 +40,7 @@ run_logged() {
 
 count_warning_pattern() {
   local pattern="$1"
-  grep -Eic "$pattern" "$build_log" 2>/dev/null || true
+  grep -Ec "$pattern" "$build_log" 2>/dev/null || true
 }
 
 build_status=0
