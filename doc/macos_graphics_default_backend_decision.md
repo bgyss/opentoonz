@@ -26,12 +26,14 @@ builds remain explicit through `WITH_GRAPHICS_METAL=ON`.
   `tga_paint.tnz` TLV sample validates traced nonblank exports for both
   backends without exact dimensions because it can use a viewer-framebuffer
   fallback.
-- Apple-hosted macOS CI run `26378235821` on
-  `871b68265123238bbcbac83b41f13006be370c92` passed the OpenGL-fallback and
+- Apple-hosted macOS CI run `26379595473` on
+  `db46c36b83176a9c45933201ff81f0b6b77d99a2` passed the OpenGL-fallback and
   Metal matrix legs. The Metal leg passed build, package, arm64 validation,
   Metal resource verification, packaged `tcomposer` export, preview export,
   Style Editor, viewer input, drawing gesture, manifest graphics, and direct
-  Metal scene smokes.
+  Metal scene smokes. The run also verifies that the manifest screenshot
+  comparison tolerates small backend-specific viewport extent drift while still
+  checking nonblank output and bounded pixel differences.
 - `scripts/macos/ci-build-summary.sh` records elapsed build seconds, warning
   counts, `WITH_GRAPHICS_METAL`, and ccache summaries for each macOS matrix
   leg.

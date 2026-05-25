@@ -630,8 +630,8 @@ proven.
 
 ## Current Completion Audit
 
-Fresh Apple-hosted macOS CI run `26378235821` on
-`871b68265123238bbcbac83b41f13006be370c92` passed both matrix legs. The Metal
+Fresh Apple-hosted macOS CI run `26379595473` on
+`db46c36b83176a9c45933201ff81f0b6b77d99a2` passed both matrix legs. The Metal
 job passed build, package, arm64 bundle validation, Metal resource validation,
 packaged `tcomposer` scene export, packaged preview-export app smoke, packaged
 Style Editor smoke, packaged viewer-input smoke, packaged drawing-gesture
@@ -641,17 +641,17 @@ upload. The OpenGL-fallback job passed build, package, arm64 bundle validation,
 DMG creation, and summary/artifact upload.
 
 The downloaded artifacts at
-`/private/tmp/opentoonz-ci-artifacts-26378235821` passed:
+`/private/tmp/opentoonz-ci-artifacts-26379595473` passed:
 
 ```sh
-bash scripts/verify_macos_ci_artifacts.sh /private/tmp/opentoonz-ci-artifacts-26378235821
+bash scripts/verify_macos_ci_artifacts.sh /private/tmp/opentoonz-ci-artifacts-26379595473
 ```
 
 The CI summaries report:
 
 ```text
-macos-arm64-opengl-fallback: status=0 elapsed_seconds=71 WITH_GRAPHICS_METAL=OFF total_warnings=144 apple_opengl_deprecation_warnings=0 qt_qgl_warning_lines=0 qt_qopengl_deprecation_warning_lines=0
-macos-arm64-metal: status=0 elapsed_seconds=74 WITH_GRAPHICS_METAL=ON total_warnings=144 apple_opengl_deprecation_warnings=0 qt_qgl_warning_lines=0 qt_qopengl_deprecation_warning_lines=0
+macos-arm64-opengl-fallback: status=0 elapsed_seconds=119 WITH_GRAPHICS_METAL=OFF total_warnings=144 apple_opengl_deprecation_warnings=0 qt_qgl_warning_lines=0 qt_qopengl_deprecation_warning_lines=0
+macos-arm64-metal: status=0 elapsed_seconds=95 WITH_GRAPHICS_METAL=ON total_warnings=144 apple_opengl_deprecation_warnings=0 qt_qgl_warning_lines=0 qt_qopengl_deprecation_warning_lines=0
 ```
 
 Automated coverage now proves the committed and generated golden-scene set can
@@ -664,6 +664,9 @@ exact-match OpenGL and Metal PNG output. The committed `tga_paint.tnz` TLV
 preview-export smoke validates traced nonblank OpenGL and Metal output without
 exact PNG comparison because that case can use a viewer-framebuffer fallback
 with slightly different viewport dimensions.
+Manifest screenshot comparison now also allows small backend-specific viewport
+extent drift while still requiring nonblank screenshots and bounded OpenGL/Metal
+pixel differences over the shared extent.
 
 ## Remaining Release/Default-Gate Notes
 
