@@ -284,17 +284,7 @@ elseif(BUILD_TARGET_APPLE)
             ERROR_QUIET
             RESULT_VARIABLE TGRAPHICS_METALLIB_COMPILER_RESULT
         )
-        set(TGRAPHICS_METAL_TOOLCHAIN_RESULT 1)
-        if(TGRAPHICS_METAL_COMPILER_RESULT EQUAL 0)
-            execute_process(
-                COMMAND xcrun metal -v
-                OUTPUT_QUIET
-                ERROR_QUIET
-                RESULT_VARIABLE TGRAPHICS_METAL_TOOLCHAIN_RESULT
-            )
-        endif()
-
-        if(TGRAPHICS_METAL_COMPILER_RESULT EQUAL 0 AND TGRAPHICS_METALLIB_COMPILER_RESULT EQUAL 0 AND TGRAPHICS_METAL_TOOLCHAIN_RESULT EQUAL 0)
+        if(TGRAPHICS_METAL_COMPILER_RESULT EQUAL 0 AND TGRAPHICS_METALLIB_COMPILER_RESULT EQUAL 0)
             set(TGRAPHICS_METAL_SHADER_SOURCE "${CMAKE_SOURCE_DIR}/common/tgraphics/tgraphics_metal_shaders.metal")
             set(TGRAPHICS_METAL_AIR "${CMAKE_CURRENT_BINARY_DIR}/tgraphics_metal_shaders.air")
             set(TGRAPHICS_METAL_LIBRARY "${CMAKE_CURRENT_BINARY_DIR}/tgraphics_metal_shaders.metallib")
