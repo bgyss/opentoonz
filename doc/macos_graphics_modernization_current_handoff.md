@@ -702,7 +702,13 @@ pixel differences over the shared extent.
   bundled `.metal` source parity and accepts `source-only-toolchain-unavailable`
   when those tools are absent; the dispatch `strict_metallib=true` gate now
   forces configure-time and package-time `.metallib` validation for
-  release/default readiness.
+  release/default readiness. Dispatch run `26383816839` exercised that strict
+  gate on GitHub-hosted macOS arm64 at
+  `83c492452674d67d55fbaab7a52e36debae6eccd`; the Metal matrix leg failed
+  during CMake configure with the expected strict error, "Metal shader library
+  tools were not found", while the OpenGL-fallback matrix leg completed
+  successfully. This proves the strict gate is active, but does not provide
+  release-grade compiled `.metallib` evidence on hosted CI.
 - Release signing and notarization are skipped in public CI because signing
   secrets are absent. Run the same workflow with release credentials before
   shipping release artifacts.
@@ -734,7 +740,7 @@ though the automated macOS Metal CI gate is green.
 | OpenGL fallback remains available until explicitly retired | OpenGL remains the default backend, `WITH_GRAPHICS_METAL=OFF` builds in CI, and explicit `OPENTOONZ_GRAPHICS_BACKEND=opengl` smoke coverage remains available. | Proven |
 | Golden scene output from Metal matches OpenGL baseline within documented tolerance | Generated and committed sample rows cover raster, TLV, FX/vector, cleanup, sub-xsheet, mesh/skeleton, camera/overlay, and shader-effect cases through exact export checks, nonblank checks, and bounded screenshot comparison. | Proven for automated fixture set |
 | Metal backend is covered by macOS arm64 CI build and package validation | Apple-hosted macOS CI run `26383058356` passed the Metal and OpenGL-fallback matrix legs, and `scripts/verify_macos_ci_artifacts.sh /private/tmp/opentoonz-ci-artifacts-26383058356` passed on downloaded artifacts. | Proven |
-| Metal shaders and resources are included in the app bundle | CI verifies bundled `.metal` source parity and records Metal resource summary status. A dispatch-only `strict_metallib=true` gate now forces configure-time and package-time compiled `.metallib` validation, but strict evidence still requires running that gate on a runner or machine with both `metal` and `metallib`. | Source proven; strict `.metallib` gate added but pending run |
+| Metal shaders and resources are included in the app bundle | CI verifies bundled `.metal` source parity and records Metal resource summary status. Dispatch run `26383816839` proves the `strict_metallib=true` gate fails closed at configure time when `metal`/`metallib` are unavailable, but strict release evidence still requires rerunning that gate on a runner or machine with both tools. | Source proven; strict `.metallib` gate fails closed on hosted CI |
 | macOS warning counts no longer include routine Qt `QGL*` or Apple OpenGL deprecation noise in the default backend | CI summaries for run `26383058356` report `apple_opengl_deprecation_warnings=0`, `qt_qgl_warning_lines=0`, and `qt_qopengl_deprecation_warning_lines=0` for both matrix legs. | Proven |
 | Build-time impact is measured and documented | CI summaries record elapsed seconds, warning counts, and ccache summaries for both matrix legs. | Proven |
 | User-facing backend selection and troubleshooting are documented | `doc/how_to_verify_macos_graphics.md`, `doc/how_to_build_macosx.md`, and `doc/macos_graphics_default_backend_decision.md` document backend selection, direct-Metal smoke mode, verification commands, and the OpenGL-default decision. | Proven |
