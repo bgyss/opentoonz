@@ -1,249 +1,530 @@
-# Codex Goal Prompt: OpenToonz Rust Port, Integrated Generative Workbench, And Comparison Harness
+# Codex Goal Prompt: Begin The OpenToonz Rust Migration Safely
 
-Use this prompt to start a long-running Codex implementation session in this
-checkout.
+Prepared: July 26, 2026
 
-## Goal Prompt
+Survey baseline: `6f87dd4535de01cfd4d8fa84cd4ceedb5c7492bd`
 
-You are working in `/Users/briangyss/.codex/worktrees/d160/opentoonz`.
+## How To Use This Prompt
 
-Your objective is to turn the Rust migration study into an executable,
-verified project scaffold for an OpenToonz Rust port. The deliverable must
-include the comparison harness required to verify Rust behavior against the
-current C++ OpenToonz implementation. The generative animation workbench must be
-deeply integrated with the Rust port through a host/module SDK inspired by the
-current OpenToonz plugin SDK, not implemented as a detached sidecar app.
+Use this prompt for the first implementation phase after the Qt 6 and
+Metal/Vulkan predecessor gates are complete. It is deliberately narrower than
+“rewrite OpenToonz in Rust.” Its job is to establish a trustworthy mixed
+C++/Rust build, oracle, bridge, and framework evidence before production
+behavior moves.
 
-Read these first:
+If the predecessor gates are not complete, limit the session to read-only
+refresh, fixtures, documentation, and isolated non-shipping experiments.
+Do not change default product behavior.
+
+After this bootstrap goal is accepted, create a new bounded goal for one
+profiled production slice using `doc/rust_porting_workflow.md`. Do not keep
+expanding this prompt until it means the whole application.
+
+## Goal
+
+Establish the first supportable Rust migration lane in OpenToonz while keeping
+the C++/Qt 6 application authoritative and behaviorally unchanged.
+
+Deliver:
+
+1. a pinned, reproducible Rust workspace integrated into Nix, mise, CMake, and
+   supported packages;
+2. a versioned C++/Rust oracle and comparison-report foundation;
+3. one non-Qt CXX bridge and one CXX-Qt QObject/model bridge that prove
+   lifetime, thread, error, cancellation, shutdown, and package behavior;
+4. an isolated evaluation of official Qt Bridge for Rust against OpenToonz's
+   Qt Quick/QML and platform needs;
+5. an isolated offscreen `wgpu` backend probe on Metal, Vulkan, and the Windows
+   release backend;
+6. a dated evidence record and a recommendation for the first production Rust
+   slice.
+
+This goal does not port scene mutation, tools, FX, file writers, or the shipping
+viewer renderer. It builds the proof system needed to port them safely.
+
+## Read These First
 
 1. `AGENTS.md`
 2. `doc/rust_migration_study.md`
-3. `toonz/sources/toonzqt/toonz_plugin.h`
-4. `toonz/sources/toonzqt/toonz_hostif.h`
-5. `toonz/sources/toonzqt/pluginhost.cpp`
-6. `plugins/blur/blur.cpp`
-7. `plugins/geom/geom.cpp`
-8. `plugins/multiplugin/multi.cpp`
-9. `mise.toml`
-10. `flake.nix`
+3. `doc/rust_porting_workflow.md`
+4. `doc/qt6_migration_goal_prompt.md`
+5. `doc/qt6_remaining_work_and_manual_verification.md`
+6. the latest record in `doc/qt6_port_progress/`
+7. the completed Metal/Vulkan migration contract and latest evidence record
+8. `doc/how_to_build_nix_mise.md`
+9. `toonz/sources/CMakeLists.txt`
+10. `toonz/sources/CMakePresets.json`
+11. `toonz/sources/tnzcore/CMakeLists.txt`
+12. `toonz/sources/toonzlib/CMakeLists.txt`
+13. `toonz/sources/toonzqt/CMakeLists.txt`
+14. `toonz/sources/toonz/CMakeLists.txt`
+15. `nix/opentoonz-env.nix`
+16. `mise.toml`
+17. the platform packaging workflows
 
-## Non-Negotiable Direction
+Also inspect:
 
-- Do not attempt a big-bang rewrite of OpenToonz.
-- Do not replace Qt first.
-- Do not make the generative workbench a separate Tauri-only product.
-- Do not start broad source rewrites before the comparison harness exists.
-- Keep the existing C++/Qt application buildable.
-- Preserve the Nix + mise workflow.
-- Treat automated comparison against C++ as the first-class correctness oracle.
-- Keep changes scoped, documented, and easy to continue by another agent.
+- `toonz/sources/include/tsmartpointer.h`
+- `toonz/sources/include/tpersist.h`
+- `toonz/sources/include/toonz/toonzscene.h`
+- `toonz/sources/include/toonz/txsheet.h`
+- `toonz/sources/include/trasterfx.h`
+- `toonz/sources/include/trenderer.h`
+- the existing plugin headers and samples used by the build
 
-## Required Architecture
+Refresh current external framework documentation before pinning dependencies.
+The study's links are starting points, not a license to inherit stale versions.
 
-Create a Rust workspace under `rust/` with these crates unless the live repo
-proves a better nearby naming scheme:
+## Predecessor Gates
 
-- `otz-core`: IDs, frame numbers, geometry, affine transforms, errors,
-  diagnostics, path-safe types, and common serialization helpers.
-- `otz-workbench-sdk`: versioned host/module ABI and Rust traits inspired by the
-  existing OpenToonz SDK: module probe metadata, host initialization,
-  capability query by UUID/version, parameter descriptors, typed ports,
-  lifecycle callbacks, progress/cancellation, and safe FFI boundaries.
-- `otz-generative`: canonical `ShotPackage`, `ModelPackage`, `CandidateTake`,
-  `RetakeRequest`, provenance, source asset hashes, role-marked drawings, and
-  model-route metadata.
-- `otz-comfy`: ComfyUI endpoint validation, workflow-template metadata, and a
-  `ModelRoute` trait that consumes typed `ModelPackage` values and returns
-  typed job/take metadata. Network calls must be optional or mockable in tests.
-- `otz-review`: review notes, frame/timecode annotations, approval states,
-  retake failure labels, and selected-take export decisions.
-- `otz-compare`: canonical comparison types, JSON normalization, image metric
-  helpers, report generation, and fixture-manifest loading.
-- `otz-cli`: command-line entry point for Rust snapshot, package, comparison,
-  and mock route workflows.
+Record each gate as passed, failed, unsupported, or pending. Pending is not
+passed.
 
-The Rust workspace must build with Cargo and be reachable from the repo's
-existing Nix/mise workflow. Add or update tasks only when needed and document
-them.
+### `RUST-PRQ-01`: Qt 6 release completion
 
-## Required C++ Oracle
+Require:
 
-Add a minimal C++ oracle target to the existing CMake build. It does not need to
-cover the entire OpenToonz feature surface in the first pass, but it must prove
-the pattern for deterministic C++ behavior export.
+- all P0/P1 Qt 6 requirements accepted or explicitly waived;
+- same-commit supported packages;
+- real workflow, input, multimedia, translation, and clean-package evidence;
+- stable Qt minimum/release/forward policy;
+- a retained C++/Qt 6 package baseline.
 
-The oracle should support commands shaped like:
+### `RUST-PRQ-02`: graphics migration completion
 
-```sh
-opentoonz-cpp-oracle scene-snapshot <input> --json <output>
-opentoonz-cpp-oracle render-frame <input> --frame <n> --png <output>
-opentoonz-cpp-oracle roundtrip-level <input> --out <output>
-```
+Require:
 
-If a fully functional renderer hook is too large for the first pass, implement a
-truthful subset and mark unsupported operations explicitly in machine-readable
-output. Do not fake parity. The harness must distinguish:
+- OpenGL-to-Metal/Vulkan work accepted on supported platforms;
+- backend-neutral render target/resource/command contract;
+- named render corpus with expected output;
+- device-loss, resize, DPI, color, alpha, and shader failure behavior;
+- performance and memory baselines;
+- exact backend, GPU, driver, shader, and package evidence;
+- no unresolved requirement that new Rust renderer code call legacy OpenGL.
 
-- passed
-- failed
-- unsupported
-- skipped because fixture requires an unimplemented oracle capability
+### `RUST-PRQ-03`: oracle baseline
 
-The C++ oracle should produce canonical JSON for at least repository metadata,
-fixture metadata, path normalization checks, and any scene/level data that can
-be safely read in the first implementation slice.
+Require:
 
-## Required Comparison Harness
+- exact source commit;
+- exact package artifacts and hashes;
+- fixture/corpus revision;
+- supported platform/hardware matrix;
+- list of accepted incompatibilities/waivers;
+- artifact retention location.
 
-Create a comparison tree such as:
+### `RUST-PRQ-04`: repository state
+
+Require:
+
+- current branch/worktree and dirty state recorded;
+- user changes preserved;
+- live relevant branches and active renderer work identified;
+- no production Rust implementation already exists under another contract.
+
+If a predecessor gate fails, update the evidence record and stop before
+production integration. Isolated experiments may continue only if they do not
+change default builds or packages.
+
+## Non-Negotiable Architecture
+
+- No big-bang rewrite.
+- Qt 6 remains the GUI framework.
+- Existing Qt Widgets remain C++ during the bootstrap.
+- Official Qt Bridge for Rust is evaluated for new Qt Quick/QML surfaces, not
+  misrepresented as a QWidget binding.
+- CXX is the default non-Qt C++/Rust bridge.
+- CXX-Qt is the transition bridge for Qt QObject/model integration.
+- A versioned C ABI is reserved for plugins/process boundaries.
+- `wgpu` is the default Rust cross-platform graphics abstraction.
+- Rust core/domain crates do not depend on Qt, QRhi, QWidget, native window
+  handles, or CXX-Qt.
+- QRhi private APIs do not become the Rust renderer foundation.
+- Direct `ash` or `objc2-metal` code requires a documented `wgpu` gap and stays
+  behind a backend-neutral trait.
+- CMake remains the top-level product/package build during the transition;
+  Cargo owns the Rust workspace.
+- All dependencies and the Rust toolchain are exactly pinned.
+- The C++ application remains the correctness oracle.
+- Passed, failed, unsupported, skipped, and pending are distinct.
+- No release claim may rely only on compilation or a synthetic smoke.
+
+## Required Outcome 0: Refresh And Freeze Evidence
+
+Create:
 
 ```text
-comparison/
-  fixtures/
-    scenes/
-    levels/
-    palettes/
-    images/
-    audio/
-  manifests/
-    fixture_index.toml
-    expected_capabilities.toml
-  reports/
+doc/rust_port_progress/
+  README.md
+  YYYY-MM-DD-bootstrap-baseline.md
 ```
 
-Implement `otz-compare` and/or `otz-cli compare` so a developer can run one
-command that:
+The README defines document roles and points to the latest dated record. The
+baseline record uses the evidence template from
+`doc/rust_porting_workflow.md` and includes all predecessor gate results.
 
-1. reads the fixture manifest
-2. invokes the C++ oracle where required
-3. invokes the Rust implementation where required
-4. compares canonical JSON outputs
-5. compares image outputs when available
-6. writes a human-readable Markdown report and a machine-readable JSON report
-7. exits non-zero on unexpected failure
+Do not copy the entire Qt 6 history. Link to authoritative records and capture
+only the exact state on which Rust bootstrap work depends.
 
-The comparison harness must include:
+Exit gate:
 
-- semantic JSON canonicalization
-- stable path normalization
-- fixture capability flags
-- unsupported/skipped handling
-- deterministic report paths
-- at least one tiny fixture that can run in CI without large binary assets
-- tests for the report and comparison logic
+- exact source and package baseline recorded;
+- every predecessor gate classified;
+- external framework observations timestamped;
+- allowed implementation scope is explicit.
 
-Do not require full OpenToonz sample projects for the first harness pass. Build
-the harness so richer scenes can be added later.
+## Required Outcome 1: Add The Rust Build Lane
 
-## Required Integrated Generative Workbench Scaffold
+Create a workspace under `rust/` with the smallest useful crates:
 
-Implement the generative layer as a first-class Rust module family:
+```text
+rust/
+  Cargo.toml
+  Cargo.lock
+  crates/
+    otz-core/
+    otz-oracle/
+    otz-bridge/
+    otz-bridge-probe/
+    otz-gpu-probe/
+```
 
-- The `otz-workbench-sdk` must model the existing plugin SDK's useful ideas:
-  probe metadata, host interface, queryable capabilities, parameter pages,
-  typed ports, lifecycle callbacks, and multi-capability modules.
-- `otz-generative` must define typed packages that can be built from scene,
-  xsheet, level, palette, camera, source tile, and render/cache data as those
-  host capabilities become available.
-- The first implementation may use mock host data, but the API must make the
-  host relationship explicit. Avoid APIs that only accept loose file folders and
-  prompts.
-- The first module family should include data types or stubs for:
-  - Shot Package Builder
-  - Control Map Baker
-  - Model Route Validator
-  - Generative Render Job
-  - Candidate Take Importer
-  - Dailies Review Panel model
-  - optional Generative FX Node descriptor
-- Every model route must consume a typed `ModelPackage`.
-- Every generated result must return a typed `CandidateTake`.
-- Store provenance: source hashes, workflow hash, route ID, model version,
-  seed, cost estimate, created time, and package version.
+Responsibilities:
 
-Tauri/React may be mentioned or scaffolded only as an optional surface. The
-state, package model, review data, and route rules must live in Rust crates.
+- `otz-core`: version types, stable IDs, small geometry/value DTOs, structured
+  errors, diagnostics, no Qt;
+- `otz-oracle`: versioned snapshot/report schema and canonicalization;
+- `otz-bridge`: CXX and CXX-Qt bridge declarations/adapters only;
+- `otz-bridge-probe`: non-shipping executable/test surface for bridge lifecycle
+  and Qt integration;
+- `otz-gpu-probe`: non-shipping offscreen `wgpu` render/readback probe.
 
-## Required Tests
+Names may change if current crate conventions provide a better fit, but keep
+responsibilities separate.
 
-Add focused tests for:
+Add:
 
-- Rust workspace build and crate-level unit tests
-- host/module SDK descriptor validation
-- UUID/version capability negotiation
-- parameter descriptor validation
-- typed port validation
-- shot/model package serialization
-- candidate take and provenance serialization
-- ComfyUI route validation with a mock or local-only mode
-- comparison manifest loading
-- comparison JSON canonicalization
-- report generation
-- unsupported/skipped fixture behavior
+- `rust-toolchain.toml`;
+- appropriate Cargo config for supported linkers/targets;
+- Nix dependencies and shell exposure;
+- mise tasks;
+- CMake import through a pinned CXX-Qt/Corrosion integration or an equivalently
+  documented target integration;
+- formatting, Clippy, tests, dependency/license policy, and offline/reproducible
+  build behavior;
+- packaging rules only for artifacts linked into a product/probe target.
 
-If image metrics are implemented, include small generated test images and test
-exact match plus thresholded mismatch reporting.
+Do not fetch build dependencies dynamically from an unpinned branch during
+ordinary configure. Follow the repository's vendoring/mirroring policy.
 
-## Required Documentation
+Desired task interface:
 
-Update or add docs that explain:
+```sh
+mise run rust-doctor
+mise run rust-check
+mise run rust-test
+mise run rust-ffi-check
+mise run rust-oracle
+mise run rust-gpu-offscreen
+```
 
-- how to build the Rust workspace
-- how the C++ oracle is built
-- how to run the comparison harness
-- how to add a fixture
-- how unsupported fixture capabilities are represented
-- how the workbench SDK maps to the current OpenToonz plugin SDK
-- how the generative package model is integrated with the Rust port
-- what is intentionally not implemented yet
+Exit gate:
 
-Keep `doc/rust_migration_study.md` consistent with implementation reality if
-the implementation changes a recommendation.
+- workspace builds in the Nix/mise environment;
+- supported platform CI builds it;
+- default C++/Qt application behavior is unchanged;
+- package/linker/runtime behavior is documented;
+- no Qt dependency appears in `otz-core` or `otz-oracle`.
 
-## Validation Commands
+## Required Outcome 2: Versioned Oracle And Comparison Foundation
 
-Run the smallest practical validation after each phase. At minimum, try:
+Define a versioned protocol for:
+
+- run metadata;
+- implementation identity;
+- platform/toolchain/backend identity;
+- fixture identity and hashes;
+- canonical structured output;
+- image artifact metadata;
+- timing and memory;
+- passed/failed/unsupported/skipped;
+- mismatch details;
+- artifact hashes.
+
+Add a tiny, redistributable fixture set that does not depend on large LFS
+assets. It should cover at least:
+
+- core IDs/geometry/value serialization;
+- canonical ordering and path normalization;
+- one generated raster image and exact pixel statistics;
+- malformed or unsupported input classification.
+
+Add a minimal C++ oracle target or adapter that produces the same protocol for
+the chosen tiny surface. Do not fake unimplemented capabilities. Emit
+`unsupported` with a stable reason.
+
+One command must produce:
+
+```text
+comparison/reports/<run-id>/
+  report.json
+  report.md
+  artifacts/
+```
+
+Exit gate:
+
+- deterministic repeat runs match;
+- expected mismatch tests fail nonzero;
+- unsupported/skipped do not masquerade as passes;
+- paths are machine-neutral;
+- report schema/version tests pass;
+- C++ and Rust identities are retained.
+
+## Required Outcome 3: Prove CXX And CXX-Qt Contracts
+
+### Non-Qt CXX probe
+
+Implement a small batch-oriented service using:
+
+- opaque Rust ownership;
+- fixed-width shared values;
+- a success result and structured failure;
+- deliberate invalid input;
+- explicit create/use/destroy;
+- panic containment test;
+- repeated lifecycle and shutdown test.
+
+Do not bind an arbitrary existing C++ class graph.
+
+### CXX-Qt probe
+
+Implement a Rust-backed QObject or model consumed by a small test-only Qt
+surface in the existing build. It must exercise:
+
+- properties, signals, slots, and model updates;
+- GUI-thread delivery from Rust worker completion;
+- progress and cancellation;
+- object destruction while work is pending;
+- application shutdown;
+- ordered events;
+- structured error projection;
+- repeated create/destroy;
+- Qt Test or equivalent focused verification.
+
+Do not rewrite an existing OpenToonz panel in this outcome.
+
+### Contract documentation
+
+Add a checked-in bridge contract covering:
+
+- ownership and allocation;
+- opaque/shared values;
+- error and panic/exception boundaries;
+- thread affinity;
+- cancellation;
+- event ordering;
+- shutdown;
+- versioning;
+- batch/performance expectations.
+
+Exit gate:
+
+- debug and release builds pass;
+- sanitizer/diagnostic lane is run where supported;
+- supported packages include and launch the probe as intended, or the probe is
+  test-only with a proved linked equivalent;
+- no leak, deadlock, cross-thread Qt access, or boundary unwind is observed;
+- C++ default product behavior remains unchanged.
+
+## Required Outcome 4: Evaluate Official Qt Bridge For Rust
+
+Pin an exact `qtbridge` version/source in an isolated experimental crate or
+sample. Do not add it to the production application target.
+
+Exercise:
+
+- Rust-backed QML object;
+- editable list and table models;
+- insert/remove/reset and selection;
+- async load, progress, cancellation, and shutdown;
+- translation/resource loading;
+- deliberate re-entrant property/signal patterns;
+- large model behavior;
+- repeated QML component create/destroy;
+- Qt Quick focus and shortcuts;
+- packaging on Linux, Windows, and macOS arm64.
+
+Record:
+
+- upstream maturity and date;
+- exact Qt/Rust/platform requirements;
+- macOS experimental result;
+- `Rc<RefCell<_>>` borrow/re-entrancy behavior;
+- QML IDE/tooling limitations;
+- CXX-Qt interoperability status;
+- license/pre-release terms;
+- packaging/signing/notarization;
+- upgrade and fallback feasibility.
+
+Decision states:
+
+- `adopt-for-new-ui`;
+- `continue-experiment`;
+- `defer`;
+- `reject-for-current-contract`.
+
+Do not state that Qt Bridge can replace the existing QWidget UI unless upstream
+scope and a project prototype prove that claim.
+
+Exit gate:
+
+- all supported platform results recorded;
+- decision and rationale recorded;
+- production domain crates remain bridge-independent;
+- no production dependency was introduced without explicit approval.
+
+## Required Outcome 5: Prove The `wgpu` Baseline
+
+Create an offscreen, non-shipping probe that:
+
+- selects and records the backend/adapter/device;
+- renders a deterministic WGSL pattern into an owned texture;
+- reads it back with explicit row alignment;
+- writes an image and pixel-statistics record;
+- validates orientation, channel order, alpha, and color convention;
+- supports an expected mismatch test;
+- handles no-adapter/unsupported capabilities explicitly;
+- exercises device teardown and repeated initialization;
+- reports timing and GPU limits/features.
+
+Run:
+
+- Metal on supported macOS;
+- Vulkan on supported Linux;
+- the selected Windows release backend, normally Direct3D 12;
+- Vulkan on Windows as an additional lane if it is part of project policy.
+
+Use `wgpu` and Naga as pinned dependencies. Do not integrate with the shipping
+viewer, QRhi, or native window handles in this outcome. Do not add direct
+`ash`/`objc2-metal` code.
+
+Exit gate:
+
+- image and metadata artifacts retained on all supported platforms;
+- shader validation passes;
+- backend failures are explicit;
+- debug GPU validation is run where supported;
+- toolchain and dependency upgrade policy recorded.
+
+## Required Outcome 6: Select The First Production Slice
+
+Profile and compare at least three candidate slices from
+`doc/rust_migration_study.md`. Include:
+
+- current call graph/boundary;
+- Qt/platform/GPU/persistence coupling;
+- fixture readiness;
+- characterization effort;
+- bridge frequency and data volume;
+- user value and failure consequence;
+- fallback feasibility;
+- expected performance opportunity.
+
+Select one deterministic, bounded slice that does not own Qt objects or scene
+mutation. Good categories include:
+
+- geometry/value logic;
+- one scalar raster kernel family;
+- hashing/cache-key logic;
+- farm protocol/process logic.
+
+Write the next copy-ready goal prompt in the dated progress record or a
+dedicated stable prompt only after maintainer review. It must use the standard
+slice workflow and name exact acceptance thresholds.
+
+Exit gate:
+
+- one slice selected from evidence;
+- alternatives and rejection reasons recorded;
+- required fixtures exist or have a bounded creation plan;
+- no production code for the selected slice is implemented as part of this
+  bootstrap goal.
+
+## Validation
+
+Run repository-native tasks introduced by the implementation. At minimum:
 
 ```sh
 mise run doctor
-mise run configure
-cargo test --manifest-path rust/Cargo.toml
-cargo run --manifest-path rust/Cargo.toml -p otz-cli -- --help
-cargo run --manifest-path rust/Cargo.toml -p otz-cli -- compare \
-  --manifest comparison/manifests/fixture_index.toml \
-  --out comparison/reports/latest
+mise run doctor-qt6
+mise run rust-doctor
+mise run rust-check
+mise run rust-test
+mise run rust-ffi-check
+mise run rust-oracle
+mise run rust-gpu-offscreen
 ```
 
-If Cargo is not available directly in the environment, add or use a Nix/mise
-task and document the exact command that works. If a full OpenToonz build is too
-large, run configure plus the specific C++ oracle target if available. Be clear
-about any validation that could not be run.
+Also run:
 
-## Completion Criteria
+- the smallest Qt 6 configure/build target that links the bridge;
+- the Qt 5 lane only if it still exists under the accepted predecessor policy;
+- strict Qt 6/deprecation guards affected by build changes;
+- supported platform package jobs;
+- Markdown/path/privacy checks for authored docs;
+- exact direct Cargo/CMake commands needed to diagnose any task failure.
 
-The goal is complete only when:
+Do not claim an unavailable platform passed. Record it as pending and keep the
+goal incomplete unless an approved waiver changes the contract.
 
-1. the repo contains a Rust workspace with the required crates or documented
-   equivalent modules
-2. the Rust workspace builds and its tests pass
-3. the C++ oracle target exists and is wired into the build or a clearly
-   documented partial build path
-4. the comparison fixture tree exists
-5. the comparison harness runs on at least one tiny fixture and produces JSON
-   and Markdown reports
-6. unsupported oracle/Rust capabilities are represented honestly, not hidden
-7. the integrated generative workbench data model and SDK scaffold exist
-8. the generative model route path is typed around `ModelPackage` and
-   `CandidateTake`
-9. docs explain how to continue adding real scene, render, image, and UI parity
-   tests
-10. final handoff lists files changed, commands run, results, and remaining
-    gaps
+## Bootstrap Completion Criteria
 
-## Working Style
+This goal is complete only when:
 
-Work in phases and keep the tree buildable. Start with the harness and Rust
-workspace skeleton, then add the C++ oracle, then implement comparison reports,
-then add generative SDK/package scaffolding, then wire validation tasks and docs.
-Prefer narrow, durable contracts over broad stubs. If you hit a blocker, record
-the blocker in docs and make the nearest useful automated test pass.
+1. every predecessor gate is passed or explicitly waived;
+2. the Rust workspace/toolchain/dependencies are pinned;
+3. Nix, mise, CMake, Cargo, CI, and packages agree on the build;
+4. `otz-core` and oracle/domain code are Qt-free;
+5. the versioned C++/Rust oracle produces deterministic JSON and Markdown
+   reports;
+6. passed/failed/unsupported/skipped are all tested;
+7. CXX lifetime/error/panic contracts pass;
+8. CXX-Qt queue/cancel/shutdown/model contracts pass;
+9. official Qt Bridge for Rust has a same-date, cross-platform decision record;
+10. offscreen `wgpu` evidence exists for every supported release backend;
+11. no default application behavior moved to Rust;
+12. the first production slice is selected from profiling and fixture evidence;
+13. docs, commands, package results, artifacts, and blockers are complete;
+14. no required rerun or artifact is still pending.
+
+## Anti-Goals
+
+- Do not translate `tnzcore`, `toonzlib`, the scene graph, or the GUI wholesale.
+- Do not port a production subsystem in this bootstrap.
+- Do not replace Qt.
+- Do not rewrite Widgets as QML merely to use Qt Bridge.
+- Do not make Qt Bridge, CXX-Qt, QRhi, or `wgpu` types part of core domain APIs.
+- Do not share a mutable scene object across the bridge.
+- Do not call FFI per pixel or per cell.
+- Do not introduce two independently authoritative renderers without
+  differential execution and a removal gate.
+- Do not treat a successful build, triangle, or synthetic model test as product
+  parity.
+- Do not use unpinned dependency branches or wildcard crate versions.
+- Do not weaken Qt 6 or renderer migration gates to start Rust sooner.
+
+## Handoff
+
+End the implementation turn with:
+
+- files changed;
+- exact commands and results;
+- source, package, dependency, and toolchain versions;
+- artifacts and hashes;
+- predecessor and bootstrap requirement status;
+- failed/unsupported/skipped/pending evidence;
+- Qt Bridge adoption decision;
+- `wgpu` backend result;
+- selected first production slice;
+- retrospective and the smallest next goal.

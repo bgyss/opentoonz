@@ -1,885 +1,1001 @@
-# OpenToonz Rust Migration And Generative Workbench Study
+# OpenToonz C++ To Rust Migration Study
 
-Prepared: May 16, 2026
+Prepared: July 26, 2026
+
+Surveyed source commit: `6f87dd4535de01cfd4d8fa84cd4ceedb5c7492bd`
 
 ## Executive Recommendation
 
-Moving the entire OpenToonz project to Rust is technically possible, but a
-direct rewrite is the highest-risk path. The current application is not just a
-Qt shell around simple drawing code. It is a mature C++/Qt desktop animation
-suite with a custom scene model, xsheet, level formats, raster and vector image
-types, FX graph, renderer, scanner and stop-motion paths, farm tools, plugin
-interfaces, translations, application data, and a large amount of platform
-packaging behavior.
+OpenToonz should move to Rust through a long-lived strangler migration, not a
+rewrite. Keep Qt as the product UI, stabilize a language-neutral application
+core boundary, and replace bounded C++ subsystems behind that boundary while
+the shipping application remains usable.
 
-The recommended plan is:
+The recommended target is:
 
-1. Build a Rust successor architecture next to the C++ application, not inside a
-   big-bang rewrite branch.
-2. Keep the existing Qt GUI for the compatibility-preserving phase. Add Rust
-   services through C-compatible APIs or CXX-Qt where Qt object integration is
-   useful.
-3. Build the generative workbench first as Rust port functionality with a
-   plugin-style host contract, not as a detached companion app. It should consume
-   the same scene, xsheet, level, palette, tile, FX, render, cache, and project
-   abstractions that the Rust port is introducing.
-4. Use automated comparison testing against the current C++ application as the
-   first deliverable of the port. Do not begin large rewrites until the C++
-   version can produce machine-readable golden outputs for scene structure,
-   file round-trips, rendered frames, UI screenshots, and performance traces.
-5. Target Rust for the core engine, IO, render graph, job orchestration,
-   generative package model, and GPU rendering work. Defer a full GUI replacement
-   until the Rust engine proves parity on real productions.
+- Rust owns new domain logic, deterministic data models, job scheduling,
+  render-graph orchestration, caches, selected codecs, and the new GPU renderer.
+- `wgpu` is the default Rust graphics abstraction: Metal on macOS, Vulkan on
+  Linux, and the best supported native backend on Windows (normally Direct3D
+  12, with Vulkan retained as a diagnostic or supported alternative).
+- Qt 6 remains the UI and desktop-integration framework.
+- Qt Bridge for Rust (`qtbridge`) is the preferred direction for new Qt
+  Quick/QML surfaces after it passes a project-specific maturity gate.
+- CXX and CXX-Qt are the transition tools for the existing C++/Qt Widgets
+  application. A small C ABI is reserved for stable plugin or process
+  boundaries.
+- C++ remains the behavioral oracle until every migrated slice proves file,
+  render, interaction, performance, and package parity.
 
-The best near-term product experiment is therefore not "OpenToonz rewritten in
-Rust." It is "OpenToonz-compatible Rust engine where generative production is a
-first-class module." That module should match the anim-workbench direction:
-local-first project data, shot manifests, ComfyUI/model-route integration,
-dailies, retakes, cost/provenance tracking, and an xsheet-aware way to make
-generative models respect animation timing rather than inventing it. The key
-change is ownership: the Rust port owns the canonical scene/package/render
-contracts, and the generative UI is a client of those contracts.
+Do not begin production Rust substitution until both predecessor programs are
+actually complete:
 
-## Baseline From This Checkout
+1. the Qt 6 port meets the release contract in
+   `doc/qt6_migration_goal_prompt.md`; and
+2. the OpenGL-to-Metal/Vulkan migration has a stable renderer contract,
+   cross-platform packages, a named comparison corpus, and pixel/performance
+   evidence.
 
-This checkout is a CMake C++17 project rooted at `toonz/sources`. The current
-Nix/mise workflow builds the app with:
+Toolchain and bridge experiments may begin earlier in an isolated,
+non-shipping lane because they reduce uncertainty without changing the product.
+Production ownership must not move early.
 
-```sh
-mise run doctor
-mise run configure
-mise run build
+The central architectural constraint is important: the current application is
+Qt Widgets based, while the official Qt Bridge for Rust public beta is for
+Rust-backed Qt Quick/QML applications. Eliminating all C++ while preserving the
+current QWidget implementation is therefore not a supported endpoint today.
+OpenToonz can either keep a deliberately small C++ QWidget shell indefinitely,
+or gradually replace selected UI surfaces with Qt Quick/QML and `qtbridge`.
+Both choices stay on Qt.
+
+## Decision Summary
+
+| Decision | Recommendation | Why |
+|---|---|---|
+| Migration style | Incremental subsystem replacement | Preserves a working oracle and makes rollback practical |
+| GUI | Keep Qt 6 | Replacing the GUI and language simultaneously multiplies risk |
+| Existing Qt Widgets bridge | CXX plus CXX-Qt | Matches a mixed C++/Rust QObject application |
+| New Qt UI | Evaluate and then adopt official Qt Bridge for Rust | Keeps new UI in Qt Quick/QML with idiomatic Rust backends |
+| Cross-platform GPU | `wgpu` | One Rust API over Metal, Vulkan, Direct3D 12, and fallback GL |
+| Direct graphics APIs | `ash` and `objc2-metal` only behind narrow escape hatches | Avoids maintaining two full renderers |
+| Qt RHI | Integration experiment, not the Rust renderer foundation | QRhi has limited source/binary compatibility guarantees |
+| Build ownership during transition | CMake top level, Cargo workspace imported as targets | OpenToonz packaging remains CMake-driven while Rust grows |
+| Correctness strategy | C++ oracle plus differential tests | A rewrite without a behavioral oracle cannot preserve implicit behavior |
+| First production ports | Pure/headless leaf logic and raster kernels | Smaller state surface and easier deterministic proof |
+| Last production ports | Scene mutation, undo, tools, Widgets shell, hardware paths | Highest coupling and hardest manual parity requirements |
+
+## Scope And Assumptions
+
+This study answers how to move the codebase from C++ to Rust after the active
+Qt 6 and graphics migrations. It does not implement Rust, change the renderer,
+or revise the current Qt 6 completion verdict.
+
+The desired product constraints are:
+
+- preserve Qt rather than adopt a different GUI toolkit;
+- prefer modern Rust-native Metal/Vulkan-capable graphics technology;
+- preserve OpenToonz file and artist-workflow compatibility;
+- keep macOS, Windows, and Linux packages supportable;
+- avoid a second indefinitely maintained application;
+- let proof, not translated line count, determine completion.
+
+“Move to Rust” should mean that Rust becomes the source of truth for product
+logic and rendering. It should not require deleting every line of C++ if a
+small, well-contained Qt Widgets or platform adapter remains safer. Complete
+C++ elimination can be a later policy decision tied to Qt Bridge maturity and
+the amount of UI converted from Widgets to Qt Quick.
+
+## Survey Method And Limits
+
+The survey inspected:
+
+- the top-level and subsystem CMake files;
+- `tnzcore`, `tnzbase`, `tnzext`, `toonzlib`, `toonzqt`, `tnztools`, `stdfx`,
+  `image`, `sound`, `toonz`, `toonzfarm`, command-line tools, plugins, and
+  platform code;
+- scene, xsheet, persistence, smart-pointer, render, FX, plugin, Qt, threading,
+  and OpenGL surfaces;
+- the current Qt 6 migration contracts and build lanes;
+- current primary documentation for Qt Bridge for Rust, CXX-Qt, CXX,
+  Corrosion, Qt graphics integration, `wgpu`, Naga, `ash`, and
+  `objc2-metal`.
+
+Static search at the surveyed commit found:
+
+- 2,245 C/C++/Objective-C++ source and header files under `toonz/sources`;
+- approximately 895,000 lines in those files;
+- 70 Qt Linguist `.ts` files;
+- 915 files with a heuristic Qt include, `QObject`, `QWidget`, or `Q_OBJECT`
+  match;
+- 282 files containing `Q_OBJECT` (666 occurrences);
+- 145 files with a heuristic OpenGL/Qt OpenGL match (3,426 occurrences);
+- 43 `PERSIST_IDENTIFIER` and 50 `PERSIST_DECLARATION` matches;
+- 134 files with an explicit project, Qt, standard, or pthread threading
+  primitive match.
+
+These counts are sizing indicators, not architectural truth. The CMake
+`tnzcore` target, for example, gathers files from `common` and `include`, so
+directory counts do not equal target ownership. Generated files, comments,
+conditional platform code, and false-positive symbol matches also affect
+search counts.
+
+The largest source concentrations were:
+
+| Subtree | Files | Approximate lines | Migration implication |
+|---|---:|---:|---|
+| `toonz` | 401 | 223,000 | GUI/application behavior cannot be an early translation target |
+| `common` | 224 | 120,000 | Foundational target inputs must be split by capability |
+| `include` | 611 | 109,000 | Public headers expose ownership and dependency coupling |
+| `toonzlib` | 191 | 93,000 | Domain value is high, but scene/persistence/observer coupling is severe |
+| `stdfx` | 305 | 82,000 | Port by FX family behind a stable render ABI |
+| `tnztools` | 119 | 79,000 | High-frequency input and visual parity make this late work |
+| `toonzqt` | 115 | 77,000 | Retain Qt; replace backing models/services rather than widgets first |
+| `image` | 100 | 44,000 | Replace per format only after compatibility corpora exist |
+
+The most concentrated OpenGL search clusters include drawing-tool gadgets,
+Scene Viewer/viewer drawing, color and region styles, `common/tgl`, offline
+vector rendering, tessellation, and shader FX. The Qt search is concentrated in
+the main `toonz` application, `toonzqt`, `tnztools`, scripting, capture, IO
+dialogs, and shared Qt-facing headers. This supports two conclusions:
+
+1. graphics migration boundaries must include tool overlays and vector/style
+   rendering, not only the final frame renderer; and
+2. “core” cannot be declared Qt-free by moving only the main window.
+
+This is a source-architecture survey. It does not replace runtime profiling,
+production project sampling, plugin-user research, or maintainer decisions.
+The first migration goal must collect that evidence.
+
+## Current Architecture
+
+### Build And Deployment Shape
+
+`toonz/sources/CMakeLists.txt` is the build root and adds the major shared
+libraries in dependency order before the GUI and command-line executables.
+The Qt 6 branch still intentionally supports Qt 5 and Qt 6 build lanes. The
+preferred local workflow is Nix plus mise, with CMake/Ninja producing the
+application and packages.
+
+The eventual Rust workspace should live under `rust/`, but CMake should remain
+the top-level product build during the mixed-language period. Cargo should own
+Rust dependency resolution, tests, and crate compilation. CMake should import
+only the Rust artifacts needed by a given target. CXX-Qt documents a
+CMake/Corrosion integration in which Cargo builds a static library and CMake
+links it into the Qt executable. [Corrosion imports Cargo packages as ordinary
+CMake targets](https://corrosion-rs.github.io/corrosion/), which fits this
+repository better than teaching Cargo to reproduce every current package rule.
+
+Before adopting current Corrosion releases, raise the project CMake minimum in
+a separate, already-green change: current Corrosion documentation says version
+0.6 requires CMake 3.22, while this source tree still declares 3.10 even though
+its presets already require a newer CMake.
+
+### Major Subsystem Map
+
+| Current area | Approximate role | Coupling observation | Rust disposition |
+|---|---|---|---|
+| `common` plus `include` / `tnzcore` | Geometry, raster, image, vector, cache, stream, persistence, platform, GL, audio primitives | Foundational but internally broad; Qt and GL are present inside “core” | Split by capability before porting |
+| `tnzbase` | Parameters, base services, platform/scanner support | Smaller but depended on by higher layers | Port pure parameter/value logic early; isolate hardware |
+| `tnzext` | Mesh, plastic deformation, numerical extensions | Numerical and GL paths coexist | Port deterministic math after fixtures |
+| `toonzlib` | Scene, xsheet, levels, palettes, commands, renderer-facing logic, scripting | Highest-value domain layer; tightly coupled to persistence, observers, Qt, and FX | Build a Rust read model first; mutation much later |
+| `toonzqt` | Shared Qt Widgets, viewers, schematics, field editors, style UI | Explicit Qt ownership and UI-thread requirements | Keep; introduce Rust-backed models/services |
+| `tnztools` | Drawing/edit tools, input, assistants, brush integration | High-frequency input plus render/UI state | Late port with recorded input and stroke parity |
+| `stdfx`, `colorfx` | FX implementations, shaders, pixel processing, plugin behavior | Good functional units, but output parity is strict | Port FX families after render ABI and corpus exist |
+| `image` | Raster, movie, SVG, PSD, FFmpeg and other IO | Format compatibility and third-party library behavior dominate | Adapter first, replacement per format |
+| `sound` | Sound IO and playback support | Smaller surface but timing/platform sensitive | Decode/cache before device playback |
+| `toonz` | Main GUI, commands, rooms, panels, capture, export | Largest UI/application integration point | Keep as shell until late |
+| `toonzfarm` | Farm controller/server/task tools | Network and process boundaries are naturally testable | Strong early service candidate |
+| `tcleanup`, `tcomposer`, `tconverter` | Headless command-line entry points | Thin executables over deep libraries | Use as parity harnesses, not as isolated rewrites |
+| `plugins` | C-style host interface and FX callbacks | Existing dynamic boundary is valuable but not automatically Rust-safe | Preserve ABI first; add safe Rust SDK wrapper |
+| `stuff` and translations | Runtime defaults, rooms, QSS, brushes, FX data, locales | Product behavior outside compiled code | Preserve unchanged while engines move |
+
+### Dependency Direction
+
+The broad runtime dependency shape is:
+
+```text
+OpenToonz / command-line tools
+  -> toonzqt + tnztools + stdfx + image + sound + farm
+       -> toonzlib
+            -> tnzext + tnzbase + tnzcore
+                 -> common algorithms, formats, Qt, OpenGL, platform libraries
 ```
 
-The Nix path configures `toonz/sources/CMakePresets.json` and builds into
-`toonz/build/nix-relwithdebinfo`. It uses Qt 5, CMake, Ninja, pkg-config, native
-libraries, and a vendored modified TIFF preparation step.
+This is not a clean onion architecture. UI concepts reach downward, Qt and
+OpenGL exist in foundational targets, `TRenderSettings` contains a
+`QOffscreenSurface`, and higher-level scene and renderer types share intrusive
+pointer and persistence conventions. The first architectural work is therefore
+boundary extraction, not translation.
 
-The main CMake modules are:
+## Why A Rewrite Would Fail
 
-| Module | Role in the current system | Port implication |
-|---|---|---|
-| `tnzcore` | Common platform, raster, geometry, cache, path, sound, GL, Qt-core integration | Must be split into Rust foundational crates before broad replacement |
-| `tnzbase` | Base application services, scanner abstractions, platform hooks | Needs platform-specific Rust wrappers and likely FFI for scanner APIs |
-| `tnzext` | Extension math, mesh/deformation and numerical paths | Candidate for Rust reimplementation after test corpus exists |
-| `toonzlib` | Scene, xsheet, levels, palettes, cleanup, vectorizer, renderer, scripting bindings | Highest-value and highest-risk core port |
-| `toonzqt` | Shared Qt widgets, docking, palettes, schematics, style editors, spreadsheet widgets | GUI parity blocker if replacing Qt too early |
-| `tnztools` | Drawing tools and MyPaint brush integration | Needs input replay tests and brush-stroke parity tests |
-| `image` | Image IO for raster/video/PSD/SVG/TIFF/PNG/JPEG/etc. | Needs strict compatibility harness before replacing decoders |
-| `sound` | Sound IO | Can be ported after audio decode/playback contract is specified |
-| `stdfx`, `colorfx` | FX plugins and color processing | Good Rust target after frame comparison harness exists |
-| `toonz` | Main OpenToonz GUI application | Last thing to fully replace |
-| `toonzfarm` | Farm/controller/server tools | Good candidate for Rust service rewrite |
-| `tcleanup`, `tcomposer`, `tconverter` | Command-line tools | Good early headless parity targets |
-| `stuff` | Runtime product defaults, rooms, qss, palettes, brushes, textures, FX data | Treat as product behavior and compatibility data |
-| `translations` | Qt Linguist translation sources | Needs an i18n migration plan if leaving Qt |
+### Intrusive Ownership Is Part Of The ABI
 
-This repository has roughly 2,240 C/C++/ObjC source/header files under
-`toonz/sources`, plus 70 Qt translation source files. A simple search across the
-main GUI/core areas finds thousands of Qt references. The main app and shared UI
-libraries are deeply tied to Qt Widgets, Qt signals/slots, Qt resources,
-Qt translations, QOpenGLWidget/QOpenGLFramebufferObject, Qt Script, and
-platform-specific Qt packaging.
+`TSmartObject` implements intrusive atomic reference counting and asserts that
+objects die with a zero reference count. `TSmartPointerT` and related wrappers
+are widely embedded in public types. Raw pointers, intrusive handles,
+`std::unique_ptr`, `std::shared_ptr`, Qt parent ownership, and callback
+lifetimes coexist.
 
-## What Complete Functionality Means
+Rust must not mirror these ownership rules throughout its model. At a bridge:
 
-"Complete functionality" should be defined as compatibility with the existing
-artist workflow, not as a line-for-line Rust translation. The Rust project would
-need to preserve at least these behaviors:
+- existing C++ objects stay opaque and are manipulated through owning handles
+  or short-lived borrowed calls;
+- Rust-owned objects use Rust ownership internally;
+- no borrowed raster, scene, `QString`, Qt object, or callback reference may
+  outlive the bridge call unless an explicit pinned/owned handle contract says
+  otherwise;
+- each allocation is destroyed by the allocator that created it;
+- panics and C++ exceptions are converted to typed errors before crossing the
+  boundary.
 
-| Area | Required parity |
+The Rustonomicon explicitly warns against allowing Rust panics to unwind across
+an ordinary FFI boundary. [FFI boundary code must contain
+unwinding](https://doc.rust-lang.org/nomicon/unwinding.html). Every bridge entry
+point needs a tested error and panic policy.
+
+### Persistence Is Behavior, Not Just A Schema
+
+`TPersist`, `TIStream`, `TOStream`, global declaration registration, stream
+tags, legacy paths, and class-specific `loadData`/`saveData` implementations
+form an object serialization system. Scene and level loading also performs
+resource resolution, project-relative path decoding, version compatibility,
+and object graph reconstruction.
+
+Do not replace it initially with a Serde derive over a new struct. Use three
+layers:
+
+1. a canonical, versioned Rust domain model;
+2. a compatibility adapter that reads/writes the existing stream behavior;
+3. normalized snapshots used only for comparison and diagnostics.
+
+Read-only parsing comes before write support. Write support comes before C++ is
+removed. Round-trip equality is insufficient by itself because old and new
+writers may normalize differently; semantic reload equality and byte-stability
+where required must both be measured.
+
+### Scene Mutation Combines Several Responsibilities
+
+`ToonzScene`, `TXsheet`, stage objects, levels, columns, FX DAG state,
+parameters, observers, caches, undo commands, selection state, and UI handles
+are interdependent. A direct Rust translation of classes would reproduce
+coupling without establishing safer ownership.
+
+The target model should separate:
+
+- immutable identity and value types;
+- scene/xsheet/level state;
+- commands and transactions;
+- derived indexes and render graphs;
+- observer/event projection;
+- Qt presentation models;
+- persistence adapters.
+
+Rust scene mutation should be command-based. A command produces a new revision,
+an undo record, domain events, and explicit invalidations. Qt models observe
+committed events rather than holding mutable references into Rust state.
+
+### Rendering Is Both CPU And GPU Behavior
+
+OpenGL calls are spread through viewer drawing, vector rendering, tool
+overlays, styles, tessellation, offscreen rendering, standard FX, and shader
+paths. The completed Metal/Vulkan migration must first make these responsibilities
+visible. A Rust renderer should consume a stable render snapshot and command
+stream rather than call back into arbitrary mutable C++ objects while encoding
+GPU work.
+
+The C++ graphics migration should leave behind:
+
+- a backend-neutral pixel/texture/command vocabulary;
+- explicit resource ownership and lifetime;
+- explicit UI-thread versus render-thread rules;
+- device-loss and adapter-reselection behavior;
+- a deterministic CPU/reference path for important operations;
+- golden render and performance corpora;
+- no requirement that new Rust code include OpenGL headers or Qt OpenGL types.
+
+If those artifacts do not exist when the graphics migration is declared
+complete, create them before porting the renderer.
+
+### Qt Widgets Are Not Rust-Neutral
+
+The main application and `toonzqt` are deeply based on Widgets, MOC, signals,
+properties, model/view classes, resources, QSS, Qt Linguist, native event
+filters, dialogs, and platform packaging. Recreating these in another toolkit
+would be a separate product rewrite. Keeping Qt is the correct choice.
+
+The official Qt Bridge for Rust is not currently a full Qt binding. Its July
+2026 public beta creates Rust-backed QML elements, properties, signals, slots,
+and models for Qt Quick. Its documentation says that applications mixing
+Rust/C++, using Qt Widgets, or accessing C++-only Qt modules should consider
+CXX-Qt instead. It currently requires Qt 6.10 or newer, Rust 1.87 or newer,
+and lists macOS arm64 as experimental. See the [official `qtbridge` 0.2
+documentation](https://doc-snapshots.qt.io/qtbridge-rust/qtbridge/index.html).
+
+This creates a deliberate two-lane plan:
+
+- existing Widgets remain C++, with Rust services exposed through CXX/CXX-Qt;
+- new or intentionally converted surfaces use Qt Quick/QML and `qtbridge`
+  after a maturity spike passes.
+
+### Threads And Callbacks Cross Ownership Domains
+
+Rendering, Qt event dispatch, farm work, caches, image loading, audio, and
+platform integrations all have thread expectations. Rust async runtimes should
+not replace Qt's event loop, and Qt objects must not be moved into generic Rust
+worker tasks.
+
+Use:
+
+- Qt's GUI thread for all QWidget/QML presentation;
+- a Rust runtime owned behind a service boundary for IO and async jobs;
+- explicit request IDs, cancellation tokens, progress events, and immutable
+  result objects;
+- queued Qt delivery at the final UI boundary;
+- a separately owned render thread/device model;
+- shutdown ordering tests.
+
+The bridge contract must specify which side creates, cancels, joins, and
+destroys every task.
+
+## Bridge Technology Recommendation
+
+### Official Qt Bridge for Rust
+
+Qt Bridge for Rust should be the preferred end-state technology for new Qt
+Quick/QML UI backed by Rust. It is attractive because it is Qt-owned, uses
+Cargo, exposes idiomatic Rust structs to QML, supports properties/signals/slots
+and table/list models, and avoids application-written C++ for a Qt Quick
+application.
+
+It is not yet the primary migration bridge because:
+
+- it is public beta and not yet Technology Preview;
+- its documented focus is QML/Qt Quick, not existing Widgets;
+- it requires Qt 6.10+, while the current OpenToonz Qt policy includes a 6.9
+  floor lane;
+- macOS arm64 support is documented as experimental;
+- its docs list future interoperability with CXX-Qt as planned work;
+- it uses `Rc<RefCell<_>>` for QML-visible Rust objects and documents runtime
+  borrow conflicts, so re-entrant UI call patterns must be tested.
+
+Adopt it only after the gate in “Qt Bridge Maturity Gate” below passes. Pin an
+exact crate version and source; never use `qtbridge = "*"`.
+
+### CXX-Qt
+
+CXX-Qt is the correct transition layer for Rust-defined QObjects and
+bidirectional Qt/C++ integration. It builds on CXX and generates Qt-facing C++
+representations from Rust bridge declarations. Its documentation emphasizes
+normal Qt code on one side and normal Rust code on the other, rather than a
+one-to-one binding. [CXX-Qt is tested on Linux, Windows, and
+macOS](https://kdab.github.io/cxx-qt/book/), though the project must still prove
+OpenToonz's supported architectures and packaging.
+
+Use CXX-Qt for:
+
+- Rust-backed service QObjects;
+- signals, slots, properties, and presentation models consumed by Widgets;
+- queued progress and completion delivery;
+- narrow access to existing C++ QObjects through deliberate adapters.
+
+Do not use it to mechanically bind all QWidget APIs or expose the entire scene
+graph.
+
+### CXX
+
+CXX is the default bridge for non-Qt domain services. It supports opaque and
+shared types and statically checks a deliberately limited common type surface.
+The [CXX project describes negligible-overhead, type-checked
+interop](https://cxx.rs/), but safety still depends on correct ownership,
+threading, and semantic contracts around the generated bridge.
+
+Use it for:
+
+- immutable IDs, rectangles, pixel formats, status enums, and descriptors;
+- opaque scene, raster, render-job, and cache handles;
+- batch-oriented service calls;
+- typed error returns.
+
+Prefer opaque types to mirroring complex C++ layout. CXX shared structs support
+only a purposeful cross-language value surface; that limitation is useful.
+
+### C ABI
+
+Retain a small C ABI for:
+
+- externally loaded FX/workbench plugins;
+- optional worker processes;
+- crash-isolated vendor/hardware adapters;
+- long-lived interfaces that must not depend on Rust or C++ ABI stability.
+
+Version every table and capability. Pass lengths with buffers, avoid language
+containers and exceptions, and provide explicit create/retain/release
+functions. A safe Rust SDK crate should wrap the raw ABI.
+
+### Rejected Default Approaches
+
+| Approach | Reason it is not the default |
 |---|---|
-| Project and scene model | Projects, rooms, scenes, xsheets, levels, palettes, camera, stage objects, keyframes, paths, hooks, skeletons, mesh columns, preferences, and project defaults |
-| File formats | OpenToonz scene files, level formats, palettes, TLV/TZP/TZU/PLI and other native formats, raster formats, SVG, PSD import behavior, audio/video import/export, and legacy path conventions |
-| Drawing workflows | Raster, Toonz raster, vector drawing, MyPaint brushes, eraser, fill, onion skin, vector guided drawing, cleanup, vectorization, palette/style workflows, tablet input |
-| Xsheet and timeline | Exposure timing, holds, twos, sound columns, notes, keyframe editing, column/row operations, drag/drop behavior |
-| Rendering | Preview, flipbook, final render, camera, DPI behavior, vector/raster compositing, color processing, alpha handling, antialiasing, subsampling, caching |
-| FX | Standard FX, color FX, schematic graph, plugin host, parameter animation, preview cache, render determinism |
-| IO and pipeline | Import/export panels, batch conversion, movie generation, soundtrack export, version control hooks, render farm, packaging data |
-| Hardware and platform | Scanning, TWAIN paths, stop-motion/camera capture, Canon SDK when enabled, serial devices, tablets, platform windows, file dialogs |
-| UI | Docking, rooms, sheets, viewers, panels, popups, stylesheets, translations, shortcut editing, accessibility expectations |
-| Scripting and automation | Qt Script replacement or compatibility layer, command-line tools, batch modes |
-| Deployment | macOS app bundle, Windows installer/runtime DLL behavior, Linux install layout, `stuff` copying, third-party binary handling |
+| Whole-project `bindgen` | The code relies on templates, inline behavior, Qt/MOC, custom pointers, and complex C++; even bindgen's guide recommends narrow allowlists for C++ |
+| C ABI for every internal call | Produces large manual unsafe surfaces and loses expressive ownership |
+| Qt Bridge as the only first bridge | Does not target the existing QWidget/C++ application |
+| CXX-Qt as a full Qt binding | It is designed around explicit bridges, not wrapping all of Qt |
+| IPC for low-latency drawing/render calls | Serialization and scheduling overhead are wrong for per-event/per-tile hot paths |
+| Stable Rust dynamic ABI between all crates | Rust has no stable native ABI; use static linking internally and a versioned C ABI where dynamic loading is required |
 
-The central risk is not Rust itself. The central risk is recreating decades of
-implicit behavior without an oracle. That is why the C++ application must become
-the oracle before the Rust application tries to replace it.
+## Qt Bridge Maturity Gate
 
-## GUI Framework Recommendation
+Before a production OpenToonz surface depends on `qtbridge`, an isolated spike
+must prove all of the following on the same supported Qt release used for
+packages:
 
-### Recommendation: keep Qt during the parity phase
+- Linux x86_64, Windows x64, and macOS arm64 build and package;
+- macOS is no longer a project-specific blocker despite upstream's
+  “experimental” label;
+- exact dependency and license terms are acceptable;
+- model reset, row insertion/removal, table editing, selection, and large-model
+  behavior pass;
+- Rust property/signal re-entrancy does not produce `RefCell` borrow panics;
+- queued cross-thread invocation, cancellation, shutdown, and error propagation
+  pass;
+- QML resources, translations, plugins, deployment tools, signing, and
+  notarization are captured in packages;
+- keyboard, tablet, accessibility, mixed-DPI, and focus behavior work when a
+  Qt Quick surface is embedded in or adjacent to the Widgets shell;
+- an upgrade trial to the next compatible bridge version is documented;
+- the project can fall back to the CXX-Qt presentation adapter without changing
+  the Rust domain service.
 
-For the compatibility-preserving port, keep the current Qt GUI and move core
-logic underneath it to Rust incrementally. This is the lowest-risk path because
-OpenToonz is already built around Qt Widgets, MOC-generated classes, Qt resource
-files, Qt translations, dock widgets, custom item views, and OpenGL widgets.
+Until then, `qtbridge` experiments are advisory and must not become a release
+dependency.
 
-Use one of these interop patterns:
+## GPU Framework Recommendation
 
-| Pattern | Use it for | Avoid it for |
+### Use `wgpu` As The Renderer Abstraction
+
+`wgpu` is the best default for a new Rust renderer. It provides a safe,
+cross-platform WebGPU-style API and first-class native backends for Vulkan,
+Metal, and Direct3D 12. The project also supports a lower-tier OpenGL path.
+The current [wgpu backend documentation](https://docs.rs/wgpu/latest/wgpu/enum.Backend.html)
+and [project support matrix](https://github.com/gfx-rs/wgpu) document those
+backends.
+
+Recommended backend policy:
+
+| Platform | Release backend | Additional lane |
 |---|---|---|
-| C ABI with `cbindgen` or handwritten headers | Stable service boundaries: scene snapshot export, render jobs, generative package builder, file parsers | Fine-grained Qt object calls |
-| `cxx` | Shared Rust/C++ data models, safe typed bridge, core services | QObject integration |
-| CXX-Qt | Rust QObjects, signals/properties, threading back to Qt, QML-compatible service models | Directly binding all QWidget APIs |
-| Sidecar process | ComfyUI/model orchestration, GPU render workers, crash isolation | Low-latency drawing input loops |
+| macOS arm64 | Metal | software/reference and validation-enabled Metal |
+| Linux x86_64 | Vulkan | best-effort GL only if the support contract requires it |
+| Windows x64 | Direct3D 12 by default | Vulkan comparison/diagnostic lane where drivers permit |
 
-CXX-Qt is a credible bridge for adding Rust objects to Qt/C++ applications. Its
-own documentation emphasizes bridging normal Qt code with normal Rust code
-rather than one-to-one wrapping every Qt API. It supports Qt 5.15 LTS and Qt 6,
-and its QWidget support is limited to C++ bindings for Rust-defined QObject
-subclasses, not a complete Rust QWidget replacement. That matches this project:
-use Rust for domain services and background workers, not for rewriting every
-existing widget in place.
+The user-visible architecture can still be described as a Metal/Vulkan
+migration: Metal and Vulkan are the primary Apple/Linux APIs. Using `wgpu`
+rather than forcing Vulkan on every platform gives Windows a native backend and
+keeps one renderer implementation.
 
-### Recommendation for the generative workbench UI: integrated first, shell second
+Pin `wgpu`, Naga, and the Rust toolchain together. `wgpu` intentionally ships
+breaking releases frequently, and its WGSL implementation evolves with Naga.
+Treat upgrades as renderer migrations with shader compilation and golden-image
+evidence, not routine dependency bumps. Naga currently supports WGSL input and
+Metal, SPIR-V, HLSL, and GLSL outputs; see its [supported endpoint
+matrix](https://docs.rs/naga/latest/naga/).
 
-The generative workbench should be architected as Rust port functionality with
-multiple host surfaces, not as a separate Tauri project that happens to import
-OpenToonz files. The first-class implementation should live in the Rust
-workspace and expose a stable host/plugin contract that can be called by:
+### Shader Policy
 
-- the existing C++/Qt OpenToonz application during migration
-- the future Rust scene, FX, render, and cache crates
-- a docked Qt panel or CXX-Qt model inside the current app
-- optional Tauri/React review windows for rich dailies and production boards
-- headless CLI and farm/render workers
+- Author new portable shaders in WGSL.
+- Keep shaders versioned beside the Rust render feature that owns them.
+- Validate every shader in CI before package builds.
+- Retain explicit coordinate, color-space, alpha, sampling, and precision
+  conventions.
+- Maintain scalar/CPU references for critical compositing operations.
+- Store backend, adapter, driver, feature, and limit data with render evidence.
+- Permit backend-specific shaders only through a reviewed capability boundary
+  with a portable fallback or explicit waiver.
 
-This mirrors the current OpenToonz SDK shape. The sample plugin projects under
-`plugins/blur`, `plugins/geom`, and `plugins/multiplugin` are standalone modules,
-but they are not separate applications. They export `toonz_plugin_init`, advertise
-probe metadata, receive a host interface, query host capabilities by UUID, define
-parameter pages and input ports, and participate in `TRasterFx` rendering through
-callbacks such as `do_compute`, `do_get_bbox`, `can_handle`,
-`on_new_frame`, and `on_end_frame`.
+### Use Direct API Crates Only As Escape Hatches
 
-The generative workbench should use the same idea at a higher level:
+`ash` is a thin Vulkan binding and intentionally leaves validation and much
+safety to the caller. `objc2-metal` provides modern generated bindings to
+Apple's Metal framework. They are appropriate only where `wgpu` cannot expose a
+required feature or a platform interop path.
 
-- a versioned Rust ABI for "workbench modules"
-- probe metadata for commands, panels, generators, render jobs, and FX nodes
-- host capability queries for scene/xsheet/level/palette/render/cache access
-- declared parameter pages for model routes, seeds, references, LoRA policy,
-  cost limits, and retake modes
-- typed input/output ports for drawings, masks, control maps, candidate takes,
-  reviewed takes, and cleanup exports
-- lifecycle callbacks for package creation, render submission, progress,
-  cancellation, completion, review, and retake
+Any direct backend module must:
 
-Tauri plus React remains useful, but it should be an optional surface over the
-same Rust contracts. It is a good fit for dailies boards, A/B/C comparison,
-cost/provenance views, and production dashboards. It should not own the scene
-schema, shot package format, render queue, or model-route rules. Those belong in
-`otz-scene`, `otz-render`, `otz-fx`, `otz-generative`, and `otz-comfy`.
+- live under `otz-gpu-backend-vulkan` or `otz-gpu-backend-metal`;
+- implement an internal backend-neutral trait;
+- contain all `unsafe` API use;
+- have validation-layer/Metal-validation workflows;
+- carry a removal or upstreaming plan;
+- never leak raw API objects into scene, Qt, or FX domain crates.
 
-### Recommendation for a future pure-Rust native GUI
+### Do Not Build The Rust Renderer On QRhi
 
-If the long-term goal is a native Rust OpenToonz successor, the practical options
-are:
+Qt's RHI can target Vulkan, Metal, Direct3D, and OpenGL, and Qt provides
+`QQuickRhiItem`/`QRhiWidget` integration. However, Qt documents that the QRhi
+class family has no source or binary compatibility guarantee and requires
+linking `Qt::GuiPrivate` for direct use. See the [QQuickRhiItem
+documentation](https://doc.qt.io/qt-6/qquickrhiitem.html).
 
-| Framework | Fit | Recommendation |
-|---|---|---|
-| Slint | Native Rust/C++ UI toolkit with declarative UI, cross-platform support, GPU/native rendering options, testing features, and commercial/permissive licensing options | Best candidate for a polished native Rust desktop app if licensing and custom-widget needs are acceptable |
-| Tauri/React | Excellent for production-management UI and rapid review/dashboard iteration | Best as an optional workbench surface over Rust port contracts, not as the owner of generative state |
-| egui/eframe | Immediate-mode Rust UI, portable, easy to integrate with custom renderers, good for tools/debug/editor panels | Use for internal tools and prototypes, not the primary professional UI |
-| Iced | Cross-platform Rust GUI inspired by Elm architecture, type-safe and clean | Worth prototyping, but no clear advantage over Slint/Tauri for this domain |
-| Qt via CXX-Qt | Best migration bridge from current OpenToonz | Keep for parity phase; not a pure-Rust GUI endpoint |
+QRhi is useful for a bounded integration prototype or a Qt-owned renderer, but
+it should not become the Rust engine's public graphics abstraction. Otherwise
+the “Rust core” remains coupled to a private-version-sensitive Qt graphics API.
 
-The concrete recommendation is:
+### Qt Presentation Integration Options
 
-1. Use existing Qt Widgets for OpenToonz parity.
-2. Use Rust host/plugin contracts for the generative workbench core, with Qt,
-   Tauri/React, CLI, and farm surfaces all calling the same crates.
-3. Use `wgpu` as the shared rendering/GPU abstraction for new Rust viewport,
-   preview, control-map, and compositing work.
-4. Re-evaluate Slint only after the Rust engine and comparison harness are
-   mature. Slint is promising, but replacing the whole Qt surface before the
-   engine is stable would multiply risk.
-5. Use egui for debug inspectors, render graph test tools, cache viewers, and
-   developer-only panes.
+Use these in increasing order of complexity:
 
-## Rust Target Architecture
+1. **Offscreen correctness path.** Rust renders to an owned texture/buffer and
+   returns a copied image to Qt. This is slow but deterministic and ideal for
+   the first oracle, tests, thumbnails, and fallback.
+2. **Dedicated native render window.** Rust/`wgpu` owns one or a few surfaces
+   associated with a `QWindow`, embedded into the Widgets application through
+   `QWidget::createWindowContainer()`. Qt documents stacking, focus, rendering,
+   and performance limitations for such containers, so use them for viewer
+   surfaces rather than many small widgets. See
+   [`QWidget::createWindowContainer`](https://doc.qt.io/qt-6/qwidget.html#createWindowContainer).
+3. **Shared texture path.** Share an offscreen texture with Qt through a narrow
+   per-platform adapter (for example, IOSurface-backed Metal resources on
+   macOS). This can remove copies but introduces explicit synchronization and
+   device ownership work.
+4. **Qt Quick composition.** A future Qt Quick surface can compose a Rust
+   renderer result. Prototype this only after Qt Bridge and renderer gates pass.
+   Avoid assuming that independent `wgpu` and QRhi devices can freely share
+   resources.
 
-The Rust workspace should be designed as a clean animation engine plus product
-layers, not as a folder-for-folder mirror of `toonz/sources`.
+The render engine should not know which of these presentation modes is active.
+It should render into a target described by a narrow presentation adapter.
 
-Proposed crates:
+## Target Rust Architecture
+
+Use a Cargo workspace under `rust/`. Do not mirror every C++ directory.
+
+### Foundational crates
 
 | Crate | Responsibility |
 |---|---|
-| `otz-core` | IDs, geometry, time, frame numbers, affine transforms, errors, diagnostics, task traits |
-| `otz-color` | Color models, palettes, style data, LUTs, color-management adapters |
-| `otz-raster` | Pixel buffers, tiles, lock-free/borrow-safe image views, SIMD operations, alpha/compositing primitives |
-| `otz-vector` | Stroke/path model, region topology, fill solver, vector serialization, tessellation adapters |
-| `otz-scene` | Projects, scenes, levels, xsheets, columns, stage objects, cameras, keyframes |
-| `otz-fx` | FX node graph, parameters, animation curves, plugin ABI, render DAG |
-| `otz-render` | Headless renderer, preview renderer, tile scheduler, cache, frame comparison outputs |
-| `otz-gpu` | `wgpu` device/surface management, shaders, GPU compositing, control-map baking |
-| `otz-io` | Import/export registry, scene and level parsers, raster/audio/video adapters |
-| `otz-audio` | Audio decode, waveform caches, playback abstractions |
-| `otz-tools` | Brush engine, fill, cleanup, vectorizer, selection, stroke generators |
-| `otz-automation` | Scripting, command runner, batch operations, CLI |
-| `otz-generative` | Shot package manifests, role-marked drawings, model routes, prompt policy, provenance |
-| `otz-comfy` | ComfyUI API client, workflow template registry, custom-node package metadata |
-| `otz-compare` | C++ oracle readers, render metrics, scene snapshots, report generation |
-| `otz-ffi` | C ABI or CXX bridge exposed to the existing app |
-| `otz-desktop` | Tauri/React or future native shell integration |
+| `otz-core` | IDs, frame/time types, dimensions, geometry, errors, diagnostics, versioning |
+| `otz-color` | Pixel/color models, premultiplication rules, palettes, color transforms |
+| `otz-raster` | Owned pixel buffers, typed views, tiles, scalar/SIMD kernels |
+| `otz-vector` | Strokes, regions, topology, fills, tessellation-neutral geometry |
+| `otz-command` | Transactions, commands, undo records, domain events, invalidations |
 
-The important boundary is that `otz-scene`, `otz-render`, `otz-io`, and
-`otz-generative` must be usable headlessly. The GUI should be a client of those
-crates, not the owner of core behavior.
+### Domain crates
 
-## Substitute Library Recommendations
+| Crate | Responsibility |
+|---|---|
+| `otz-project` | Project paths, variables, defaults, resource resolution |
+| `otz-level` | Level/frame identity and level state |
+| `otz-scene` | Scenes, xsheets, columns, stage objects, cameras, keyframes |
+| `otz-fx` | FX graph, parameters, capabilities, render descriptors |
+| `otz-render` | Render snapshots, DAG planning, tiling, scheduling, cancellation |
+| `otz-cache` | Content-addressed images, tiles, previews, invalidation |
+| `otz-io` | Registry and high-level import/export contracts |
 
-Rust can replace a meaningful part of the dependency stack, but several areas
-should remain FFI-backed until parity tests prove otherwise.
+### Backend and adapter crates
 
-| Current dependency or subsystem | Rust replacement or strategy | Recommendation |
-|---|---|---|
-| Qt Widgets / Qt Core / Qt GUI | Keep Qt during migration; CXX-Qt or C ABI for Rust services; later Tauri or Slint | Do not replace first |
-| Qt Script | Rhai, Lua/mlua, Boa/QuickJS, or a compatibility shim | Inventory existing scripts before choosing |
-| QOpenGLWidget, OpenGL, GLEW, GLUT | `wgpu` for cross-platform GPU rendering; `glow` only for narrow GL interop | Use `wgpu` for new renderer |
-| QPainter-style 2D drawing | `tiny-skia`, `kurbo`, `lyon`, `vello` experiments, custom `wgpu` renderer | Use `tiny-skia`/`lyon` for deterministic CPU/vector tests; evaluate Vello but do not bet production on it yet |
-| Vector tessellation | `lyon`, `kurbo`, custom region/fill topology | Use `lyon` for GPU tessellation, but preserve OpenToonz vector semantics separately |
-| SVG import/render | `usvg`/`resvg` | Good candidate, with behavior comparison against current SVG importer |
-| PNG/JPEG/BMP/TGA/etc. | `image`, `png`, `jpeg-decoder`, `jpeg-encoder`, `turbojpeg` bindings | Use pure Rust for common formats where parity is easy; keep TurboJPEG where performance matters |
-| Modified TIFF | `tiff` crate plus custom extensions, or libtiff FFI | Keep current modified libtiff through FFI initially |
-| OpenEXR | `exr` crate or ASWF OpenEXR bindings | Use `exr` for tests/prototypes; validate color/deep metadata requirements |
-| PSD | Rust PSD crates are not likely enough for full parity | Keep current implementation until a fixture corpus says otherwise |
-| FFmpeg/movie IO | ffmpeg CLI sidecar, `ffmpeg-next`, `rsmpeg`, or GStreamer Rust bindings | Use CLI/sidecar for deterministic pipelines first; bind later only where frame-level access is needed |
-| QuickTime Windows legacy path | Replace with FFmpeg/GStreamer, keep old C++ helper only for compatibility if required | Deprioritize unless old projects require it |
-| Audio decoding | `symphonia` for decode/demux, `cpal`/`rodio` for playback | Good Rust candidate after waveform and sync tests exist |
-| OpenCV | `opencv` crate initially; `kornia-rs` or custom Rust algorithms later | Bind first, port algorithms selectively |
-| MyPaint brushes | libmypaint FFI | Keep FFI until brush-stroke parity can be measured |
-| SuperLU/OpenBLAS | `faer`, `nalgebra`, `ndarray`, or BLAS/LAPACK bindings | Replace only after numerical fixtures and tolerance metrics exist |
-| Boost | Rust std, `itertools`, `serde`, `thiserror`, `anyhow`, `camino`, `indexmap` | Replace organically |
-| LZ4/LZO/zlib/lzma | `lz4_flex`, `miniz_oxide`, `flate2`, `xz2`, FFI for exact legacy streams | Use pure Rust where exact stream compatibility is verified |
-| libusb / serial | `rusb`, `serialport` | Good Rust candidates |
-| TWAIN / scanner / Canon SDK | Platform FFI or sidecar process | Keep isolated; do not block engine port |
-| Qt Linguist `.ts` | Keep existing translations while Qt remains; later Fluent or Project Fluent-style catalogs | Defer migration |
-| Build system | Cargo workspace plus Nix/mise; CMake only for C++ bridge during transition | Preserve reproducible Nix/mise workflow |
+| Crate | Responsibility |
+|---|---|
+| `otz-gpu` | `wgpu` device policy, resources, pipelines, renderer implementation |
+| `otz-codec-*` | One format or third-party codec adapter per bounded crate |
+| `otz-platform` | Filesystem, process, clipboard, power/session and OS adapters |
+| `otz-farm` | Farm protocol, task state, workers, process orchestration |
+| `otz-plugin-api` | Versioned safe plugin-facing types and capability model |
+| `otz-plugin-sys` | Raw C plugin ABI only |
 
-## Rendering And Performance Enhancements
+### Migration and UI crates
 
-Rust is not automatically faster than the current C++ code. The performance win
-comes from redesigning the data flow while maintaining compatibility.
+| Crate | Responsibility |
+|---|---|
+| `otz-bridge` | CXX/CXX-Qt definitions and C++ adapter boundary |
+| `otz-qt-models` | Presentation models, DTO conversion, UI-thread delivery |
+| `otz-qtquick` | Future `qtbridge`-based Qt Quick backend types |
+| `otz-oracle` | C++ and Rust snapshot protocol types |
+| `otz-compare` | Semantic, image, event, and performance comparisons |
+| `otz-cli` | Headless inspection, conversion, comparison, and render commands |
 
-Concrete opportunities:
-
-1. Tile-based raster storage with cache-aware layouts.
-   - Store frame buffers as tiles with explicit pixel formats.
-   - Use copy-on-write or immutable tile snapshots for undo and preview caches.
-   - Make dirty regions explicit and hashable.
-
-2. Render DAG scheduling.
-   - Represent scene/FX renders as a deterministic task graph.
-   - Cache node outputs by content hash, frame, camera, DPI, palette version,
-     and FX parameter version.
-   - Re-render only invalidated tiles.
-
-3. `rayon` and work-stealing CPU parallelism.
-   - Apply parallelism to tile filters, vector rasterization batches, image
-     conversion, thumbnail generation, control-map baking, and comparison tests.
-   - Keep GUI/event loops non-blocking.
-
-4. GPU compositing and preview with `wgpu`.
-   - Move viewport compositing, onion-skin overlays, color transforms, and
-     common FX previews onto the GPU.
-   - Use compute paths for control maps, masks, depth/edge preprocessors, and
-     selected filters.
-
-5. Vector renderer modernization.
-   - Keep OpenToonz vector semantics in a custom Rust model.
-   - Tessellate through `lyon` or a purpose-built path pipeline.
-   - Evaluate Vello for large vector scenes and interactive previews, but treat
-     its current alpha status as a risk for production parity.
-
-6. Safer memory ownership.
-   - Replace ad hoc pointer ownership with arenas, generational IDs, `Arc`
-     snapshots, and explicit borrow scopes.
-   - Avoid sharing mutable scene state directly with background render workers.
-
-7. SIMD and pixel specialization.
-   - Specialize hot pixel kernels by format.
-   - Use stable SIMD where practical and keep scalar reference kernels for tests.
-
-8. IO and proxy caches.
-   - Generate thumbnails, waveforms, proxies, and control maps asynchronously.
-   - Use content hashes to avoid recomputing imported assets.
-
-9. Generative preprocessing on the same graph.
-   - Bake line, mask, depth, pose, exposure timing, and sparse track maps from
-     the OpenToonz scene graph.
-   - Cache those artifacts as first-class production assets.
-
-## Automated Comparison Testing Against C++
-
-The comparison harness is the most important part of the migration. It should be
-implemented before substantial Rust feature replacement.
-
-### Test architecture
-
-Create a `comparison/` or `tests/comparison/` tree with:
+Dependency rules:
 
 ```text
-comparison/
-  fixtures/
-    scenes/
-    levels/
-    palettes/
-    images/
-    audio/
-    scripts/
-  manifests/
-    fixture_index.toml
-    expected_capabilities.toml
-  cpp_oracle/
-    export_scene_snapshot.cpp
-    render_frame_driver.cpp
-    import_export_driver.cpp
-  rust_oracle/
-    scene_snapshot.rs
-    render_frame.rs
-    import_export.rs
-  reports/
+UI and FFI adapters
+  -> domain services
+       -> foundational value/algorithm crates
+
+renderer and codecs
+  -> domain contracts + foundation
+
+domain and foundation
+  -X-> Qt, CXX-Qt, QWidget, QRhi, platform window handles
 ```
 
-The C++ oracle should expose command-line, deterministic operations:
+`otz-scene`, `otz-render`, and `otz-raster` must build and test without Qt.
+`otz-gpu` may depend on `wgpu` but not Qt. Qt types are converted at the edge.
 
-```sh
-opentoonz-cpp-oracle scene-snapshot input.tnz --json out/cpp_scene.json
-opentoonz-cpp-oracle render-frame input.tnz --frame 42 --png out/cpp_0042.png
-opentoonz-cpp-oracle roundtrip-level input.tlv --out out/cpp_roundtrip.tlv
-```
+## Cross-Language Contract
 
-The Rust candidate should expose the same contract:
+### Value rules
 
-```sh
-otz-rust scene-snapshot input.tnz --json out/rust_scene.json
-otz-rust render-frame input.tnz --frame 42 --png out/rust_0042.png
-otz-rust roundtrip-level input.tlv --out out/rust_roundtrip.tlv
-```
+- Use fixed-width integers and explicit byte order in persisted/FFI data.
+- Define pixel channel order, component width, alpha convention, color space,
+  row stride, orientation, and alignment.
+- Represent paths internally as path-safe Rust types; convert to/from Qt and
+  legacy path encodings at adapters.
+- Use stable IDs rather than cross-language raw object addresses.
+- Version every snapshot and message.
+- Batch cells, pixels, strokes, and events; do not cross the bridge per pixel.
 
-Then `otz-compare` should produce a report:
+### Ownership rules
 
-```sh
-otz-compare run comparison/manifests/fixture_index.toml \
-  --cpp-bin toonz/build/nix-relwithdebinfo/bin/opentoonz-cpp-oracle \
-  --rust-bin target/release/otz-rust \
-  --out comparison/reports/latest
-```
+- One side owns each object and provides its destructor.
+- C++ intrusive pointers remain entirely on the C++ side.
+- Rust returns opaque handles or owned immutable DTOs.
+- Qt parent ownership applies only to Qt wrapper objects.
+- GPU resources are destroyed by the device-owning render service.
+- Worker callbacks hold an explicit cancellation-safe subscription handle.
 
-### Fixture corpus
+### Error rules
 
-The fixture corpus must include:
+- Expected failures return a typed error code plus structured detail.
+- Rust panics are contained and reported; they never unwind into C++.
+- C++ exceptions are caught by the adapter and never enter Rust.
+- A failed GPU device or worker transitions the service to a known state.
+- User-visible localization occurs in Qt; domain errors carry stable message
+  IDs and arguments, not translated strings.
 
-- empty scenes
-- simple raster levels
-- Toonz raster levels
-- vector levels with strokes, fills, styles, closed and open regions
-- palette edge cases
-- xsheets with holds, twos, blanks, sound, notes, and nested levels
-- camera and DPI edge cases
-- cleanup and vectorizer examples
-- FX graphs with animated parameters
-- mesh/plastic deformation examples
-- imported PNG/JPEG/TIFF/TGA/BMP/SVG/PSD examples
-- video/audio import examples
-- old project files from multiple OpenToonz versions
-- platform path edge cases
-- non-English file names and translated UI strings
-- large scenes for performance baselines
+### Thread rules
 
-Fixtures should be small enough for CI but realistic enough to catch hidden
-behavior. Large production scenes should run in a nightly or local benchmark
-profile.
+- Every API states `gui-thread`, `render-thread`, `worker`, or `thread-safe`.
+- No synchronous UI callback is allowed while Rust holds a mutable domain lock.
+- Long jobs return immediately with an ID and cancellation token.
+- Events are ordered per job and include a monotonic sequence.
+- Shutdown stops admission, cancels, drains/joins, releases GPU/platform
+  resources, and only then destroys bridge objects.
 
-### Comparison metrics
+## Subsystem Port Priority
 
-Use different metrics by layer:
+Scores are relative planning guidance: 1 is low and 5 is high.
 
-| Output | Metric |
+| Candidate | Value | Risk | Oracle difficulty | Recommended order |
+|---|---:|---:|---:|---|
+| Build/bridge spike and comparison protocol | 5 | 2 | 2 | First |
+| Pure geometry, IDs, frame/time, hashing | 4 | 2 | 1 | Early |
+| Selected scalar raster kernels | 5 | 3 | 2 | Early |
+| Farm protocol/process orchestration | 3 | 2 | 2 | Early |
+| Read-only scene/level snapshot | 5 | 3 | 3 | Early-middle |
+| Cache keys and content-addressed cache | 4 | 3 | 2 | Middle |
+| Selected common codecs | 3 | 3 | 3 | Per format |
+| FX descriptor/graph read model | 4 | 3 | 3 | Middle |
+| Headless render scheduler | 5 | 4 | 4 | Middle |
+| `wgpu` compositing and preview renderer | 5 | 4 | 4 | Middle-late |
+| Scene/xsheet mutation and undo | 5 | 5 | 5 | Late |
+| Vector topology/fill semantics | 5 | 5 | 5 | Late |
+| Drawing tools and tablet loops | 5 | 5 | 5 | Late |
+| Full FX library | 4 | 5 | 4 | Family by family |
+| Audio/video device paths | 3 | 4 | 5 | Late/platform |
+| Scanner/camera/vendor SDK paths | 2 | 5 | 5 | Last or isolated |
+| Existing QWidget implementation | 2 | 5 | 5 | Keep or convert selectively |
+
+Good first production kernel candidates must satisfy all of these:
+
+- no Qt object ownership;
+- deterministic input/output;
+- small stable data boundary;
+- representative fixtures already exist or can be generated;
+- benchmarkable;
+- C++ fallback can remain behind the same interface.
+
+Choose the first candidate from profiling and fixture evidence, not intuition.
+
+## Ordered Migration Program
+
+Stable requirement IDs should be used in reports and commits.
+
+### RUST-PRQ: Predecessor Completion And Baseline Freeze
+
+- `RUST-PRQ-01`: Qt 6 release contract is complete.
+- `RUST-PRQ-02`: Metal/Vulkan renderer migration is complete and its contract
+  is documented.
+- `RUST-PRQ-03`: one exact C++ release candidate and package set is retained as
+  the oracle.
+- `RUST-PRQ-04`: representative production projects and plugin/hardware scope
+  are approved.
+
+Exit: a dated evidence record names the commit, packages, platforms, hardware,
+fixtures, renderer backend/driver, and unresolved waivers.
+
+### RUST-ARC: Architecture And Build Lane
+
+- `RUST-ARC-01`: Cargo workspace, pinned Rust toolchain, Nix/mise tasks, CMake
+  import, formatting, linting, tests, license audit, and artifact packaging.
+- `RUST-ARC-02`: written bridge ownership/error/thread contract.
+- `RUST-ARC-03`: dependency guard that prevents Qt from entering core/domain
+  crates.
+- `RUST-ARC-04`: exact bridge and GPU dependency pins with upgrade policy.
+
+Exit: all supported platforms build a no-op Rust service into a package without
+changing application behavior.
+
+### RUST-ORC: Oracle And Comparison Platform
+
+- `RUST-ORC-01`: C++ snapshot/render/round-trip oracle.
+- `RUST-ORC-02`: versioned fixture manifest and normalized report schema.
+- `RUST-ORC-03`: semantic, image, event, error, and performance comparison
+  modes.
+- `RUST-ORC-04`: explicit passed/failed/unsupported/skipped states.
+
+Exit: one command compares a small corpus and produces retained JSON, Markdown,
+and image artifacts.
+
+### RUST-BRG: Qt And Service Bridge
+
+- `RUST-BRG-01`: CXX non-Qt service call with tested lifetime/error behavior.
+- `RUST-BRG-02`: CXX-Qt QObject/model with queued completion and shutdown.
+- `RUST-BRG-03`: Qt Bridge for Rust maturity spike.
+- `RUST-BRG-04`: package, signing, deployment, and license proof.
+
+Exit: maintainers select the production bridge versions and UI policy.
+
+### RUST-KRN: Leaf Kernel Substitution
+
+- `RUST-KRN-01`: first profiled deterministic kernel has scalar Rust parity.
+- `RUST-KRN-02`: optional SIMD/parallel path meets tolerances and performance
+  budget.
+- `RUST-KRN-03`: dual-run telemetry detects mismatch without corrupting output.
+- `RUST-KRN-04`: Rust becomes default; C++ fallback remains for one release
+  window.
+
+Exit: fallback removal is approved from real package evidence.
+
+### RUST-DOM: Read Models, IO, And Scene Services
+
+- `RUST-DOM-01`: Rust reads canonical snapshots for projects, scenes, levels,
+  palettes, and FX graphs.
+- `RUST-DOM-02`: selected formats pass semantic read/write/round-trip evidence.
+- `RUST-DOM-03`: command/transaction/undo model passes deterministic replay.
+- `RUST-DOM-04`: Qt presentation models consume committed Rust revisions.
+
+Exit: one bounded production workflow is Rust-owned end to end, with C++ oracle
+comparison.
+
+### RUST-REN: Rust Renderer
+
+- `RUST-REN-01`: offscreen `wgpu` reference/compositing path passes.
+- `RUST-REN-02`: Metal, Vulkan, and Windows release backends pass the named
+  corpus.
+- `RUST-REN-03`: Qt viewer presentation, input mapping, DPI, color, and device
+  loss pass.
+- `RUST-REN-04`: render scheduling, caches, FX families, and final output meet
+  correctness and performance budgets.
+
+Exit: Rust renderer is the default in preview and final render packages; the
+C++ backend has an approved removal plan.
+
+### RUST-APP: Application Ownership Convergence
+
+- `RUST-APP-01`: tools and high-frequency input use Rust transactions.
+- `RUST-APP-02`: scripting/plugin/farm/hardware contracts are complete.
+- `RUST-APP-03`: new Qt Quick surfaces use approved `qtbridge`; retained Widgets
+  use a small C++ shell.
+- `RUST-APP-04`: remaining C++ inventory is classified as remove, retain, or
+  external/vendor.
+
+Exit: Rust owns the agreed product core and the remaining C++ policy is
+explicit. “Zero C++” is a separate optional gate.
+
+## Differential Verification Strategy
+
+Every port slice should use the same proof ladder:
+
+1. **Characterization:** capture current behavior, errors, timing, and
+   nondeterminism before editing.
+2. **Unit/reference:** test pure Rust logic against hand-checked cases and a
+   scalar reference.
+3. **Differential:** run C++ and Rust on identical normalized input.
+4. **Integrated:** run through the real bridge in the Qt application.
+5. **Packaged:** run from clean supported packages.
+6. **Workflow:** complete the named artist operation, including undo, cancel,
+   save, reopen, render, and failure.
+7. **Performance:** compare wall time, CPU, peak memory, GPU memory, cache
+   behavior, and responsiveness.
+8. **Soak/fault:** cancellation, shutdown, corrupt input, out-of-memory,
+   device-loss, hotplug, and repeated open/close.
+
+Comparison outputs:
+
+| Surface | Required evidence |
 |---|---|
-| Scene snapshot JSON | Exact semantic equality after canonical sorting and path normalization |
-| Native scene/level round-trip | Byte equality where possible; otherwise semantic equality plus stable rewrite warnings |
-| Rendered raster frames | Exact pixel match for deterministic CPU paths; thresholded RGBA delta, SSIM/PSNR, perceptual hash, and alpha-edge checks for GPU/AA paths |
-| Vector data | Topology, stroke count, control points, region adjacency, fill styles, bounding boxes, rasterized preview |
-| Palette/style data | Exact style IDs, colors, names, references, and behavior under reassignment |
-| FX graph | Node graph isomorphism, parameter values, animated curves, rendered result |
-| UI behavior | Event replay logs, accessibility tree snapshots, screenshots, focus/shortcut state |
-| Performance | Frame time percentiles, memory high-water mark, cache hit rate, thread utilization |
+| Domain snapshots | Canonical JSON plus schema version and semantic diff |
+| Persistence | Read parity, semantic round trip, byte diff where stability is required, malformed corpus |
+| Raster/FX | Exact match for integer/scalar paths; documented tolerance for GPU/AA paths; alpha-edge and color-space checks |
+| Vector | Topology, region/fill identity, bounds, control points, rasterized references |
+| Commands/undo | State hashes and event sequence before/after/replay |
+| UI models | Rows, roles, edits, selections, reset/insert/remove event sequence |
+| Input/tools | Recorded device events, produced strokes/commands, cursor/overlay screenshots |
+| Renderer | Image artifacts, backend/adapter/driver, pipeline/shader hashes, timing/memory |
+| Packages | Clean launch, plugin discovery, resources, translations, signing, crash symbols |
 
-### UI comparison
+Do not silently update goldens. A golden update must name the intended behavior
+change, reviewer, source commit, and affected fixtures.
 
-GUI parity should not rely only on manual testing. Use a layered approach:
+## Migration Slice Workflow
 
-1. Instrument current Qt UI actions so important workflows can be replayed:
-   open scene, expose drawings, draw stroke, fill region, edit palette, apply FX,
-   render preview, export package.
-2. Capture structured state after each action.
-3. Capture screenshots at fixed resolution, theme, DPI, and locale.
-4. Compare screenshots with tolerant visual metrics and manually review diffs.
-5. For optional Tauri/React workbench surfaces, use Playwright for browser-level
-   flows.
-6. For Qt/Slint/native surfaces, use a native automation harness plus screenshot
-   capture.
+The repeatable workflow and evidence template are in
+`doc/rust_porting_workflow.md`. In summary:
 
-### Fuzzing and property tests
+1. select one boundary from evidence;
+2. characterize C++ behavior;
+3. design the data/ownership/thread contract;
+4. implement Rust behind a feature switch;
+5. dual-run and compare;
+6. enable Rust by default for a narrow cohort or lane;
+7. retain fallback through the agreed release window;
+8. remove C++ only after package and workflow proof;
+9. record a retrospective and strengthen a durable guard only when evidence
+   shows repetition.
 
-Add fuzz/property tests for:
+## Toolchain And Quality Policy
 
-- file parsers
-- palette/style references
-- xsheet operations
-- vector region topology
-- undo/redo invariants
-- FX graph serialization
-- path normalization
-- image decoders for untrusted inputs
+Initial policy:
 
-The core invariant is: Rust must not silently accept a file and change its
-meaning. Every lossy conversion must be explicit in the report.
+- pin stable Rust in `rust-toolchain.toml`;
+- use the 2024 Rust edition for new crates unless the selected Qt bridge
+  requires a documented exception;
+- check in `Cargo.lock` for the application workspace;
+- deny warnings in project crates after bootstrap;
+- run `cargo fmt`, Clippy, unit/integration/doc tests, dependency/license audit,
+  and platform builds;
+- use sanitizers on the C++/FFI lane where supported;
+- use Miri for suitable pure Rust/unsafe-wrapper tests;
+- use fuzzing for parsers, plugin messages, and bridge decoding;
+- centralize `unsafe` in `*-sys`, GPU backend, SIMD, and bridge modules;
+- require a safety comment and focused test for every new `unsafe` block;
+- prohibit network access in ordinary builds;
+- vendor or mirror bridge/build dependencies according to project release
+  policy before relying on them.
 
-## Generative Workbench Direction
+The exact Rust version must satisfy both selected `wgpu` and bridge versions.
+At the time of this survey, official Qt Bridge and current `wgpu` documentation
+both name Rust 1.87 as a minimum, but the project must pin and verify a specific
+toolchain rather than infer compatibility from matching minimums.
 
-The generative layer should be built as a shot-aware production system inside
-the Rust port, not as a prompt box and not as a sidecar project. It should be a
-first-class extension family that exercises the same host/module boundaries the
-Rust rewrite needs for FX, tools, render jobs, scene IO, farm workers, and future
-third-party integrations.
+## Performance Strategy
 
-### SDK inspiration from current OpenToonz plugins
+Rust is not a performance plan by itself. Measure before choosing a slice.
 
-The current sample SDK projects are small, but their shape is exactly the right
-inspiration:
+Likely opportunities:
 
-| SDK pattern | Where it appears | Generative/Rust-port lesson |
+- tile-oriented raster buffers and explicit dirty regions;
+- content-addressed render/cache keys;
+- immutable render snapshots;
+- work-stealing CPU execution for independent tiles;
+- GPU compositing, previews, and selected compute kernels;
+- bounded decode and thumbnail queues;
+- fewer UI/render shared locks;
+- batch FFI calls;
+- explicit memory budgets and eviction;
+- reusable staging/upload buffers.
+
+Every optimization needs:
+
+- a representative workload and cold/warm cases;
+- a scalar/reference result;
+- peak and steady-state memory;
+- cancellation latency;
+- UI frame-time or input-latency impact;
+- backend/adapter/driver identity;
+- regression thresholds in CI or retained benchmark reports.
+
+Do not make GPU output the only correctness oracle. Drivers and antialiasing
+vary; important integer compositing and format behavior need deterministic
+references.
+
+## Plugin, Scripting, And Compatibility Policy
+
+### Plugins
+
+Preserve the current plugin ABI while the host moves. Wrap it:
+
+- raw `otz-plugin-sys` mirrors versioned C tables and handles;
+- safe `otz-plugin-api` owns validation, lifetimes, typed parameters, tiles,
+  cancellation, and error conversion;
+- a conformance host runs plugins against synthetic and real fixtures;
+- plugin crashes may be isolated in a worker process where practical.
+
+Do not expose Rust traits directly as the dynamic ABI.
+
+### Scripting
+
+Qt 6 scripting behavior must be frozen before the Rust application model moves.
+Rust domain commands should expose a language-neutral automation API. Existing
+scripts can continue through a compatibility adapter. A future scripting
+language decision must inventory real scripts and required bindings first.
+
+### Formats
+
+Keep current third-party/native implementations behind adapters until each
+format corpus proves a replacement. Pure Rust availability is not sufficient
+evidence for PSD, modified TIFF, FFmpeg/movie behavior, MyPaint, color
+management, scanners, cameras, or vendor SDKs.
+
+## Risk Register
+
+| Risk | Consequence | Control |
 |---|---|---|
-| Shared module with `.plugin` suffix | `plugins/blur/CMakeLists.txt`, `plugins/geom/CMakeLists.txt`, `plugins/multiplugin/CMakeLists.txt` | A workbench capability should be loadable and versioned, not hardwired into one UI process |
-| Probe metadata | `TOONZ_PLUGIN_PROBE_DEFINE` in plugin examples | Generators, panels, model routes, and render nodes should advertise stable IDs, names, vendor, version, help URL, class, and capabilities |
-| Host initialization | `toonz_plugin_init(toonz::host_interface_t *hostif)` | Rust workbench modules should receive a host handle rather than reaching into globals |
-| Capability query | `hostif->query_interface(TOONZ_UUID_..., &interface)` | The Rust port should expose scene, xsheet, tile, FX, cache, render, package, and model-route interfaces by UUID/version |
-| Parameter pages | `set_parameter_pages_with_error(...)` | Model settings should be declared as host-visible parameters, not hidden in a separate web app state model |
-| Input ports | `add_input_port(node, "IPort", TOONZ_PORT_TYPE_RASTER)` | Generative nodes need typed ports for drawings, masks, palettes, timing, control maps, prompts, candidate takes, and cleanup outputs |
-| Render callbacks | `do_compute`, `do_get_bbox`, `can_handle`, frame lifecycle callbacks | Local preprocessing, control-map baking, preview generation, and selected generative FX should participate in the render graph |
-| Tile access | `toonz_tile_interface_t` raw address, stride, type, copy, rectangle | Rust must own safe wrappers around tiles so control maps and comparison tests can run inside the same render/cache model |
-| Multi-plugin module | `plugins/multiplugin` | A single Rust dynamic library can advertise several related capabilities: panels, FX nodes, package builders, route validators, and review exporters |
-
-The existing SDK only exposes enough surface for raster FX plugins. The Rust port
-should generalize that model into an `otz-workbench-sdk`: same versioned,
-capability-query style, but with richer interfaces for scene selection, xsheet
-timing, level/frame access, palette/style data, camera data, render jobs,
-background task status, and persistent production metadata.
-
-### Integrated Rust architecture
-
-The generative workbench should be split into host-facing modules rather than
-one external app:
-
-| Rust crate/module | Port integration role |
-|---|---|
-| `otz-workbench-sdk` | C ABI and Rust traits for module probe, lifecycle, host query, parameter descriptors, typed ports, callbacks, and capability negotiation |
-| `otz-generative` | Canonical shot package, model package, candidate take, retake, provenance, cost, and review data types |
-| `otz-scene` | Owns projects, scenes, xsheets, levels, frame IDs, cameras, stage objects, and selection snapshots consumed by generative modules |
-| `otz-fx` | Hosts generative preprocessing nodes as graph nodes with declared ports and parameters |
-| `otz-render` | Provides deterministic frame/tile rendering, preview exports, control-map baking, and selected-take import/export |
-| `otz-cache` | Stores thumbnails, proxies, control maps, model outputs, hashes, and invalidation metadata |
-| `otz-comfy` | Calls ComfyUI or local model routes from a render-job interface, not from UI-only code |
-| `otz-review` | Stores candidate ranking, notes, frame annotations, retake requests, approval state, and cleanup export decisions |
-| `otz-ui-model` | Exposes dockable panel models to Qt/CXX-Qt now and to future Slint/Tauri/native shells later |
-
-The host contract should support both directions:
-
-1. OpenToonz/Rust host calls a workbench module to build packages, validate
-   routes, create control maps, submit jobs, and ingest takes.
-2. Workbench modules query the host for current scene state, selected xsheet
-   range, source tiles, palette styles, camera box, render settings, cache paths,
-   cancellation flags, and project storage.
-
-That is the difference from a sidecar. The generative workbench does not parse a
-rendered export after the fact. It sees the same logical scene and render graph
-the Rust port sees.
-
-### Canonical data ownership
-
-The anim-workbench local spec still points in the right direction: Rust domain
-crates, local-first persistence, exposure cells, role-marked drawings, shot
-package manifests, ComfyUI/model-route helpers, and review metadata. In the
-OpenToonz Rust port, those concepts should be promoted into the canonical engine
-model:
-
-| Generative object | Rust/OpenToonz owner |
-|---|---|
-| Shot | `otz-scene` selection over scene, frame range, camera, xsheet section, and frame rate |
-| Keyframe package | `otz-generative` view over role-marked level drawings and selected cells |
-| Timing package | `otz-scene` exposure cells, holds, twos, blanks, sound/timecode, and retime policy |
-| Control maps | `otz-render`/`otz-fx` generated line, mask, depth proxy, pose/sparse track, and onion delta outputs |
-| Style package | `otz-color` and `otz-generative` references to palettes, model sheets, prompt fragments, and LoRA policy |
-| Background package | `otz-scene` columns plus `otz-render` camera crop, plate, depth hints, and masks |
-| Model route | `otz-comfy` or cloud/local route descriptor registered through `otz-workbench-sdk` |
-| Candidate take | `otz-generative` asset with seed, workflow hash, model versions, source asset hashes, cost, and review status |
-| Retake | `otz-review` operation tied to frame/timecode, failure label, notes, and source package version |
-| Cleanup export | `otz-io` write-back into scene-friendly folders, image sequences, levels, or future native level records |
-
-Persistence should be local-first, but not separate. Use a project-level
-workbench database or manifest directory under the OpenToonz project, keyed by
-stable scene/shot IDs and content hashes. The scene file should reference the
-generative package state enough to reopen the workbench; large generated assets
-should live in the project asset/cache store.
-
-### Host-visible generative nodes
-
-The first module family should register several capabilities, similar to how
-`plugins/multiplugin` exposes multiple plugin descriptors from one library:
-
-| Capability | Host integration |
-|---|---|
-| Shot Package Builder | Command/panel that consumes the current xsheet selection and writes a canonical package |
-| Control Map Baker | FX/render node that produces line, mask, depth proxy, motion guide, and palette masks from scene tiles |
-| Model Route Validator | Background task that checks ComfyUI/cloud route availability and required workflow inputs |
-| Generative Render Job | Render/farm task that submits a package to a route, tracks progress, supports cancellation, and records provenance |
-| Candidate Take Importer | IO/action module that registers generated outputs as scene assets or cleanup references |
-| Dailies Review Panel | Dockable UI model for comparing takes, writing frame notes, marking retakes, and approving selected takes |
-| Generative FX Node | Optional node in the FX schematic for local image/video-to-image operations where deterministic preview is possible |
-
-The UI should be dockable inside the current application during migration. A
-Tauri/React surface can still be used for a richer dailies board, but it should
-connect to the same `otz-ui-model` and `otz-review` stores as the Qt panel. It
-should be a view, not the product boundary.
-
-### Model-route integration
-
-ComfyUI should be treated like an external render backend invoked from the
-Rust render/job system. Its docs describe API-mode workflows and custom nodes;
-that maps naturally onto an OpenToonz host that prepares typed inputs and records
-typed outputs.
-
-Recommended model routes for experimentation:
-
-| Route | Integrated use |
-|---|---|
-| LTX-2 through ComfyUI | Local/open route for image-to-video, keyframe-conditioned motion, LoRA, and control-map experiments |
-| Wan 2.2 through ComfyUI | Comparison route for image/video generation with the same shot package inputs |
-| Cloud model adapters | Quality benchmark and fallback route behind the same `ModelRoute` trait |
-| Interpolation/cleanup route | Lower-risk in-between, limited-animation, line stabilization, and cleanup assistant route |
-| Non-generative render route | Baseline OpenToonz/Rust render route proving timing, camera, and source assets are unchanged |
-
-The key integration rule: every route receives a typed `ModelPackage`, never a
-loose prompt plus a folder path. Every output returns a typed `CandidateTake`.
-
-### First integrated workflow
-
-The first useful workflow should run inside the OpenToonz/Rust host:
-
-1. User selects a frame range or shot in the xsheet.
-2. User marks drawings as start, breakdown, end, control, cleanup, or retake.
-3. The Shot Package Builder queries the host for scene, xsheet, level, palette,
-   camera, and source tile data.
-4. The Control Map Baker creates line/mask/depth/sparse-track outputs through
-   the render/cache interfaces.
-5. The Model Route Validator checks required inputs and estimates cost.
-6. The Generative Render Job submits a typed model package to ComfyUI/local/cloud
-   routes through the Rust job system.
-7. Candidate takes return with seed, route, workflow hash, source asset hashes,
-   cost, and frame/timecode metadata.
-8. The Dailies Review Panel records approvals or retake requests in the project
-   workbench store.
-9. The Candidate Take Importer writes selected outputs back as scene assets,
-   cleanup references, or renderable columns.
-
-This can start while the main app is still C++/Qt, but it should be implemented
-as the first production-grade consumer of the Rust port's scene, render, cache,
-and host-interface crates. That makes generative work a forcing function for the
-Rust architecture instead of a parallel experiment.
-
-## Phased Migration Plan
-
-### Phase 0: Compatibility harness and architecture freeze
-
-Duration: 2 to 4 months with 2 to 3 engineers.
-
-Deliverables:
-
-- C++ oracle command-line tools
-- fixture corpus
-- scene snapshot schema
-- frame render comparison report
-- dependency inventory
-- license inventory
-- Rust workspace skeleton
-- FFI proof of concept
-- CI job that runs a small comparison set
-
-Exit criteria:
-
-- At least 50 representative fixtures compare successfully through the C++
-  oracle.
-- The team can explain which parts require exact parity and which may be
-  intentionally redesigned.
-
-### Phase 1: Integrated Rust generative workbench module
-
-Duration: 3 to 6 months with 2 to 4 engineers.
-
-Deliverables:
-
-- `otz-workbench-sdk` host/module ABI inspired by the current plugin SDK
-- `otz-generative` model package, candidate take, retake, provenance, and cost
-  types
-- C++/Qt bridge that lets the current OpenToonz host call the Rust workbench
-  module for selected xsheet ranges
-- dockable Qt or CXX-Qt workbench panel backed by Rust `otz-ui-model` state
-- optional Tauri/React dailies surface that talks to the same Rust state
-- ComfyUI API client behind a `ModelRoute` trait
-- Control Map Baker integrated with the render/cache interfaces
-- candidate take import/export path that writes back into scene assets or
-  cleanup references
-
-Exit criteria:
-
-- An artist can select an xsheet range in OpenToonz, build a typed model package
-  through the Rust workbench module, bake control maps from the same scene/render
-  data used by the port, generate candidates through a local ComfyUI route,
-  review takes in a host-integrated panel, and write a selected take back into
-  the scene or cleanup workflow.
-
-### Phase 2: Rust scene and IO read path
-
-Duration: 6 to 12 months with 3 to 5 engineers.
-
-Deliverables:
-
-- Rust readers for core project/scene/xsheet/level/palette formats
-- semantic JSON snapshot parity
-- read-only Rust scene browser
-- round-trip tests for low-risk formats
-- fuzz tests for parsers
-
-Exit criteria:
-
-- Rust can load and semantically inspect a meaningful fixture corpus without
-  mutating files.
-
-### Phase 3: Headless Rust renderer parity
-
-Duration: 9 to 18 months with 4 to 6 engineers.
-
-Deliverables:
-
-- raster/vector core
-- palette/style application
-- camera/DPI behavior
-- initial FX graph
-- tile render scheduler
-- CPU reference renderer
-- image comparison report
-
-Exit criteria:
-
-- Rust renders representative scenes close enough to C++ that diffs are
-  understood, categorized, and tracked.
-
-### Phase 4: Tools, vector semantics, cleanup, and brush parity
-
-Duration: 12 to 24 months with 4 to 8 engineers.
-
-Deliverables:
-
-- brush-stroke replay tests
-- MyPaint FFI or Rust brush equivalent
-- vector topology and fill solver
-- cleanup/vectorizer parity
-- undo/redo invariants
-- tablet/input replay
-
-Exit criteria:
-
-- The Rust engine can create and modify drawings with measured parity for core
-  production workflows.
-
-### Phase 5: New desktop shell
-
-Duration: 9 to 18 months with 4 to 8 engineers, overlapping earlier phases only
-after the engine API stabilizes.
-
-Deliverables:
-
-- Tauri or Slint shell prototype
-- docking/timeline/xsheet/canvas surface
-- Rust renderer integration
-- packaging story
-- translation/i18n plan
-- UI event comparison tests
-
-Exit criteria:
-
-- The new shell can run a real workflow end to end without falling back to the
-  old app for basic drawing, timing, preview, render, and export.
-
-### Phase 6: Plugin, scripting, farm, and platform parity
-
-Duration: 6 to 18 months depending on supported scope.
-
-Deliverables:
-
-- scripting replacement
-- plugin ABI or compatibility bridge
-- farm rewrite
-- scanner/camera platform integration
-- installer/package equivalents
-
-Exit criteria:
-
-- Production teams can migrate without losing critical platform workflows.
-
-## Effort Estimate
-
-These estimates assume serious parity with the current application.
-
-| Goal | Team | Time | Outcome |
-|---|---:|---:|---|
-| Integrated generative workbench module | 2 to 4 engineers plus artist/pipeline tester | 3 to 6 months | Rust host/module SDK, Qt-integrated panel, ComfyUI route, package/review/write-back loop |
-| Rust read-only compatibility engine | 3 to 5 engineers | 6 to 12 months | Load/inspect scenes, export packages, compare metadata |
-| Rust headless renderer parity | 4 to 6 engineers | 12 to 24 months | Render meaningful scenes, run automated frame comparison |
-| Full Rust production app with partial OpenToonz parity | 6 to 10 engineers | 24 to 36 months | New app useful for selected workflows |
-| Full OpenToonz replacement | 8 to 12+ engineers | 3 to 5+ years | Only plausible with disciplined comparison testing and scoped compatibility decisions |
-
-A solo or small-team experiment should not aim for full parity first. It should
-aim for the integrated generative module and compatibility harness.
-
-## Risks And Mitigations
-
-| Risk | Why it matters | Mitigation |
-|---|---|---|
-| GUI rewrite consumes the project | The current Qt surface is huge and behavior-rich | Keep Qt until the Rust engine has parity |
-| File format drift | Artists need old projects to load correctly | Build read-only parsers and semantic snapshots before writers |
-| Renderer differences are invisible until late | Tiny differences affect production output | Add frame comparison and fixture reports first |
-| Rust GUI ecosystem churn | Framework choices may change faster than the port | Keep GUI choice isolated from core crates |
-| Generative model churn | LTX/Wan/cloud routes will change quickly | Use model-route registry, pinned workflow hashes, and provenance |
-| GPU nondeterminism | GPU output may vary by backend | Keep CPU reference renderer and tolerant GPU metrics |
-| Licensing | OpenToonz, third-party code, brushes, Qt, Slint, model weights may have incompatible terms | Run license inventory before copying code or shipping model integrations |
-| Plugin ABI | Existing FX/plugin contracts may not map cleanly to Rust | Use a versioned plugin bridge and keep C ABI where needed |
-| Hardware integrations | Scanner, Canon, serial, tablet paths are platform-specific | Isolate behind sidecars or FFI modules |
-| Scope collapse | "Rewrite OpenToonz" can absorb all available time | Make the host-integrated generative module the first product milestone |
-
-## Concrete Technical Decisions
-
-Recommended now:
-
-- Create a Rust workspace beside the C++ tree, not inside `toonz/sources`.
-- Preserve Nix/mise as the reproducible developer entry point.
-- Add C++ oracle tools before replacing behavior.
-- Define `otz-workbench-sdk` as a versioned host/module ABI inspired by the
-  current OpenToonz plugin SDK.
-- Use Rust for canonical generative package/export/review/job logic.
-- Use a dockable Qt or CXX-Qt surface as the first workbench UI inside the
-  current application.
-- Use Tauri/React only as an optional rich review/dashboard surface over the
-  same Rust state.
-- Use C ABI or CXX/CXX-Qt to call Rust from the current Qt application and to
-  let Rust modules query host capabilities.
-- Use ComfyUI as the first render backend integration.
-- Use `wgpu` for new GPU renderer/control-map work.
-- Keep modified libtiff, MyPaint, OpenCV, FFmpeg/video, scanner/camera, and
-  platform hardware paths behind FFI or sidecars initially.
-- Use `image-rs`, `resvg/usvg`, `symphonia`, `rusb`, `serialport`, `serde`,
-  `rayon`, `tracing`, `criterion`, and `proptest` where they fit cleanly.
-
-Recommended later:
-
-- Evaluate Slint for a native Rust UI only after engine APIs and comparison
-  tests are mature.
-- Evaluate Vello for interactive vector scenes, but keep a CPU/reference path
-  and custom vector semantics.
-- Replace C++ FX one family at a time, starting with deterministic image/color
-  effects.
-- Replace command-line tools before the main GUI.
-- Replace farm/controller services before mature drawing widgets.
-
-Not recommended:
-
-- Big-bang rewrite.
-- Replacing Qt first.
-- Treating Tauri as a complete substitute for the professional drawing/viewer
-  surface without a native/GPU viewport plan.
-- Replacing image/file decoders without a fixture corpus.
-- Baking model-specific behavior directly into scene files.
-- Letting prompt text become the only source of continuity.
-
-## Suggested First Milestones For This Checkout
-
-1. `doc/rust_migration_study.md` as the decision baseline.
-2. `rust/` workspace with `otz-core`, `otz-workbench-sdk`, `otz-generative`,
-   `otz-comfy`, `otz-review`, `otz-compare`, and `otz-cli`.
-3. C++ command-line oracle target that can export a scene/xsheet snapshot to
-   canonical JSON.
-4. Rust host/module ABI modeled after the current SDK:
-   - module probe metadata
-   - host initialization
-   - capability query by UUID/version
-   - parameter page descriptors
-   - typed ports
-   - lifecycle callbacks
-   - cancellation/progress reporting
-5. Shot/model package manifest schema:
-   - project
-   - sequence
-   - shot
-   - frame range
-   - frame rate
-   - aspect/camera
-   - exposure cells
-   - role-marked drawings
-   - palette/style references
-   - masks/control maps
-   - prompt fragments
-   - model route policy
-   - provenance
-6. Current OpenToonz bridge command/panel that calls Rust to build a typed
-   model package from the selected xsheet range.
-7. Control Map Baker module that reads host scene/tile/render data and writes
-   cached line/mask/depth/sparse-track artifacts.
-8. Host-integrated review panel that validates a ComfyUI route, submits a job,
-   records candidate takes, and writes a selected take back into the scene or
-   cleanup package.
-9. CI comparison job for a tiny fixture set.
-
-This sequence provides learning quickly and does not require betting the whole
-application on a Rust rewrite.
-
-## Source Notes
-
-External sources checked for current framework and backend facts:
-
-- CXX-Qt: https://github.com/KDAB/cxx-qt and https://kdab.github.io/cxx-qt/book/
-- Tauri: https://v2.tauri.app/start/ and https://v2.tauri.app/concept/inter-process-communication/
-- Slint: https://slint.rs/
-- egui: https://github.com/emilk/egui
-- Iced: https://github.com/iced-rs/iced
-- wgpu: https://github.com/gfx-rs/wgpu
-- Vello: https://github.com/linebender/vello
-- resvg/usvg: https://github.com/linebender/resvg
-- image-rs: https://github.com/image-rs/image
-- ComfyUI custom nodes/API mode: https://docs.comfy.org/custom-nodes/overview
-- LTX-2 ComfyUI integration: https://docs.ltx.video/open-source-model/integration-tools/comfy-ui
-- Wan 2.2 ComfyUI examples: https://comfyanonymous.github.io/ComfyUI_examples/wan22/
-
-Local references used:
-
-- `toonz/sources/CMakeLists.txt`
-- `toonz/sources/CMakePresets.json`
-- `mise.toml`
-- `flake.nix`
-- `doc/how_to_build_nix_mise.md`
-- `doc/how_to_build_linux.md`
-- `doc/how_to_build_macosx.md`
-- `doc/how_to_build_win.md`
-- `toonz/sources/toonzqt/toonz_plugin.h`
-- `toonz/sources/toonzqt/toonz_hostif.h`
-- `toonz/sources/toonzqt/pluginhost.cpp`
-- `toonz/sources/include/toonzqt/pluginloader.h`
-- `plugins/blur/blur.cpp`
-- `plugins/geom/geom.cpp`
-- `plugins/multiplugin/multi.cpp`
-- `/Users/briangyss/src/anim-workbench/README.md`
-- `/Users/briangyss/src/anim-workbench/docs/opentoonz_inspired_mapping.md`
-- `/Users/briangyss/src/anim-workbench/docs/book/src/drawing-workbench.md`
-- `/Users/briangyss/src/anim-workbench/generative_toonboom_six_month_software_plan.md`
+| Big-bang rewrite | Years without a trusted release | One bounded replaceable slice at a time |
+| Translating classes literally | C++ coupling recreated in Rust | Domain/command architecture before mutation port |
+| Bridge sprawl | Unsafe ownership and thread bugs | Few batch APIs, opaque handles, generated bridges, contract tests |
+| Premature Qt Bridge adoption | Beta/API/platform blockers enter releases | Maturity spike and exact pin |
+| QWidget/Qt Quick split | Inconsistent focus, style, input, accessibility | Convert coherent surfaces; package/manual matrix |
+| Two GPU device owners | Copies, synchronization bugs, device loss | One renderer owner and explicit presentation adapter |
+| QRhi private API dependence | Qt-minor breakage | Keep QRhi out of Rust core; bounded adapter only |
+| `wgpu` breaking cadence | Frequent renderer churn | Pin versions and run explicit upgrade projects |
+| Persistence drift | Old scenes load differently or cannot round-trip | Versioned corpus, semantic and byte comparisons |
+| Hidden plugin behavior | Community projects break | Plugin inventory, conformance harness, compatibility window |
+| GPU nondeterminism | False failures or unnoticed regressions | CPU references, tolerances, backend metadata |
+| C++ fallback never removed | Permanent duplicate maintenance | Removal owner/date/gate for every slice |
+| “Zero C++” becomes the metric | Safe retained adapters are rewritten without value | Track product ownership and risk, not line count |
+
+## Effort And Staffing Reality
+
+This is a multi-year product migration, not a seasonal refactor. Static source
+size alone cannot produce a credible schedule. Before estimating dates, finish
+`RUST-ORC` and two representative slices: one pure kernel and one Qt/render
+integration slice. Their measured characterization, implementation,
+cross-platform, review, and fallback-removal costs provide the first useful
+velocity.
+
+Plan around persistent specialties:
+
+- OpenToonz scene/format/domain maintainers;
+- Qt Widgets/Qt Quick and cross-platform packaging;
+- Rust architecture and FFI;
+- GPU/rendering and color;
+- QA automation plus artist/studio verification;
+- platform/hardware/plugin compatibility.
+
+A small team can establish the architecture and early slices. It cannot safely
+port scene, renderer, tools, UI, formats, hardware, and packages in parallel
+without increasing integration risk. Scale only after contracts and the oracle
+are stable.
+
+## Best First Actions
+
+After predecessor gates close:
+
+1. create a dated baseline record for the C++/Qt 6/Metal-Vulkan release;
+2. profile representative projects and choose one deterministic kernel;
+3. add the Cargo/Nix/mise/CMake lane with no behavior change;
+4. implement the versioned oracle/report protocol;
+5. prove CXX and CXX-Qt lifetime, error, queue, shutdown, and packaging;
+6. run the official Qt Bridge maturity spike without making it a release
+   dependency;
+7. run an offscreen `wgpu` triangle/texture/readback package probe on all
+   supported platforms;
+8. port the selected kernel behind dual-run comparison;
+9. publish the first evidence record and retrospective;
+10. only then approve the first production ownership transfer.
+
+The implementation contract is
+`doc/rust_port_codex_goal_prompt.md`. The repeatable operating procedure is
+`doc/rust_porting_workflow.md`.
+
+## Primary Sources
+
+Framework state is time-sensitive. Recheck these sources before implementation
+or dependency upgrades:
+
+- [Qt Bridge for Rust 0.2 documentation](https://doc-snapshots.qt.io/qtbridge-rust/qtbridge/index.html)
+- [Qt announcement of the Rust bridge public beta, July 1, 2026](https://www.qt.io/blog/qt-bridges-public-beta-for-rust)
+- [CXX-Qt documentation](https://kdab.github.io/cxx-qt/book/)
+- [CXX safe Rust/C++ interop](https://cxx.rs/)
+- [CXX-Qt CMake integration](https://kdab.github.io/cxx-qt/book/getting-started/5-cmake-integration.html)
+- [Corrosion CMake/Cargo integration](https://corrosion-rs.github.io/corrosion/)
+- [`wgpu` project and platform support matrix](https://github.com/gfx-rs/wgpu)
+- [`wgpu` backend reference](https://docs.rs/wgpu/latest/wgpu/enum.Backend.html)
+- [Naga shader endpoint matrix](https://docs.rs/naga/latest/naga/)
+- [Qt `QQuickRhiItem` and QRhi compatibility notes](https://doc.qt.io/qt-6/qquickrhiitem.html)
+- [Qt `QWidget::createWindowContainer` limitations](https://doc.qt.io/qt-6/qwidget.html#createWindowContainer)
+- [`ash` Vulkan bindings](https://docs.rs/ash/latest/ash/)
+- [`objc2-metal` Metal bindings](https://docs.rs/objc2-metal/latest/objc2_metal/)
+- [Rust FFI and unwinding guidance](https://doc.rust-lang.org/nomicon/unwinding.html)
+- [bindgen C++ limitations](https://rust-lang.github.io/rust-bindgen/cpp.html)
